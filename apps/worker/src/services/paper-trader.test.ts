@@ -166,6 +166,26 @@ describe("PaperTraderService", () => {
 
     expect(health.details?.strategyCount).toBe(baselineStrategies.length);
   });
+
+  it("schedules recurring paper evaluation after startup", async () => {
+    vi.useFakeTimers();
+    const candleRepository = new FakePaperCandleRepository((input) =>
+      makeCandleSets(input.timeframe, input.limit),
+    );
+    const service = new PaperTraderService({
+      intervalMs: 1_000,
+      strategies: [BASELINE_STRATEGIES["1m"]],
+      candleRepository,
+      tradingRepository: new InMemoryPaperTradingRepository(),
+    });
+
+    await service.start();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await service.stop();
+    vi.useRealTimers();
+
+    expect(candleRepository.requests).toHaveLength(2);
+  });
 });
 
 type CandleRequest = Parameters<PaperCandleRepository["getRecentCandleSets"]>[0];
