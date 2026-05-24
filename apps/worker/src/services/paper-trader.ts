@@ -89,6 +89,7 @@ export interface PaperStrategyRunner {
 }
 
 export type PaperTraderServiceOptions = {
+  intervalMs?: number | null;
   strategies?: StrategyDefinition[];
   candleRepository?: PaperCandleRepository;
   tradingRepository?: PaperTradingRepository;
@@ -107,12 +108,15 @@ export class PaperTraderService implements WorkerService {
   private readonly candleRepository: PaperCandleRepository;
   private readonly tradingRepository: PaperTradingRepository;
   private readonly strategyRunner: PaperStrategyRunner;
+  private readonly intervalMs: number | null;
+  private interval: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: PaperTraderServiceOptions = {}) {
     this.strategies = options.strategies ?? baselineStrategies;
     this.candleRepository = options.candleRepository ?? new DbPaperCandleRepository();
     this.tradingRepository = options.tradingRepository ?? new DbPaperTradingRepository();
     this.strategyRunner = options.strategyRunner ?? new BaselinePaperStrategyRunner();
+    this.intervalMs = options.intervalMs === undefined ? 60 * 1000 : options.intervalMs;
   }
 
   async start(): Promise<void> {
@@ -122,9 +126,21 @@ export class PaperTraderService implements WorkerService {
 
     this.state = "starting";
     await this.runOnce();
+
+    if (this.intervalMs !== null && this.interval === null) {
+      this.interval = setInterval(() => {
+        void this.runScheduledStep();
+      }, this.intervalMs);
+      this.interval.unref?.();
+    }
   }
 
   async stop(): Promise<void> {
+    if (this.interval !== null) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+
     this.state = "stopped";
   }
 
@@ -153,6 +169,17 @@ export class PaperTraderService implements WorkerService {
     this.state = statuses.some((status) => status.state === "failed") ? "degraded" : "ready";
 
     return statuses;
+  }
+
+  private async runScheduledStep(): Promise<void> {
+    try {
+      await this.runOnce();
+    } catch (error) {
+      const now = new Date();
+      this.latestStatuses = this.strategies.map((strategy) => failedStatus(strategy, now, error));
+      this.lastRunFinishedAt = now.toISOString();
+      this.state = "degraded";
+    }
   }
 
   private async evaluateStrategy(

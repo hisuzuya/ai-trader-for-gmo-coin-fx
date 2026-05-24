@@ -8,14 +8,15 @@ advice, investment advice, or a recommendation to trade.
 ## Overview
 
 `ai-trader-for-gmo-coin-fx` is an AI-assisted FX trading research system for GMO
-Coin FX USD/JPY. The current implementation focuses on collecting public market
-data, normalizing ticks and candles, running worker-side import jobs, and
-showing system status through a Next.js dashboard.
+Coin FX USD/JPY. The current implementation collects public market data,
+normalizes ticks and candles, runs baseline paper trading, generates AI candidate
+and daily-review JSON through the isolated AI runner, and shows the operational
+state through a Next.js dashboard.
 
-Current status: Phase 0 scaffold. The current implementation is limited to
-paper trading and research workflows. Live trading, GMO Private API integration,
-and real order placement are planned for a later phase and are intentionally out
-of scope for the current codebase.
+Current status: MVP paper-trading implementation through Phase 4. The current
+implementation is limited to paper trading and research workflows. Live trading,
+GMO Private API integration, and real order placement are intentionally out of
+scope for the current codebase.
 
 See [docs/architecture.md](docs/architecture.md).
 
@@ -25,12 +26,13 @@ The local stack is split into a small set of containers so each runtime has a
 clear job:
 
 - `next-web`: Next.js dashboard for system status, research UI, and tRPC routes.
-- `worker`: Hono API for health checks, readiness checks, status endpoints, and
-  background jobs such as historical market-data imports.
-- `ai-runner`: isolated service boundary for future AI-assisted strategy
-  proposal and review workflows.
-- `timescaledb`: PostgreSQL/TimescaleDB storage for candles, features, and job
-  run records.
+- `worker`: Hono API for health checks, readiness checks, status endpoints,
+  market-data collection, paper trading, AI tuning, daily reviews, and manual
+  job triggers.
+- `ai-runner`: isolated service boundary for Claude CLI strategy proposal and
+  daily review workflows.
+- `timescaledb`: PostgreSQL/TimescaleDB storage for candles, features, paper
+  trading records, strategy candidates, AI invocations, and daily reviews.
 
 Market data flows from the GMO Coin FX public API into the worker, through the
 normalization and aggregation pipeline, then into TimescaleDB. The dashboard
