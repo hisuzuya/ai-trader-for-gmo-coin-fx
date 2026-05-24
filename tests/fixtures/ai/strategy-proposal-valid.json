@@ -1,0 +1,103 @@
+{
+  "proposal_id": "fixture-valid-5m",
+  "rationale": "Tune the approved USD/JPY 5m baseline within the Strategy DSL.",
+  "strategy": {
+    "meta": {
+      "name": "fixture_valid_5m",
+      "description": "Valid USD/JPY 5m strategy fixture for AI proposal validation.",
+      "symbol": "USD_JPY",
+      "timeframe": "5m",
+      "enabled": true
+    },
+    "indicators": {
+      "sma": { "periods": [20, 50, 100] },
+      "ema": { "periods": [9, 21, 55] },
+      "rsi": { "period": 14 },
+      "bollingerBands": { "period": 20, "stdDev": 2 },
+      "atr": { "period": 14, "longPeriod": 50, "maxSpikeRatio": 2.5 },
+      "adx": { "period": 14, "trendThreshold": 25, "weakTrendThreshold": 18 },
+      "macd": { "fastPeriod": 12, "slowPeriod": 26, "signalPeriod": 9 }
+    },
+    "gates": {
+      "data": {
+        "min_candle_count": 120,
+        "allow_missing_candles": false,
+        "max_latest_candle_age_seconds": 360
+      },
+      "market_time": {
+        "rollover_blackout_before_minutes": 10,
+        "rollover_blackout_after_minutes": 10,
+        "stop_new_entries_before_weekend_close_hours": 2
+      },
+      "volatility": {
+        "max_spread_pips": 0.8,
+        "min_bollinger_band_width_pips": 1,
+        "max_atr_spike_ratio": 2.5
+      },
+      "regime": {
+        "hold_bars_after_transition": 2,
+        "require_adx_for_breakout": true
+      },
+      "signal_quality": {
+        "require_candle_confirmation": true
+      }
+    },
+    "regime": {
+      "detector": "adx_slope",
+      "sideways_when_adx_below": 18,
+      "trend_when_adx_above": 25
+    },
+    "entry": {
+      "mode": "hybrid",
+      "long": {
+        "type": "all",
+        "conditions": [
+          { "type": "regime_is", "regime": "SIDEWAYS" },
+          { "type": "indicator_threshold", "indicator": "rsi", "operator": "<=", "value": 30 },
+          {
+            "type": "price_vs_indicator",
+            "price": "close",
+            "operator": "below",
+            "indicator": { "kind": "indicator", "indicator": "bollingerBands", "output": "lower" }
+          }
+        ]
+      },
+      "short": {
+        "type": "all",
+        "conditions": [
+          { "type": "regime_is", "regime": "SIDEWAYS" },
+          { "type": "indicator_threshold", "indicator": "rsi", "operator": ">=", "value": 70 },
+          {
+            "type": "price_vs_indicator",
+            "price": "close",
+            "operator": "above",
+            "indicator": { "kind": "indicator", "indicator": "bollingerBands", "output": "upper" }
+          }
+        ]
+      }
+    },
+    "exit": {
+      "take_profit_pips": 10,
+      "stop_loss_pips": 10,
+      "trailing_stop_pips": 5,
+      "break_even_trigger_pips": 3,
+      "opposite_signal_exit": true,
+      "allow_reversal_entry": false
+    },
+    "risk": {
+      "lot_sizing": {
+        "mode": "fixed",
+        "fixed_quantity": 1000
+      },
+      "max_open_positions_per_account": 2,
+      "allow_pyramiding": false,
+      "max_same_direction_positions": 1,
+      "max_margin_usage_pct": 50,
+      "max_loss_per_trade_jpy": 1000,
+      "max_daily_loss_jpy": 2000,
+      "min_margin_maintenance_rate_for_entry": 300,
+      "warning_margin_maintenance_rate": 250,
+      "emergency_exit_margin_maintenance_rate": 150
+    }
+  }
+}
