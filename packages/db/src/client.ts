@@ -1,7 +1,6 @@
+import { env } from "@ai-trade/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-
-import { env } from "@ai-trade/config";
 
 import * as schema from "./schema/index.js";
 

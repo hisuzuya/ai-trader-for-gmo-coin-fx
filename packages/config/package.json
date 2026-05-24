@@ -8,7 +8,7 @@
     "./env": "./src/env.ts"
   },
   "scripts": {
-    "lint": "eslint .",
+    "lint": "biome ci .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

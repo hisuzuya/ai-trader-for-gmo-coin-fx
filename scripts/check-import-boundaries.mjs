@@ -48,9 +48,7 @@ for (const rule of rules) {
       const specifier = match[1] ?? match[2];
 
       if (rule.forbidden.some((pattern) => pattern.test(specifier))) {
-        failures.push(
-          `${rule.label}: ${path.relative(root, file)} imports ${specifier}`,
-        );
+        failures.push(`${rule.label}: ${path.relative(root, file)} imports ${specifier}`);
       }
     }
   }

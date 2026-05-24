@@ -5,8 +5,8 @@ import {
   runRecordedJob,
 } from "@ai-trade/db";
 import {
-  type HistoricalImportResult,
   type HistoricalImporter,
+  type HistoricalImportResult,
   StubHistoricalImporter,
 } from "./jobs/historical-importer.js";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "./types.js";
@@ -96,11 +96,8 @@ export class WorkerRuntime {
     jobRunId: string;
     result: HistoricalImportResult;
   }> {
-    return runRecordedJob(
-      this.jobRunRecorder,
-      "historical-import",
-      { date },
-      () => this.historicalImporter.importDate({ date }),
+    return runRecordedJob(this.jobRunRecorder, "historical-import", { date }, () =>
+      this.historicalImporter.importDate({ date }),
     );
   }
 
@@ -109,17 +106,11 @@ export class WorkerRuntime {
   }
 }
 
-function detailString(
-  service: ServiceHealth | undefined,
-  key: string,
-): string | null {
+function detailString(service: ServiceHealth | undefined, key: string): string | null {
   const value = service?.details?.[key];
   return typeof value === "string" ? value : null;
 }
 
-function detailBoolean(
-  service: ServiceHealth | undefined,
-  key: string,
-): boolean {
+function detailBoolean(service: ServiceHealth | undefined, key: string): boolean {
   return service?.details?.[key] === true;
 }

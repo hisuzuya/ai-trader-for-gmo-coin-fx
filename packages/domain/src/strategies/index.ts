@@ -1,8 +1,3 @@
-export type {
-  IndicatorDefinitions,
-  StrategyDefinition,
-  StrategyTimeframe,
-} from "./types.js";
 export {
   BASELINE_STRATEGIES,
   baselineStrategies,
@@ -12,6 +7,11 @@ export {
   strategyDefinitionSchema,
 } from "./server/schema.js";
 export {
-  validateStrategyDefinition,
   validateAiStrategyProposal,
+  validateStrategyDefinition,
 } from "./server/validator.js";
+export type {
+  IndicatorDefinitions,
+  StrategyDefinition,
+  StrategyTimeframe,
+} from "./types.js";

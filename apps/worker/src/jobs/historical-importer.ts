@@ -1,11 +1,11 @@
+import { CandleRepository } from "@ai-trade/db";
 import {
-  GmoFxPublicClient,
-  importGmoHistoricalCandles,
   type CanonicalCandle,
+  GmoFxPublicClient,
   type ImportGmoHistoricalCandlesOptions,
+  importGmoHistoricalCandles,
   type MarketSymbol,
 } from "@ai-trade/domain/market-data";
-import { CandleRepository } from "@ai-trade/db";
 
 export type HistoricalImportRequest = {
   date: string;
@@ -16,14 +16,10 @@ export type HistoricalImportResult = {
 };
 
 export interface HistoricalImporter {
-  importDate(
-    request: HistoricalImportRequest,
-  ): Promise<HistoricalImportResult>;
+  importDate(request: HistoricalImportRequest): Promise<HistoricalImportResult>;
 }
 
-type HistoricalImporterClient = NonNullable<
-  ImportGmoHistoricalCandlesOptions["client"]
->;
+type HistoricalImporterClient = NonNullable<ImportGmoHistoricalCandlesOptions["client"]>;
 
 type HistoricalCandleRepository = Pick<CandleRepository, "upsertMany">;
 
@@ -44,14 +40,11 @@ export class GmoHistoricalImporter implements HistoricalImporter {
     this.symbol = options.symbol ?? "USD_JPY";
   }
 
-  async importDate(
-    request: HistoricalImportRequest,
-  ): Promise<HistoricalImportResult> {
+  async importDate(request: HistoricalImportRequest): Promise<HistoricalImportResult> {
     const result = await importGmoHistoricalCandles({
       client: this.client,
       writer: {
-        writeCandles: (candles: CanonicalCandle[]) =>
-          this.repository.upsertMany(candles),
+        writeCandles: (candles: CanonicalCandle[]) => this.repository.upsertMany(candles),
       },
       symbol: this.symbol,
       targetDate: request.date,

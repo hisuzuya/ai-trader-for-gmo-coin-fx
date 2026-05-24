@@ -1,8 +1,8 @@
 import { env } from "@ai-trade/config";
 import {
-  parseGmoWebSocketTickerMessage,
   type GmoFxTicker,
   type MarketSymbol,
+  parseGmoWebSocketTickerMessage,
 } from "@ai-trade/domain/market-data";
 
 import type { ServiceHealth, ServiceState, WorkerService } from "../types.js";

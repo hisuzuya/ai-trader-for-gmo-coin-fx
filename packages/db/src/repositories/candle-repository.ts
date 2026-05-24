@@ -1,6 +1,5 @@
-import { sql } from "drizzle-orm";
-
 import type { CanonicalCandle } from "@ai-trade/domain/market-data";
+import { sql } from "drizzle-orm";
 
 import { db } from "../client.js";
 import { candles } from "../schema/index.js";
@@ -20,12 +19,7 @@ export class CandleRepository {
       .insert(candles)
       .values(toCandleInsertRows(canonicalCandles))
       .onConflictDoUpdate({
-        target: [
-          candles.symbol,
-          candles.timeframe,
-          candles.priceType,
-          candles.openedAt,
-        ],
+        target: [candles.symbol, candles.timeframe, candles.priceType, candles.openedAt],
         set: {
           open: sql`excluded.open`,
           high: sql`excluded.high`,

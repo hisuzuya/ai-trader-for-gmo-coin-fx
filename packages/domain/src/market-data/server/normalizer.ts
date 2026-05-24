@@ -19,9 +19,7 @@ export function normalizeGmoKlinesToCandles(
     interval: GmoFxKlineInterval;
   },
 ): CanonicalCandle[] {
-  return response.data.map((kline) =>
-    normalizeGmoKlineToCandle(kline, options),
-  );
+  return response.data.map((kline) => normalizeGmoKlineToCandle(kline, options));
 }
 
 export function normalizeGmoKlineToCandle(
@@ -50,16 +48,12 @@ export function deriveMidCandlesFromBidAsk(
   bidCandles: CanonicalCandle[],
   askCandles: CanonicalCandle[],
 ): CanonicalCandle[] {
-  const askByOpenedAt = new Map(
-    askCandles.map((candle) => [candle.openedAt.getTime(), candle]),
-  );
+  const askByOpenedAt = new Map(askCandles.map((candle) => [candle.openedAt.getTime(), candle]));
 
   return bidCandles.map((bid) => {
     const ask = askByOpenedAt.get(bid.openedAt.getTime());
     if (!ask) {
-      throw new RangeError(
-        `missing ASK candle for ${bid.openedAt.toISOString()}`,
-      );
+      throw new RangeError(`missing ASK candle for ${bid.openedAt.toISOString()}`);
     }
     if (
       bid.symbol !== ask.symbol ||

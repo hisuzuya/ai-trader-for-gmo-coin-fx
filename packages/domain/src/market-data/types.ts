@@ -5,13 +5,7 @@ export type CandlePriceType = "bid" | "ask" | "mid";
 export type CandleTimeframe = "1m" | "5m" | "15m";
 export type CandleSource = "websocket" | "rest_klines" | "derived";
 
-export type GmoFxKlineInterval =
-  | "1min"
-  | "5min"
-  | "10min"
-  | "15min"
-  | "30min"
-  | "1hour";
+export type GmoFxKlineInterval = "1min" | "5min" | "10min" | "15min" | "30min" | "1hour";
 
 export interface GmoFxStatus {
   status: string;

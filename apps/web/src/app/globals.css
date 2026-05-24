@@ -22,8 +22,7 @@ body {
     var(--background);
   color: var(--text);
   font-family:
-    "Avenir Next", "Helvetica Neue", system-ui, -apple-system, BlinkMacSystemFont,
-    sans-serif;
+    "Avenir Next", "Helvetica Neue", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .dashboard-shell {

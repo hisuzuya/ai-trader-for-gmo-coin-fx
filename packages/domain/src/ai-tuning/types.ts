@@ -1,4 +1,4 @@
-import type { StrategyDefinition } from "../strategies/types.js"
+import type { StrategyDefinition } from "../strategies/types.js";
 
 export type RejectReasonCode =
   | "invalid_json"
@@ -12,26 +12,26 @@ export type RejectReasonCode =
   | "reversal_entry_not_allowed"
   | "risk_gate_relaxed"
   | "forbidden_capability"
-  | "indicator_not_configured"
+  | "indicator_not_configured";
 
 export type RejectReason = {
-  code: RejectReasonCode
-  path: string
-  message: string
-}
+  code: RejectReasonCode;
+  path: string;
+  message: string;
+};
 
 export type AiStrategyProposal = {
-  proposal_id?: string
-  rationale: string
-  strategy: StrategyDefinition
-}
+  proposal_id?: string;
+  rationale: string;
+  strategy: StrategyDefinition;
+};
 
 export type AiProposalValidationResult =
   | {
-      status: "accepted"
-      proposal: AiStrategyProposal
+      status: "accepted";
+      proposal: AiStrategyProposal;
     }
   | {
-      status: "rejected"
-      reasons: RejectReason[]
-    }
+      status: "rejected";
+      reasons: RejectReason[];
+    };

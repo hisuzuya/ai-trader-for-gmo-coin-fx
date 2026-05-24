@@ -39,10 +39,7 @@ export class GmoFxPublicClient {
   private readonly fetchFn: FetchLike;
 
   constructor(options: GmoFxPublicClientOptions = {}) {
-    this.baseUrl =
-      options.baseUrl ??
-      process.env.GMO_FX_PUBLIC_REST_BASE_URL ??
-      DEFAULT_BASE_URL;
+    this.baseUrl = options.baseUrl ?? process.env.GMO_FX_PUBLIC_REST_BASE_URL ?? DEFAULT_BASE_URL;
     this.fetchFn = options.fetchFn ?? fetch;
   }
 
@@ -58,9 +55,7 @@ export class GmoFxPublicClient {
     return parseGmoSymbolsResponse(await this.getJson("/symbols"));
   }
 
-  async getKlines(
-    params: GetKlinesParams,
-  ): Promise<GmoFxApiResponse<GmoFxKline[]>> {
+  async getKlines(params: GetKlinesParams): Promise<GmoFxApiResponse<GmoFxKline[]>> {
     assertKlineDate(params.date);
     return parseGmoKlinesResponse(
       await this.getJson("/klines", {
@@ -72,10 +67,7 @@ export class GmoFxPublicClient {
     );
   }
 
-  private async getJson(
-    path: string,
-    query?: Record<string, string>,
-  ): Promise<unknown> {
+  private async getJson(path: string, query?: Record<string, string>): Promise<unknown> {
     const url = new URL(`${trimTrailingSlash(this.baseUrl)}${path}`);
     for (const [key, value] of Object.entries(query ?? {})) {
       url.searchParams.set(key, value);

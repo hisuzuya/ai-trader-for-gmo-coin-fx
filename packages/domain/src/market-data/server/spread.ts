@@ -1,9 +1,4 @@
-import type {
-  GmoFxSymbol,
-  GmoFxTicker,
-  NormalizedTicker,
-  UsdJpySymbolRule,
-} from "../types.js";
+import type { GmoFxSymbol, GmoFxTicker, NormalizedTicker, UsdJpySymbolRule } from "../types.js";
 
 const USD_JPY_PIP_SIZE = 0.01;
 
@@ -11,20 +6,14 @@ export function parseUsdJpySymbolRule(symbol: GmoFxSymbol): UsdJpySymbolRule {
   return {
     symbol: symbol.symbol,
     tickSize: parsePositiveDecimal(symbol.tickSize, "tickSize"),
-    minOpenOrderSize: parsePositiveDecimal(
-      symbol.minOpenOrderSize,
-      "minOpenOrderSize",
-    ),
+    minOpenOrderSize: parsePositiveDecimal(symbol.minOpenOrderSize, "minOpenOrderSize"),
     maxOrderSize: parsePositiveDecimal(symbol.maxOrderSize, "maxOrderSize"),
     sizeStep: parsePositiveDecimal(symbol.sizeStep, "sizeStep"),
     pipSize: USD_JPY_PIP_SIZE,
   };
 }
 
-export function normalizeTicker(
-  ticker: GmoFxTicker,
-  rule: UsdJpySymbolRule,
-): NormalizedTicker {
+export function normalizeTicker(ticker: GmoFxTicker, rule: UsdJpySymbolRule): NormalizedTicker {
   const bid = parsePositiveDecimal(ticker.bid, "bid");
   const ask = parsePositiveDecimal(ticker.ask, "ask");
   if (ask < bid) {
@@ -42,11 +31,7 @@ export function normalizeTicker(
   };
 }
 
-export function calculateSpreadPips(
-  bid: number,
-  ask: number,
-  pipSize = USD_JPY_PIP_SIZE,
-): number {
+export function calculateSpreadPips(bid: number, ask: number, pipSize = USD_JPY_PIP_SIZE): number {
   if (ask < bid) {
     throw new RangeError("ask must be greater than or equal to bid");
   }

@@ -16,15 +16,11 @@ export class MarketDataValidationError extends Error {
 
 type Validator<T> = (value: unknown, path: string) => T;
 
-export function parseGmoStatusResponse(
-  value: unknown,
-): GmoFxApiResponse<GmoFxStatus> {
+export function parseGmoStatusResponse(value: unknown): GmoFxApiResponse<GmoFxStatus> {
   return parseGmoApiResponse(value, parseGmoStatus);
 }
 
-export function parseGmoTickerResponse(
-  value: unknown,
-): GmoFxApiResponse<GmoFxTicker[]> {
+export function parseGmoTickerResponse(value: unknown): GmoFxApiResponse<GmoFxTicker[]> {
   return parseGmoApiResponse(value, arrayOf(parseGmoTicker));
 }
 
@@ -32,22 +28,15 @@ export function parseGmoWebSocketTickerMessage(value: unknown): GmoFxTicker {
   return parseGmoTicker(value, "ticker");
 }
 
-export function parseGmoSymbolsResponse(
-  value: unknown,
-): GmoFxApiResponse<GmoFxSymbol[]> {
+export function parseGmoSymbolsResponse(value: unknown): GmoFxApiResponse<GmoFxSymbol[]> {
   return parseGmoApiResponse(value, arrayOf(parseGmoSymbol));
 }
 
-export function parseGmoKlinesResponse(
-  value: unknown,
-): GmoFxApiResponse<GmoFxKline[]> {
+export function parseGmoKlinesResponse(value: unknown): GmoFxApiResponse<GmoFxKline[]> {
   return parseGmoApiResponse(value, arrayOf(parseGmoKline));
 }
 
-function parseGmoApiResponse<T>(
-  value: unknown,
-  parseData: Validator<T>,
-): GmoFxApiResponse<T> {
+function parseGmoApiResponse<T>(value: unknown, parseData: Validator<T>): GmoFxApiResponse<T> {
   const object = record(value, "response");
   const status = number(object.status, "response.status");
   const data = parseData(object.data, "response.data");
@@ -84,10 +73,7 @@ function parseGmoSymbol(value: unknown, path: string): GmoFxSymbol {
   return {
     symbol: marketSymbol(object.symbol, `${path}.symbol`),
     tickSize: decimalString(object.tickSize, `${path}.tickSize`),
-    minOpenOrderSize: decimalString(
-      object.minOpenOrderSize,
-      `${path}.minOpenOrderSize`,
-    ),
+    minOpenOrderSize: decimalString(object.minOpenOrderSize, `${path}.minOpenOrderSize`),
     maxOrderSize: decimalString(object.maxOrderSize, `${path}.maxOrderSize`),
     sizeStep: decimalString(object.sizeStep, `${path}.sizeStep`),
   };
@@ -153,9 +139,7 @@ function decimalString(value: unknown, path: string): string {
 function unixMillisecondsString(value: unknown, path: string): string {
   const parsed = string(value, path);
   if (!/^\d+$/.test(parsed) || !Number.isSafeInteger(Number(parsed))) {
-    throw new MarketDataValidationError(
-      `${path} must be a Unix timestamp in milliseconds`,
-    );
+    throw new MarketDataValidationError(`${path} must be a Unix timestamp in milliseconds`);
   }
   return parsed;
 }

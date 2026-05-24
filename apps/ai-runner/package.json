@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts",
-    "lint": "eslint .",
+    "lint": "biome ci .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

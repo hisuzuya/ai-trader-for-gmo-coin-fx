@@ -1,75 +1,72 @@
-import { readFileSync } from "node:fs"
-import { describe, expect, it } from "vitest"
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import {
+  type AiStrategyProposal,
   BASELINE_STRATEGIES,
   baselineStrategies,
+  type RejectReasonCode,
   strategyDefinitionSchema,
   validateAiStrategyProposal,
-  type AiStrategyProposal,
-  type RejectReasonCode,
-} from "../../../../src/index.js"
+} from "../../../../src/index.js";
 
 const readFixture = (path: string) =>
-  readFileSync(new URL(`../../../fixtures/${path}`, import.meta.url), "utf8")
+  readFileSync(new URL(`../../../fixtures/${path}`, import.meta.url), "utf8");
 
 const proposalFrom = (strategy = BASELINE_STRATEGIES["5m"]): AiStrategyProposal => ({
   proposal_id: "proposal-test",
   rationale: "Tune parameters inside the approved Strategy DSL.",
   strategy,
-})
+});
 
-const expectRejectedWith = (
-  proposal: unknown,
-  code: RejectReasonCode,
-) => {
-  const result = validateAiStrategyProposal(proposal)
+const expectRejectedWith = (proposal: unknown, code: RejectReasonCode) => {
+  const result = validateAiStrategyProposal(proposal);
 
-  expect(result.status).toBe("rejected")
+  expect(result.status).toBe("rejected");
 
   if (result.status === "rejected") {
-    expect(result.reasons.map((reason) => reason.code)).toContain(code)
+    expect(result.reasons.map((reason) => reason.code)).toContain(code);
   }
-}
+};
 
 describe("strategy definition schema", () => {
   it("parses every initial baseline strategy", () => {
     for (const strategy of baselineStrategies) {
-      expect(() => strategyDefinitionSchema.parse(strategy)).not.toThrow()
+      expect(() => strategyDefinitionSchema.parse(strategy)).not.toThrow();
     }
-  })
-})
+  });
+});
 
 describe("AI strategy proposal validation", () => {
   it("accepts the canonical valid AI proposal fixture", () => {
-    const result = validateAiStrategyProposal(readFixture("ai/strategy-proposal-valid.json"))
+    const result = validateAiStrategyProposal(readFixture("ai/strategy-proposal-valid.json"));
 
-    expect(result.status).toBe("accepted")
-  })
+    expect(result.status).toBe("accepted");
+  });
 
   it("rejects the canonical invalid AI proposal fixture with reasons", () => {
-    const result = validateAiStrategyProposal(readFixture("ai/strategy-proposal-invalid.json"))
+    const result = validateAiStrategyProposal(readFixture("ai/strategy-proposal-invalid.json"));
 
-    expect(result.status).toBe("rejected")
+    expect(result.status).toBe("rejected");
 
     if (result.status === "rejected") {
-      expect(result.reasons.length).toBeGreaterThan(0)
+      expect(result.reasons.length).toBeGreaterThan(0);
     }
-  })
+  });
 
   it("accepts a valid strategy proposal JSON", () => {
-    const result = validateAiStrategyProposal(JSON.stringify(proposalFrom()))
+    const result = validateAiStrategyProposal(JSON.stringify(proposalFrom()));
 
-    expect(result.status).toBe("accepted")
+    expect(result.status).toBe("accepted");
 
     if (result.status === "accepted") {
-      expect(result.proposal.strategy.meta.symbol).toBe("USD_JPY")
-      expect(result.proposal.strategy.meta.timeframe).toBe("5m")
+      expect(result.proposal.strategy.meta.symbol).toBe("USD_JPY");
+      expect(result.proposal.strategy.meta.timeframe).toBe("5m");
     }
-  })
+  });
 
   it("rejects invalid JSON with a reason", () => {
-    expectRejectedWith("{not json", "invalid_json")
-  })
+    expectRejectedWith("{not json", "invalid_json");
+  });
 
   it("rejects unsupported timeframes", () => {
     expectRejectedWith(
@@ -78,8 +75,8 @@ describe("AI strategy proposal validation", () => {
         meta: { ...BASELINE_STRATEGIES["5m"].meta, timeframe: "30m" as "5m" },
       }),
       "unsupported_timeframe",
-    )
-  })
+    );
+  });
 
   it("rejects unsupported symbols", () => {
     expectRejectedWith(
@@ -88,8 +85,8 @@ describe("AI strategy proposal validation", () => {
         meta: { ...BASELINE_STRATEGIES["5m"].meta, symbol: "EUR_USD" as "USD_JPY" },
       }),
       "unsupported_symbol",
-    )
-  })
+    );
+  });
 
   it("rejects max open positions above two", () => {
     expectRejectedWith(
@@ -101,8 +98,8 @@ describe("AI strategy proposal validation", () => {
         },
       }),
       "max_open_positions_exceeded",
-    )
-  })
+    );
+  });
 
   it("rejects reversal entry in the initial implementation", () => {
     expectRejectedWith(
@@ -114,8 +111,8 @@ describe("AI strategy proposal validation", () => {
         },
       }),
       "reversal_entry_not_allowed",
-    )
-  })
+    );
+  });
 
   it("rejects unapproved indicators", () => {
     expectRejectedWith(
@@ -124,11 +121,11 @@ describe("AI strategy proposal validation", () => {
         indicators: {
           ...BASELINE_STRATEGIES["5m"].indicators,
           ichimoku: { conversionPeriod: 9 },
-        } as typeof BASELINE_STRATEGIES["5m"]["indicators"],
+        } as (typeof BASELINE_STRATEGIES)["5m"]["indicators"],
       }),
       "unsupported_indicator",
-    )
-  })
+    );
+  });
 
   it("rejects unapproved condition types", () => {
     expectRejectedWith(
@@ -139,12 +136,12 @@ describe("AI strategy proposal validation", () => {
           long: {
             type: "custom_typescript_condition",
             source: "return close > open",
-          } as unknown as typeof BASELINE_STRATEGIES["5m"]["entry"]["long"],
+          } as unknown as (typeof BASELINE_STRATEGIES)["5m"]["entry"]["long"],
         },
       }),
       "unsupported_condition",
-    )
-  })
+    );
+  });
 
   it("rejects parameter values outside approved ranges", () => {
     expectRejectedWith(
@@ -156,8 +153,8 @@ describe("AI strategy proposal validation", () => {
         },
       }),
       "parameter_out_of_range",
-    )
-  })
+    );
+  });
 
   it("rejects RSI condition thresholds outside approved tuning ranges", () => {
     expectRejectedWith(
@@ -174,8 +171,8 @@ describe("AI strategy proposal validation", () => {
         },
       }),
       "parameter_out_of_range",
-    )
-  })
+    );
+  });
 
   it("rejects risk gate relaxation", () => {
     expectRejectedWith(
@@ -187,8 +184,8 @@ describe("AI strategy proposal validation", () => {
         },
       }),
       "risk_gate_relaxed",
-    )
-  })
+    );
+  });
 
   it("rejects forbidden TypeScript or shell capability requests", () => {
     expectRejectedWith(
@@ -200,6 +197,6 @@ describe("AI strategy proposal validation", () => {
         },
       }),
       "forbidden_capability",
-    )
-  })
-})
+    );
+  });
+});
