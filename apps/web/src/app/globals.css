@@ -156,6 +156,38 @@ h1 {
   grid-template-columns: 1fr;
 }
 
+.candidate-row {
+  grid-template-columns: minmax(0, 1.2fr) minmax(90px, 0.5fr) minmax(0, 1fr) auto;
+}
+
+.paper-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.paper-actions button {
+  min-width: 72px;
+  min-height: 34px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: #1d2228;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.paper-actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.paper-actions button:disabled {
+  color: #69707c;
+  cursor: not-allowed;
+}
+
 .review-panel {
   border: 1px solid var(--panel-border);
   border-radius: 6px;
@@ -219,8 +251,13 @@ h1 {
 
   .status-grid,
   .data-row,
+  .candidate-row,
   .review-columns {
     grid-template-columns: 1fr;
+  }
+
+  .paper-actions {
+    justify-content: flex-start;
   }
 
   .status-row {

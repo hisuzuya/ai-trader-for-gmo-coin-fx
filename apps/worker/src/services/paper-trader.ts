@@ -23,8 +23,12 @@ import {
   type PaperTradeSignal,
   type PaperTradingStepResult,
 } from "@ai-trade/domain/paper-trading";
-import { baselineStrategies, type StrategyDefinition } from "@ai-trade/domain/strategies";
-import { and, desc, eq, sql } from "drizzle-orm";
+import {
+  baselineStrategies,
+  type StrategyDefinition,
+  strategyDefinitionSchema,
+} from "@ai-trade/domain/strategies";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { ServiceHealth, ServiceState, WorkerService } from "../types.js";
 
@@ -88,9 +92,14 @@ export interface PaperStrategyRunner {
   }): Promise<PaperStrategyDecision>;
 }
 
+export interface CandidateStrategyRepository {
+  listRunnableCandidates(): Promise<StrategyDefinition[]>;
+}
+
 export type PaperTraderServiceOptions = {
   intervalMs?: number | null;
   strategies?: StrategyDefinition[];
+  candidateRepository?: CandidateStrategyRepository | null;
   candleRepository?: PaperCandleRepository;
   tradingRepository?: PaperTradingRepository;
   strategyRunner?: PaperStrategyRunner;
@@ -104,7 +113,8 @@ export class PaperTraderService implements WorkerService {
   private lastRunStartedAt: string | null = null;
   private lastRunFinishedAt: string | null = null;
 
-  private readonly strategies: StrategyDefinition[];
+  private readonly baseStrategies: StrategyDefinition[];
+  private readonly candidateRepository: CandidateStrategyRepository | null;
   private readonly candleRepository: PaperCandleRepository;
   private readonly tradingRepository: PaperTradingRepository;
   private readonly strategyRunner: PaperStrategyRunner;
@@ -112,7 +122,8 @@ export class PaperTraderService implements WorkerService {
   private interval: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: PaperTraderServiceOptions = {}) {
-    this.strategies = options.strategies ?? baselineStrategies;
+    this.baseStrategies = options.strategies ?? baselineStrategies;
+    this.candidateRepository = options.candidateRepository ?? null;
     this.candleRepository = options.candleRepository ?? new DbPaperCandleRepository();
     this.tradingRepository = options.tradingRepository ?? new DbPaperTradingRepository();
     this.strategyRunner = options.strategyRunner ?? new BaselinePaperStrategyRunner();
@@ -149,7 +160,7 @@ export class PaperTraderService implements WorkerService {
       name: this.name,
       state: this.state,
       details: {
-        strategyCount: this.strategies.length,
+        strategyCount: this.latestStatuses.length || this.baseStrategies.length,
         lastRunStartedAt: this.lastRunStartedAt,
         lastRunFinishedAt: this.lastRunFinishedAt,
         latestCandleOpenedAt: latestCandleOpenedAt(this.latestStatuses),
@@ -160,8 +171,9 @@ export class PaperTraderService implements WorkerService {
 
   async runOnce(now: Date = new Date()): Promise<PaperStrategyStatus[]> {
     this.lastRunStartedAt = now.toISOString();
+    const strategies = await this.loadRunnableStrategies();
     const statuses = await Promise.all(
-      this.strategies.map((strategy) => this.evaluateStrategy(strategy, now)),
+      strategies.map((strategy) => this.evaluateStrategy(strategy, now)),
     );
 
     this.latestStatuses = statuses;
@@ -176,10 +188,26 @@ export class PaperTraderService implements WorkerService {
       await this.runOnce();
     } catch (error) {
       const now = new Date();
-      this.latestStatuses = this.strategies.map((strategy) => failedStatus(strategy, now, error));
+      this.latestStatuses = this.baseStrategies.map((strategy) =>
+        failedStatus(strategy, now, error),
+      );
       this.lastRunFinishedAt = now.toISOString();
       this.state = "degraded";
     }
+  }
+
+  private async loadRunnableStrategies(): Promise<StrategyDefinition[]> {
+    const candidates = (await this.candidateRepository?.listRunnableCandidates()) ?? [];
+    const seen = new Set<string>();
+
+    return [...this.baseStrategies, ...candidates].filter((strategy) => {
+      if (seen.has(strategy.meta.name)) {
+        return false;
+      }
+
+      seen.add(strategy.meta.name);
+      return true;
+    });
   }
 
   private async evaluateStrategy(
@@ -473,6 +501,24 @@ export class DbPaperTradingRepository implements PaperTradingRepository {
           })
           .where(eq(paperPositions.id, input.previousPosition.id));
       }
+    });
+  }
+}
+
+export class DbCandidateStrategyRepository implements CandidateStrategyRepository {
+  async listRunnableCandidates(): Promise<StrategyDefinition[]> {
+    const rows = await db
+      .select({
+        strategyDefinition: strategyRuns.strategyDefinition,
+      })
+      .from(strategyRuns)
+      .where(inArray(strategyRuns.status, ["proposed", "promoted_to_baseline"]))
+      .orderBy(desc(strategyRuns.startedAt))
+      .limit(6);
+
+    return rows.flatMap((row) => {
+      const parsed = strategyDefinitionSchema.safeParse(row.strategyDefinition);
+      return parsed.success ? [parsed.data as StrategyDefinition] : [];
     });
   }
 }

@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { appRouter } from "@/server/trpc/root";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +17,11 @@ type DashboardSummary = {
     closedAt: string;
   }[];
   candidates: {
+    id: string;
     sourceStrategyName: string;
     candidateStrategyName: string | null;
     status: string;
+    strategyRunStatus: string | null;
     timeframe: string;
     createdAt: string;
   }[];
@@ -64,6 +67,31 @@ async function getDashboardSummary(): Promise<DashboardSummary> {
       dailyReviews: [],
     }
   );
+}
+
+async function recordPaperDecision(formData: FormData) {
+  "use server";
+
+  const strategyRunId = formData.get("strategyRunId");
+  const action = formData.get("action");
+
+  if (
+    typeof strategyRunId !== "string" ||
+    typeof action !== "string" ||
+    (action !== "promote_baseline" && action !== "retire_candidate")
+  ) {
+    return;
+  }
+
+  const baseUrl = process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787";
+  await fetch(new URL("/paper-decisions", baseUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ strategyRunId, action }),
+    cache: "no-store",
+  });
+
+  revalidatePath("/");
 }
 
 export default async function DashboardPage() {
@@ -120,13 +148,32 @@ export default async function DashboardPage() {
             <div className="empty-row">No AI candidates accepted yet.</div>
           ) : (
             dashboard.candidates.map((candidate) => (
-              <div
-                className="data-row"
-                key={`${candidate.sourceStrategyName}-${candidate.createdAt}`}
-              >
-                <span>{candidate.candidateStrategyName}</span>
+              <div className="data-row candidate-row" key={candidate.id}>
+                <span>{candidate.candidateStrategyName ?? candidate.id}</span>
                 <strong>{candidate.timeframe}</strong>
-                <small>from {candidate.sourceStrategyName}</small>
+                <small>
+                  {candidate.strategyRunStatus ?? candidate.status} from{" "}
+                  {candidate.sourceStrategyName}
+                </small>
+                <form className="paper-actions" action={recordPaperDecision}>
+                  <input type="hidden" name="strategyRunId" value={candidate.id} />
+                  <button
+                    name="action"
+                    type="submit"
+                    value="promote_baseline"
+                    disabled={candidate.strategyRunStatus !== "proposed"}
+                  >
+                    Promote
+                  </button>
+                  <button
+                    name="action"
+                    type="submit"
+                    value="retire_candidate"
+                    disabled={candidate.strategyRunStatus !== "proposed"}
+                  >
+                    Retire
+                  </button>
+                </form>
               </div>
             ))
           )}

@@ -1,5 +1,14 @@
 .git
 .next
 node_modules
+.pnpm-store
+apps/*/node_modules
+packages/*/node_modules
+apps/web/.next
 coverage
-drizzle/meta
+backups
+deploy-backups
+secrets
+*.log
+.env*
+!*.env.example

@@ -8,8 +8,9 @@ import {
   paperAccounts,
   paperTrades,
   runRecordedJob,
+  strategyRuns,
 } from "@ai-trade/db";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import {
   type HistoricalImporter,
   type HistoricalImportResult,
@@ -147,13 +148,16 @@ export class WorkerRuntime {
         .limit(6),
       db
         .select({
+          id: aiTuningProposals.id,
           sourceStrategyName: aiTuningProposals.sourceStrategyName,
           candidateStrategyName: aiTuningProposals.candidateStrategyName,
           status: aiTuningProposals.status,
+          strategyRunStatus: strategyRuns.status,
           timeframe: aiTuningProposals.timeframe,
           createdAt: aiTuningProposals.createdAt,
         })
         .from(aiTuningProposals)
+        .leftJoin(strategyRuns, eq(strategyRuns.id, aiTuningProposals.id))
         .where(eq(aiTuningProposals.insertedIntoPaper, true))
         .orderBy(desc(aiTuningProposals.createdAt))
         .limit(6),
@@ -202,6 +206,62 @@ export class WorkerRuntime {
     );
   }
 
+  async recordPaperDecision(input: {
+    strategyRunId: string;
+    action: "promote_baseline" | "retire_candidate";
+  }): Promise<PaperDecisionResult> {
+    const status = input.action === "promote_baseline" ? "promoted_to_baseline" : "retired";
+    const now = new Date();
+
+    return db.transaction(async (tx) => {
+      const updatedRuns = await tx
+        .update(strategyRuns)
+        .set({
+          status,
+          finishedAt: now,
+          metadata: {
+            manualPaperDecision: input.action,
+            decidedAt: now.toISOString(),
+          },
+        })
+        .where(and(eq(strategyRuns.id, input.strategyRunId), eq(strategyRuns.status, "proposed")))
+        .returning({
+          id: strategyRuns.id,
+          strategyName: strategyRuns.strategyName,
+          status: strategyRuns.status,
+        });
+
+      const updatedRun = updatedRuns[0];
+
+      if (!updatedRun) {
+        return {
+          ok: false,
+          strategyRunId: input.strategyRunId,
+          action: input.action,
+          reason: "Strategy run was not found or is no longer proposed.",
+        };
+      }
+
+      if (input.action === "retire_candidate") {
+        await tx
+          .update(paperAccounts)
+          .set({
+            status: "stopped",
+            updatedAt: now,
+          })
+          .where(eq(paperAccounts.strategyRunId, input.strategyRunId));
+      }
+
+      return {
+        ok: true,
+        strategyRunId: updatedRun.id,
+        strategyName: updatedRun.strategyName,
+        action: input.action,
+        status,
+      };
+    });
+  }
+
   private async serviceHealth(): Promise<ServiceHealth[]> {
     return Promise.all(this.services.map((service) => service.health()));
   }
@@ -224,6 +284,7 @@ export type WorkerDashboardSummary = {
     sourceStrategyName: string;
     candidateStrategyName: string | null;
     status: string;
+    strategyRunStatus: string | null;
     timeframe: string;
     createdAt: string;
   }[];
@@ -238,6 +299,21 @@ export type WorkerDashboardSummary = {
     createdAt: string;
   }[];
 };
+
+export type PaperDecisionResult =
+  | {
+      ok: true;
+      strategyRunId: string;
+      strategyName: string;
+      action: "promote_baseline" | "retire_candidate";
+      status: "promoted_to_baseline" | "retired";
+    }
+  | {
+      ok: false;
+      strategyRunId: string;
+      action: "promote_baseline" | "retire_candidate";
+      reason: string;
+    };
 
 function detailString(service: ServiceHealth | undefined, key: string): string | null {
   const value = service?.details?.[key];
