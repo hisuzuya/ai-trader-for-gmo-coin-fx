@@ -1,4 +1,9 @@
-import type { AiStrategyProposalResponse, StrategyProposalInput } from "@ai-trade/domain/ai-tuning";
+import type {
+  AiDailyReviewResponse,
+  AiStrategyProposalResponse,
+  DailyReviewInput,
+  StrategyProposalInput,
+} from "@ai-trade/domain/ai-tuning";
 import { BASELINE_STRATEGIES } from "@ai-trade/domain/strategies";
 import { describe, expect, it, vi } from "vitest";
 
@@ -74,9 +79,48 @@ describe("ai-runner Hono app", () => {
     expect(response.status).toBe(400);
     expect(provider.generateStrategyProposal).not.toHaveBeenCalled();
   });
+
+  it("generates a daily review through the provider", async () => {
+    const provider = fakeProvider(undefined, {
+      invocation: {
+        id: "daily-invocation-1",
+        provider: "claude_cli",
+        status: "succeeded",
+        promptHash: "hash",
+        promptRedacted: "{}",
+        timeoutMs: 180000,
+        startedAt: "2026-05-24T00:00:00.000Z",
+        finishedAt: "2026-05-24T00:00:01.000Z",
+      },
+      review: {
+        review_date: "2026-05-24",
+        summary: "Paper trading is stable.",
+        baseline_promotion_candidates: [],
+        candidate_retirement_candidates: [],
+        warnings: [{ severity: "info", code: "NO_ACTION", message: "No action required." }],
+        next_actions: ["Continue paper run."],
+      },
+    });
+    const input = dailyReviewInput();
+
+    const response = await createAiRunnerApp(provider).request("/daily-reviews", {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.review.summary).toBe("Paper trading is stable.");
+    expect(provider.generateDailyReview).toHaveBeenCalledWith(input);
+  });
 });
 
-function fakeProvider(response?: AiStrategyProposalResponse) {
+function fakeProvider(
+  response?: AiStrategyProposalResponse,
+  dailyReviewResponse?: AiDailyReviewResponse,
+) {
   return {
     health: vi.fn().mockResolvedValue({
       name: "claude_cli",
@@ -100,6 +144,21 @@ function fakeProvider(response?: AiStrategyProposalResponse) {
         },
       },
     ),
+    generateDailyReview: vi.fn().mockResolvedValue(
+      dailyReviewResponse ?? {
+        invocation: {
+          id: "daily-invocation-disabled",
+          provider: "claude_cli",
+          status: "failed",
+          promptHash: "hash",
+          promptRedacted: "{}",
+          timeoutMs: 180000,
+          startedAt: "2026-05-24T00:00:00.000Z",
+          finishedAt: "2026-05-24T00:00:00.000Z",
+          errorSummary: "disabled",
+        },
+      },
+    ),
   };
 }
 
@@ -113,5 +172,20 @@ function strategyProposalInput(): StrategyProposalInput {
     },
     rejectedCandidateSummaries: [],
     explorationPolicy: "Prefer conservative spread and drawdown changes.",
+  };
+}
+
+function dailyReviewInput(): DailyReviewInput {
+  return {
+    reviewDate: "2026-05-24",
+    timezone: "Asia/Tokyo",
+    accountSummaries: [],
+    candidateSummaries: [],
+    warningSignals: [],
+    operationsContext: {
+      liveTradingEnabled: false,
+      backupStatus: "unknown",
+      restoreRehearsalStatus: "unknown",
+    },
   };
 }

@@ -83,6 +83,24 @@ export function createWorkerApp(runtime: WorkerRuntime) {
     }
   });
 
+  app.post("/jobs/daily-review", async (c) => {
+    try {
+      const result = await runtime.runDailyReview();
+      return c.json({
+        ok: result.reviewStatus === "accepted",
+        result,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "AI daily review failed.",
+        },
+        500,
+      );
+    }
+  });
+
   return app;
 }
 

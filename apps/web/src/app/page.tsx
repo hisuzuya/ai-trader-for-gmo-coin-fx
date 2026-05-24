@@ -22,6 +22,16 @@ type DashboardSummary = {
     timeframe: string;
     createdAt: string;
   }[];
+  dailyReviews: {
+    reviewDate: string;
+    status: string;
+    summary: string | null;
+    baselinePromotionCandidates: unknown;
+    candidateRetirementCandidates: unknown;
+    warnings: unknown;
+    nextActions: unknown;
+    createdAt: string;
+  }[];
 };
 
 async function getHealth() {
@@ -40,6 +50,7 @@ async function getDashboardSummary(): Promise<DashboardSummary> {
       accounts: [],
       trades: [],
       candidates: [],
+      dailyReviews: [],
     };
   }
 
@@ -50,6 +61,7 @@ async function getDashboardSummary(): Promise<DashboardSummary> {
       accounts: [],
       trades: [],
       candidates: [],
+      dailyReviews: [],
     }
   );
 }
@@ -139,6 +151,104 @@ export default async function DashboardPage() {
           )}
         </div>
       </section>
+
+      <section className="dashboard-section" aria-labelledby="review-heading">
+        <h2 id="review-heading">Daily Review</h2>
+        <div className="review-grid">
+          {dashboard.dailyReviews.length === 0 ? (
+            <div className="empty-row">No AI daily review recorded yet.</div>
+          ) : (
+            dashboard.dailyReviews.map((review) => (
+              <article className="review-panel" key={`${review.reviewDate}-${review.createdAt}`}>
+                <div className="review-header">
+                  <span>{review.reviewDate}</span>
+                  <strong>{review.status}</strong>
+                </div>
+                <p>{review.summary ?? "Daily review was rejected or did not return a summary."}</p>
+                <div className="review-columns">
+                  <ReviewList
+                    title="Promotion Candidates"
+                    items={formatRecommendationItems(review.baselinePromotionCandidates)}
+                  />
+                  <ReviewList
+                    title="Retirement Candidates"
+                    items={formatRecommendationItems(review.candidateRetirementCandidates)}
+                  />
+                  <ReviewList title="Warnings" items={formatWarningItems(review.warnings)} />
+                  <ReviewList title="Next Actions" items={formatStringItems(review.nextActions)} />
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
     </main>
   );
+}
+
+function ReviewList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="review-list">
+      <h3>{title}</h3>
+      {items.length === 0 ? (
+        <span className="muted-line">None</span>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function formatRecommendationItems(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (
+      typeof item === "object" &&
+      item !== null &&
+      "strategyName" in item &&
+      "reason" in item &&
+      typeof item.strategyName === "string" &&
+      typeof item.reason === "string"
+    ) {
+      return [`${item.strategyName}: ${item.reason}`];
+    }
+
+    return [];
+  });
+}
+
+function formatWarningItems(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (
+      typeof item === "object" &&
+      item !== null &&
+      "severity" in item &&
+      "message" in item &&
+      typeof item.severity === "string" &&
+      typeof item.message === "string"
+    ) {
+      return [`${item.severity}: ${item.message}`];
+    }
+
+    return [];
+  });
+}
+
+function formatStringItems(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === "string");
 }

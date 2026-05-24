@@ -5,17 +5,17 @@ import { serve } from "@hono/node-server";
 import { createWorkerApp } from "./hono-app.js";
 import { GmoHistoricalImporter } from "./jobs/historical-importer.js";
 import { WorkerRuntime } from "./runtime.js";
+import { AiDailyReviewerService } from "./services/ai-daily-reviewer.js";
 import { AiTunerService } from "./services/ai-tuner.js";
 import { CollectorService } from "./services/collector.js";
 import { PaperTraderService } from "./services/paper-trader.js";
-import { StaticWorkerService } from "./services/static-service.js";
 
 const runtime = new WorkerRuntime(
   [
     new CollectorService({ candleWriter: new CandleRepository() }),
     new PaperTraderService(),
     new AiTunerService(),
-    new StaticWorkerService("ai-daily-reviewer"),
+    new AiDailyReviewerService(),
   ],
   new GmoHistoricalImporter(),
 );

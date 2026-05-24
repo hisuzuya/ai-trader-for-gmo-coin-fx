@@ -56,10 +56,86 @@ export type AiStrategyProposalResponse = {
   proposal?: AiStrategyProposal;
 };
 
+export type DailyReviewInput = {
+  reviewDate: string;
+  timezone: "Asia/Tokyo";
+  accountSummaries: {
+    name: string;
+    balanceJpy: number;
+    realizedPnlJpy: number;
+    tradeCount: number;
+    maxDrawdownJpy: number;
+    status: string;
+  }[];
+  candidateSummaries: {
+    strategyName: string;
+    sourceStrategyName: string;
+    timeframe: string;
+    status: string;
+    rationale?: string;
+  }[];
+  warningSignals: string[];
+  operationsContext: {
+    liveTradingEnabled: false;
+    backupStatus: "unknown" | "ok" | "failed";
+    restoreRehearsalStatus: "unknown" | "ok" | "failed";
+  };
+};
+
+export type DailyReviewRecommendation = {
+  strategyName: string;
+  reason: string;
+  confidence: "low" | "medium" | "high";
+};
+
+export type DailyReviewWarning = {
+  severity: "info" | "warning" | "critical";
+  code: string;
+  message: string;
+};
+
+export type AiDailyReview = {
+  review_date: string;
+  summary: string;
+  baseline_promotion_candidates: DailyReviewRecommendation[];
+  candidate_retirement_candidates: DailyReviewRecommendation[];
+  warnings: DailyReviewWarning[];
+  next_actions: string[];
+};
+
+export type AiDailyReviewResponse = {
+  invocation: {
+    id: string;
+    provider: "claude_cli";
+    status: "succeeded" | "failed" | "timeout";
+    promptHash: string;
+    promptRedacted: string;
+    stdoutRaw?: string;
+    stderrSummary?: string;
+    parsedJson?: unknown;
+    timeoutMs: number;
+    cliVersion?: string;
+    startedAt: string;
+    finishedAt: string;
+    errorSummary?: string;
+  };
+  review?: AiDailyReview;
+};
+
 export type AiProposalValidationResult =
   | {
       status: "accepted";
       proposal: AiStrategyProposal;
+    }
+  | {
+      status: "rejected";
+      reasons: RejectReason[];
+    };
+
+export type AiDailyReviewValidationResult =
+  | {
+      status: "accepted";
+      review: AiDailyReview;
     }
   | {
       status: "rejected";

@@ -4,6 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import { createWorkerApp } from "./hono-app.js";
 import type { HistoricalImporter } from "./jobs/historical-importer.js";
 import { WorkerRuntime } from "./runtime.js";
+import {
+  AiDailyReviewerService,
+  type DailyReviewContextProvider,
+  type DailyReviewProvider,
+  InMemoryDailyReviewStore,
+} from "./services/ai-daily-reviewer.js";
 import { type AiProvider, AiTunerService, InMemoryAiTuningStore } from "./services/ai-tuner.js";
 import { StaticWorkerService } from "./services/static-service.js";
 
@@ -184,6 +190,80 @@ describe("worker Hono app", () => {
     });
     expect(store.invocations).toHaveLength(1);
     expect(store.proposals).toHaveLength(1);
+  });
+
+  it("runs AI daily review and records the accepted review", async () => {
+    const store = new InMemoryDailyReviewStore();
+    const aiProvider: DailyReviewProvider = {
+      generateDailyReview: vi.fn().mockResolvedValue({
+        invocation: {
+          id: "7c2dacde-ff6c-489f-8814-c1cb88009441",
+          provider: "claude_cli",
+          status: "succeeded",
+          promptHash: "hash",
+          promptRedacted: "{}",
+          timeoutMs: 180000,
+          startedAt: "2026-05-24T00:00:00.000Z",
+          finishedAt: "2026-05-24T00:00:01.000Z",
+        },
+        review: {
+          review_date: "2026-05-24",
+          summary: "Paper trading is stable.",
+          baseline_promotion_candidates: [],
+          candidate_retirement_candidates: [
+            {
+              strategyName: "candidate_1m_spread_guard",
+              reason: "Drawdown is above the review threshold.",
+              confidence: "medium",
+            },
+          ],
+          warnings: [{ severity: "warning", code: "DRAWDOWN", message: "Review drawdown." }],
+          next_actions: ["Keep live trading disabled."],
+        },
+      }),
+    };
+    const contextProvider: DailyReviewContextProvider = {
+      buildInput: vi.fn().mockResolvedValue({
+        reviewDate: "2026-05-24",
+        timezone: "Asia/Tokyo",
+        accountSummaries: [],
+        candidateSummaries: [],
+        warningSignals: [],
+        operationsContext: {
+          liveTradingEnabled: false,
+          backupStatus: "unknown",
+          restoreRehearsalStatus: "unknown",
+        },
+      }),
+    };
+    const runtime = new WorkerRuntime([
+      new AiDailyReviewerService({
+        enabled: true,
+        intervalMs: null,
+        aiProvider,
+        contextProvider,
+        store,
+      }),
+    ]);
+    await runtime.start();
+
+    const response = await createWorkerApp(runtime).request("/jobs/daily-review", {
+      method: "POST",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: true,
+      result: {
+        reviewDate: "2026-05-24",
+        reviewStatus: "accepted",
+        warningCount: 1,
+        retirementCandidateCount: 1,
+      },
+    });
+    expect(store.invocations).toHaveLength(1);
+    expect(store.reviews).toHaveLength(1);
   });
 });
 

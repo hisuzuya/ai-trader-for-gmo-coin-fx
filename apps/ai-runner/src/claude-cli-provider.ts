@@ -2,7 +2,13 @@ import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 
-import type { AiStrategyProposalResponse, StrategyProposalInput } from "@ai-trade/domain/ai-tuning";
+import type {
+  AiDailyReviewResponse,
+  AiStrategyProposalResponse,
+  DailyReviewInput,
+  StrategyProposalInput,
+} from "@ai-trade/domain/ai-tuning";
+import { validateAiDailyReview } from "@ai-trade/domain/ai-tuning";
 import { validateAiStrategyProposal } from "@ai-trade/domain/strategies";
 
 const execFileAsync = promisify(execFile);
@@ -18,6 +24,7 @@ export type AiRunnerProviderState = {
 export interface StrategyProposalProvider {
   health(): Promise<AiRunnerProviderState>;
   generateStrategyProposal(input: StrategyProposalInput): Promise<AiStrategyProposalResponse>;
+  generateDailyReview(input: DailyReviewInput): Promise<AiDailyReviewResponse>;
 }
 
 export type ClaudeCliProviderOptions = {
@@ -136,6 +143,93 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
       };
     }
   }
+
+  async generateDailyReview(input: DailyReviewInput): Promise<AiDailyReviewResponse> {
+    const startedAt = new Date();
+    const prompt = buildDailyReviewPrompt(input);
+    const promptHash = hashPrompt(prompt);
+    const invocationId = randomUUID();
+    const timeoutMs = Math.max(this.timeoutMs, 180_000);
+
+    if (!this.enabled) {
+      return {
+        invocation: {
+          id: invocationId,
+          provider: "claude_cli",
+          status: "failed",
+          promptHash,
+          promptRedacted: prompt,
+          timeoutMs,
+          startedAt: startedAt.toISOString(),
+          finishedAt: new Date().toISOString(),
+          errorSummary: "Claude CLI provider is disabled.",
+        },
+      };
+    }
+
+    try {
+      const { stdout, stderr } = await execFileAsync(this.executable, ["-p", prompt], {
+        timeout: timeoutMs,
+        maxBuffer: 1024 * 1024,
+      });
+      const validation = validateAiDailyReview(stdout);
+      const finishedAt = new Date();
+
+      if (validation.status === "rejected") {
+        return {
+          invocation: {
+            id: invocationId,
+            provider: "claude_cli",
+            status: "failed",
+            promptHash,
+            promptRedacted: prompt,
+            stdoutRaw: stdout,
+            stderrSummary: summarizeStderr(stderr),
+            parsedJson: undefined,
+            timeoutMs,
+            startedAt: startedAt.toISOString(),
+            finishedAt: finishedAt.toISOString(),
+            errorSummary: validation.reasons.map((reason) => reason.message).join("; "),
+          },
+        };
+      }
+
+      return {
+        invocation: {
+          id: invocationId,
+          provider: "claude_cli",
+          status: "succeeded",
+          promptHash,
+          promptRedacted: prompt,
+          stdoutRaw: stdout,
+          stderrSummary: summarizeStderr(stderr),
+          parsedJson: validation.review,
+          timeoutMs,
+          startedAt: startedAt.toISOString(),
+          finishedAt: finishedAt.toISOString(),
+        },
+        review: validation.review,
+      };
+    } catch (error) {
+      const finishedAt = new Date();
+      const status =
+        error instanceof Error && error.message.includes("timed out") ? "timeout" : "failed";
+
+      return {
+        invocation: {
+          id: invocationId,
+          provider: "claude_cli",
+          status,
+          promptHash,
+          promptRedacted: prompt,
+          timeoutMs,
+          startedAt: startedAt.toISOString(),
+          finishedAt: finishedAt.toISOString(),
+          errorSummary: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+  }
 }
 
 function buildStrategyProposalPrompt(input: StrategyProposalInput): string {
@@ -150,6 +244,24 @@ function buildStrategyProposalPrompt(input: StrategyProposalInput): string {
       proposal_id: "string optional",
       rationale: "string",
       strategy: "StrategyDefinition",
+    },
+  });
+}
+
+function buildDailyReviewPrompt(input: DailyReviewInput): string {
+  return JSON.stringify({
+    instruction:
+      "Return JSON only. Produce a daily paper-trading operations review. Do not include shell commands, secrets, live trading instructions, or any recommendation that changes baseline automatically.",
+    input,
+    outputSchema: {
+      review_date: "YYYY-MM-DD",
+      summary: "string",
+      baseline_promotion_candidates:
+        "array of { strategyName, reason, confidence: low|medium|high }",
+      candidate_retirement_candidates:
+        "array of { strategyName, reason, confidence: low|medium|high }",
+      warnings: "array of { severity: info|warning|critical, code, message }",
+      next_actions: "array of strings for human review",
     },
   });
 }
