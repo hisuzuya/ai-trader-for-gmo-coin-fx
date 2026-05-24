@@ -1,0 +1,13 @@
+{
+  "status": 0,
+  "data": [
+    {
+      "symbol": "USD_JPY",
+      "ask": "156.124",
+      "bid": "156.121",
+      "timestamp": "2026-05-24T08:51:51.000Z",
+      "status": "OPEN"
+    }
+  ],
+  "responsetime": "2026-05-24T08:51:51.000Z"
+}
