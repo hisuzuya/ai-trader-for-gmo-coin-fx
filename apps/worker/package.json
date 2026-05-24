@@ -1,0 +1,20 @@
+{
+  "name": "@ai-trade/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-trade/config": "workspace:*",
+    "@ai-trade/db": "workspace:*",
+    "@ai-trade/domain": "workspace:*",
+    "@hono/node-server": "^1.19.6",
+    "hono": "^4.10.6"
+  }
+}

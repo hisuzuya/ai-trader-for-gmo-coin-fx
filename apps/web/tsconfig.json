@@ -1,0 +1,31 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "jsx": "react-jsx",
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@ai-trade/config": ["../../packages/config/src/index.ts"],
+      "@ai-trade/config/*": ["../../packages/config/src/*"],
+      "@ai-trade/db": ["../../packages/db/src/index.ts"],
+      "@ai-trade/db/*": ["../../packages/db/src/*"],
+      "@ai-trade/domain": ["../../packages/domain/src/index.ts"],
+      "@ai-trade/domain/*": ["../../packages/domain/src/*"]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}
