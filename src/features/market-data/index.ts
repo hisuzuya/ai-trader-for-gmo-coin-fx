@@ -22,6 +22,12 @@ export {
 } from "./server/gmo-fx-client.js";
 export { aggregateCandles } from "./server/candle-aggregator.js";
 export {
+  importGmoHistoricalCandles,
+  type CandleWriter,
+  type HistoricalImportResult,
+  type ImportGmoHistoricalCandlesOptions,
+} from "./server/historical-importer.js";
+export {
   deriveMidCandlesFromBidAsk,
   normalizeGmoKlineToCandle,
   normalizeGmoKlinesToCandles,
