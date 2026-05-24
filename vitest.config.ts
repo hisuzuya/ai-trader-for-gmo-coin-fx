@@ -9,6 +9,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    include: ["apps/**/*.test.ts", "src/**/*.test.ts", "tests/**/*.test.ts"],
   },
 });
