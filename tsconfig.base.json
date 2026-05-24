@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "dom", "dom.iterable"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@ai-trade/config": ["./packages/config/src/index.ts"],
+      "@ai-trade/config/*": ["./packages/config/src/*"],
+      "@ai-trade/db": ["./packages/db/src/index.ts"],
+      "@ai-trade/db/*": ["./packages/db/src/*"],
+      "@ai-trade/domain": ["./packages/domain/src/index.ts"],
+      "@ai-trade/domain/*": ["./packages/domain/src/*"]
+    }
+  }
+}

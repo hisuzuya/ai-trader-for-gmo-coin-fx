@@ -1,0 +1,25 @@
+{
+  "name": "@ai-trade/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./repositories/candle-repository": "./src/repositories/candle-repository.ts",
+    "./repositories/job-run-recorder": "./src/repositories/job-run-recorder.ts"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate --config drizzle.config.ts",
+    "migrate": "drizzle-kit migrate --config drizzle.config.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-trade/config": "workspace:*",
+    "@ai-trade/domain": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "pg": "^8.16.3"
+  }
+}

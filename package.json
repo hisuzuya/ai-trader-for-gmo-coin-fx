@@ -4,18 +4,15 @@
   "private": true,
   "packageManager": "pnpm@10.20.0",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "worker:dev": "tsx watch src/worker/main.ts",
-    "worker:start": "tsx src/worker/main.ts",
-    "ai-runner:dev": "tsx watch apps/ai-runner/src/main.ts",
-    "ai-runner:start": "tsx apps/ai-runner/src/main.ts",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "dev:web": "pnpm --filter @ai-trade/web dev",
+    "dev:worker": "pnpm --filter @ai-trade/worker dev",
+    "dev:ai-runner": "pnpm --filter @ai-trade/ai-runner dev",
+    "build": "pnpm -r --if-present build",
+    "db:generate": "pnpm --filter @ai-trade/db generate",
+    "db:migrate": "pnpm --filter @ai-trade/db migrate",
+    "lint": "node scripts/check-import-boundaries.mjs && pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",

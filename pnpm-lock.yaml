@@ -70,6 +70,90 @@ importers:
         specifier: ^4.0.13
         version: 4.1.7(@types/node@24.12.4)(vite@8.0.14(@types/node@24.12.4)(esbuild@0.28.0)(tsx@4.22.3))
 
+  apps/ai-runner:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.19.6
+        version: 1.19.14(hono@4.12.22)
+      hono:
+        specifier: ^4.10.6
+        version: 4.12.22
+
+  apps/web:
+    dependencies:
+      '@ai-trade/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@ai-trade/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@ai-trade/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@trpc/server':
+        specifier: ^11.7.1
+        version: 11.17.0(typescript@5.9.3)
+      next:
+        specifier: ^16.0.5
+        version: 16.2.6(@babel/core@7.29.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.6(react@19.2.6)
+      superjson:
+        specifier: ^2.2.2
+        version: 2.2.6
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
+
+  apps/worker:
+    dependencies:
+      '@ai-trade/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@ai-trade/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@ai-trade/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@hono/node-server':
+        specifier: ^1.19.6
+        version: 1.19.14(hono@4.12.22)
+      hono:
+        specifier: ^4.10.6
+        version: 4.12.22
+
+  packages/config:
+    dependencies:
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
+
+  packages/db:
+    dependencies:
+      '@ai-trade/config':
+        specifier: workspace:*
+        version: link:../config
+      '@ai-trade/domain':
+        specifier: workspace:*
+        version: link:../domain
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.2(@types/pg@8.20.0)(pg@8.21.0)
+      pg:
+        specifier: ^8.16.3
+        version: 8.21.0
+
+  packages/domain:
+    dependencies:
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
+
 packages:
 
   '@babel/code-frame@7.29.0':
@@ -4137,7 +4221,7 @@ snapshots:
       eslint: 9.39.4
       eslint-import-resolver-node: 0.3.10
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.4(eslint@9.39.4)(typescript@5.9.3))(eslint@9.39.4))(eslint@9.39.4)
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.59.4(eslint@9.39.4)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.59.4(eslint@9.39.4)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.4(eslint@9.39.4)(typescript@5.9.3))(eslint@9.39.4))(eslint@9.39.4))(eslint@9.39.4)
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.4)
       eslint-plugin-react: 7.37.5(eslint@9.39.4)
       eslint-plugin-react-hooks: 7.1.1(eslint@9.39.4)
@@ -4170,7 +4254,7 @@ snapshots:
       tinyglobby: 0.2.16
       unrs-resolver: 1.12.2
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.59.4(eslint@9.39.4)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.59.4(eslint@9.39.4)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.4(eslint@9.39.4)(typescript@5.9.3))(eslint@9.39.4))(eslint@9.39.4))(eslint@9.39.4)
     transitivePeerDependencies:
       - supports-color
 
@@ -4185,7 +4269,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.4(eslint@9.39.4)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.4(eslint@9.39.4)(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.59.4(eslint@9.39.4)(typescript@5.9.3))(eslint@9.39.4))(eslint@9.39.4))(eslint@9.39.4):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
