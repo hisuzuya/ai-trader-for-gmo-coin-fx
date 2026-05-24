@@ -19,35 +19,34 @@ of scope for the current codebase.
 
 See [docs/architecture.md](docs/architecture.md).
 
-## Architecture
+## Container layout
 
-```mermaid
-flowchart TD
-  GMO["GMO Coin FX Public API<br/>ticks / candles"]
-  Worker["Worker / Hono API<br/>import jobs and health endpoints"]
-  Normalize["Market data pipeline<br/>normalize, validate, aggregate"]
-  DB["TimescaleDB<br/>candles, features, job runs"]
-  Dashboard["Next.js dashboard<br/>system status and research UI"]
+The local stack is split into a small set of containers so each runtime has a
+clear job:
 
-  GMO -->|"public market data"| Worker
-  Worker -->|"import job output"| Normalize
-  Normalize -->|"canonical candles / features"| DB
-  DB -->|"read models"| Dashboard
-  Worker -->|"health / ready / status"| Dashboard
-```
+- `next-web`: Next.js dashboard for system status, research UI, and tRPC routes.
+- `worker`: Hono API for health checks, readiness checks, status endpoints, and
+  background jobs such as historical market-data imports.
+- `ai-runner`: isolated service boundary for future AI-assisted strategy
+  proposal and review workflows.
+- `timescaledb`: PostgreSQL/TimescaleDB storage for candles, features, and job
+  run records.
+
+Market data flows from the GMO Coin FX public API into the worker, through the
+normalization and aggregation pipeline, then into TimescaleDB. The dashboard
+reads stored data and worker health/status to show the current system state.
 
 ## App structure
 
-- `src/app`: Next.js dashboard and API routes.
-- `src/server/trpc`: tRPC router and server setup.
-- `src/worker`: Hono worker API, health endpoints, and background jobs.
-- `src/features/market-data`: GMO FX public API client, tick/candle
-  normalization, aggregation, and persistence.
-- `src/features/strategies`: Strategy DSL types, presets, schemas, and
-  validation.
-- `src/shared/db`: Drizzle schema and database client.
-- `drizzle`: Database migrations and metadata.
-- `tests`: Unit tests and API/market-data fixtures.
+- `apps/web`: Next.js dashboard, status page, and tRPC routes.
+- `apps/worker`: Hono worker API, health endpoints, readiness checks, and
+  background jobs.
+- `apps/ai-runner`: AI runner service boundary for future strategy proposal and
+  review workflows.
+- `packages/domain`: market-data clients, tick/candle normalization,
+  aggregation, strategy DSL types, schemas, and validation.
+- `packages/db`: Drizzle schema, database client, repositories, migrations, and
+  metadata.
 
 ## Safety scope
 
@@ -94,6 +93,7 @@ Services:
 - Worker health: http://localhost:8787/health
 - Worker readiness: http://localhost:8787/ready
 - Worker status: http://localhost:8787/status
+- AI runner health: http://localhost:8788/health
 - TimescaleDB: `postgresql://ai_trade:ai_trade@localhost:5432/ai_trade`
 
 Apply Drizzle migrations after TimescaleDB is running:
