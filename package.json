@@ -9,6 +9,8 @@
     "start": "next start",
     "worker:dev": "tsx watch src/worker/main.ts",
     "worker:start": "tsx src/worker/main.ts",
+    "ai-runner:dev": "tsx watch apps/ai-runner/src/main.ts",
+    "ai-runner:start": "tsx apps/ai-runner/src/main.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "lint": "eslint .",
