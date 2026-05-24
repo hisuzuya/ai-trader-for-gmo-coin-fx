@@ -24,7 +24,8 @@ Live tradingは将来スコープとして設計には含めるが、初期実�
 - local/prod相当ともDocker Compose serviceで統一する。
 - 公開はCloudflare Tunnelを使う。
 - Next.jsはstandalone buildをDocker serviceとしてVM上で動かす。
-- Claude CLIをworkerコンテナ内で実行し、AI providerとして利用する。
+- Claude CLIはworkerではなく`ai-runner`コンテナ内で実行し、workerから内部APIで呼び出す。
+- monorepo toolingは既存の`pnpm`に合わせ、pnpm workspaceで管理する。
 - 以降の詳細パラメータは、明示的な指定がない限りおすすめ値で確定する。
 
 ## 全体構成
@@ -44,7 +45,10 @@ Docker Compose on VM
   │   ├─ CollectorService
   │   ├─ PaperTraderService
   │   ├─ AiTunerService
-  │   ├─ AiDailyReviewerService
+  │   └─ AiDailyReviewerService
+  │
+  ├─ ai-runner
+  │   ├─ Hono internal API
   │   └─ Claude CLI
   │
   ├─ timescaledb
@@ -102,6 +106,13 @@ apps/
       admin/
         routes.ts
 
+  ai-runner/
+    src/
+      main.ts
+      hono-app.ts
+      claude-cli-provider.ts
+      schema.ts
+
 packages/
   db/
     src/
@@ -145,11 +156,72 @@ packages/
 
 `apps/web`はNext.jsのrouting、dashboard UI、tRPC routerに限定する。`apps/worker`はHono API、scheduler、collector、paper trader、AI provider呼び出しに限定する。
 
+`apps/ai-runner`はClaude CLIの実行だけを担当する。DB接続、repository、scheduler、paper account更新、candidate投入、risk gate判定は持たない。
+
 `packages/db`はDrizzle schema、DB client、migration、repositoryを持つ。DB接続を使う処理は`apps/web`と`apps/worker`から`packages/db`経由で行い、schema定義を重複させない。
 
 `packages/domain`はDBやHTTP serverに依存しない純粋ロジックだけを置く。market-data normalization、candle aggregation、Strategy DSL validation、paper execution model、risk gateはここに置き、Next.jsとworkerの両方から再利用する。
 
 アプリ固有のcomposition、scheduler、Hono route、tRPC procedure、UI stateはpackage化しない。これにより共通化しすぎによる依存逆転を避ける。
+
+### Dependency Direction
+
+依存方向は以下に固定する。
+
+```text
+apps/web      -> packages/db
+apps/web      -> packages/domain
+apps/web      -> packages/config
+
+apps/worker   -> packages/db
+apps/worker   -> packages/domain
+apps/worker   -> packages/config
+
+apps/ai-runner -> packages/domain
+apps/ai-runner -> packages/config
+
+packages/db     -> packages/domain
+packages/db     -> packages/config
+packages/domain -> no internal package dependency
+packages/config -> no internal package dependency
+```
+
+禁止する依存:
+
+- `packages/domain -> packages/db`
+- `packages/domain -> apps/*`
+- `packages/db -> apps/*`
+- `packages/config -> apps/*`
+- `apps/ai-runner -> packages/db`
+- `apps/ai-runner -> apps/worker`
+- `apps/web -> apps/worker`
+- `apps/worker -> apps/web`
+
+workerとai-runnerはDocker network内の内部HTTPで通信する。TypeScript importで互いの`apps/*`配下を参照しない。
+
+### Monorepo Tooling
+
+package managerは既存の`pnpm@10.20.0`を使い、pnpm workspaceで管理する。
+
+```text
+pnpm-workspace.yaml:
+  packages:
+    - apps/*
+    - packages/*
+```
+
+root package scriptsはworkspace commandに寄せる。
+
+```text
+pnpm --filter @ai-trade/web dev
+pnpm --filter @ai-trade/worker dev
+pnpm --filter @ai-trade/ai-runner dev
+pnpm --filter @ai-trade/db migrate
+pnpm -r typecheck
+pnpm -r test
+```
+
+Phase 0では、workspace間の依存方向をCIで検査する。初期は軽量なimport boundary checkでよい。例えば`packages/domain`から`packages/db`、`apps/*`、Node server固有moduleをimportしていないことを検査する。
 
 ## Worker Runtime
 
@@ -185,7 +257,7 @@ GET /ready
   - DB接続
   - collector初期化
   - scheduler初期化
-  - Claude CLI provider状態
+  - AI Runner provider状態
 
 GET /status
   - service別status
@@ -1109,7 +1181,7 @@ proposed
 
 ## AI Tuning
 
-Claude CLIをworkerコンテナ内で実行し、`claude -p`をAI providerとして扱う。worker中核はClaude CLIに直接依存させず、`AiProvider` interfaceの一実装として閉じ込める。
+Claude CLIは`ai-runner`コンテナ内で実行し、workerは内部API越しに`AiProvider` interfaceとして扱う。worker中核はClaude CLIに直接依存させない。
 
 ```ts
 interface AiProvider {
@@ -1118,7 +1190,7 @@ interface AiProvider {
 }
 ```
 
-`ClaudeCliProvider`の責務:
+`ai-runner`の責務:
 
 - child processで`claude -p`を実行する。
 - 構造化JSON出力を要求する。
@@ -1126,7 +1198,16 @@ interface AiProvider {
 - stdout / stderrを保存する。
 - JSON schema validationを行う。
 - invalid outputはrejectする。
-- provider healthを`/status`に表示する。
+- provider healthをworkerの`/status`に表示できる形で返す。
+- DB接続情報、GMO Private API secret、repository write mountを持たない。
+- read-onlyのClaude config mountのみを受け取る。
+
+workerの責務:
+
+- `ai-runner`へproposal/review生成リクエストを送る。
+- 戻り値を再度schema validationする。
+- AI invocation summaryをDBへ保存する。
+- candidate投入、採用判定、risk gate判定を行う。
 
 Claude CLI実行の初期設定:
 
@@ -1299,7 +1380,7 @@ System Status
   - collector status
   - latest candle time
   - worker health
-  - Claude CLI health
+  - AI Runner / Claude CLI health
   - DB status
 
 Paper Accounts
@@ -1345,7 +1426,8 @@ integration:
   - GMO public REST client with mocked responses
   - WebSocket collector with mocked server
   - paper trader end-to-end on fixture candles
-  - ClaudeCliProvider with fake executable
+  - ai-runner ClaudeCliProvider with fake executable
+  - worker AiProvider client with mocked ai-runner
 
 e2e:
   - docker compose up
@@ -1385,6 +1467,9 @@ services:
   worker:
     - single Node.js process
     - Hono health/status
+
+  ai-runner:
+    - Hono internal API
     - Claude CLI
 
   timescaledb:
@@ -1413,8 +1498,16 @@ worker:
   internal_port: 8787
   exposed_to_tunnel: false
   mounts:
-    - claude config read-only
     - backup volume if backup runs here
+
+ai-runner:
+  build:
+    target: ai-runner
+  command: node apps/ai-runner/dist/main.js
+  internal_port: 8788
+  exposed_to_tunnel: false
+  mounts:
+    - claude config read-only
 
 timescaledb:
   image: timescale/timescaledb:latest-pg16
@@ -1439,10 +1532,10 @@ DATABASE_URL
 NODE_ENV
 APP_BASE_URL
 WORKER_INTERNAL_URL
+AI_RUNNER_INTERNAL_URL
 GMO_FX_PUBLIC_REST_BASE_URL
 GMO_FX_PUBLIC_WS_URL
 ENABLED_SYMBOLS
-CLAUDE_CONFIG_DIR
 AI_TUNING_ENABLED
 ```
 
@@ -1575,13 +1668,13 @@ paper trading段階ではVM内backup volumeを初期保存先にする。live tr
 
 ### Secrets
 
-Claude CLIの認証情報は、VM上の専用ディレクトリをworker containerにread-only mountする。
+Claude CLIの認証情報は、VM上の専用ディレクトリをai-runner containerにread-only mountする。
 
 ```text
 host:
   /opt/ai-trade/secrets/claude/
 
-worker container:
+ai-runner container:
   /home/node/.claude:ro
 ```
 
@@ -1589,15 +1682,16 @@ worker container:
 
 - 認証情報をDocker imageに焼かない。
 - git管理しない。
-- worker containerにのみmountする。
+- ai-runner containerにのみmountする。
 - next-web containerには渡さない。
+- worker containerには渡さない。
 - 可能な限りread-only mountにする。
 
 GMO API keyなど将来のlive trading用secretも、同じくworker専用secretとして扱う。初期実装ではlive tradingを無効化するため、GMO Private API secretは必須にしない。
 
 ## 未決事項
 
-- Claude CLIをDocker container内で安定動作させるためのベースイメージと認証mountの実機検証。
+- Claude CLIをai-runner container内で安定動作させるためのベースイメージと認証mountの実機検証。
 - Cloudflare TunnelのWeb hostname `ai-trading.rayven.cloud` 追加。
 - 外部backup保存先の選定。paper段階ではVM内backup volumeで開始する。
 
@@ -1606,9 +1700,9 @@ GMO API keyなど将来のlive trading用secretも、同じくworker専用secret
 おすすめの初期実装順:
 
 ```text
-1. `apps/web`、`apps/worker`、`packages/db`、`packages/domain`のworkspace骨格を作る。
+1. `apps/web`、`apps/worker`、`apps/ai-runner`、`packages/db`、`packages/domain`のpnpm workspace骨格を作る。
 2. Next.js + tRPC + Drizzle + TimescaleDBの最小構成を作る。
-3. docker-compose.local.ymlでnext-web / worker / timescaledbを起動する。
+3. docker-compose.local.ymlでnext-web / worker / ai-runner / timescaledbを起動する。
 4. Drizzle schemaとTimescaleDB migrationを`packages/db`に作る。
 5. GMO public REST clientを`packages/domain`に作り、/status /ticker /symbols /klinesを取得する。
 6. historical importerでUSD_JPY 1min BID/ASK KLineをbackfillする。
@@ -1616,7 +1710,7 @@ GMO API keyなど将来のlive trading用secretも、同じくworker専用secret
 8. 1m candle builderと5m/15m aggregatorを実装する。
 9. paper execution modelを実装する。entryは次足open、SL/TP/trailingは1m intrabar判定で実装する。
 10. strategy DSLとbaseline strategyを実装する。
-11. ClaudeCliProviderを実装する。
+11. ai-runnerのClaudeCliProviderとworker側AiProvider clientを実装する。
 12. hourly tuningとcandidate並走を実装する。
 13. dashboardでsystem status / paper accounts / strategy comparison / daily reviewを表示する。
 ```
@@ -1629,12 +1723,14 @@ GMO API keyなど将来のlive trading用secretも、同じくworker専用secret
 
 ```text
 goal:
-  - Next.js / tRPC / Drizzle / TimescaleDB / Docker Composeの骨格を作る
+  - pnpm workspace、Next.js / tRPC / Drizzle / TimescaleDB / Docker Composeの骨格を作る
 
 done:
-  - docker composeでnext-web / worker / timescaledbが起動する
+  - docker composeでnext-web / worker / ai-runner / timescaledbが起動する
   - migrationが適用できる
   - dashboardにSystem Statusの空表示が出る
+  - import boundary checkで`packages/domain`がDB/env/server/appに依存していないことを確認できる
+  - `apps/web`、`apps/worker`、`apps/ai-runner`が互いを直接importしていないことを確認できる
 ```
 
 ### Phase 1: Market Data
@@ -1672,7 +1768,8 @@ goal:
   - Claude CLIでcandidateを生成し、paperに自動投入する
 
 done:
-  - ClaudeCliProviderがJSON proposalを返す
+  - ai-runnerのClaudeCliProviderがJSON proposalを返す
+  - workerがai-runnerを内部API越しに呼べる
   - invalid proposalがrejectされる
   - hourly tuningでcandidate slotに投入される
   - baseline/candidate比較がdashboardに出る
