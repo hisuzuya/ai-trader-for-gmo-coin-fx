@@ -1,12 +1,14 @@
-# ai-trade
+# ai-trader-for-gmo-coin-fx
 
-AI-assisted FX paper trading system for GMO Coin FX USD/JPY.
+AI-assisted FX trading research system for GMO Coin FX USD/JPY.
 
 This repository is a paper trading and research tool. It is not financial
 advice, investment advice, or a recommendation to trade.
 
-Current status: Phase 0 scaffold. Live trading, GMO Private API, and real order
-placement are intentionally out of scope.
+Current status: Phase 0 scaffold. The current implementation is limited to
+paper trading and research workflows. Live trading, GMO Private API integration,
+and real order placement are planned for a later phase and are intentionally out
+of scope for the current codebase.
 
 See [docs/architecture.md](docs/architecture.md).
 
