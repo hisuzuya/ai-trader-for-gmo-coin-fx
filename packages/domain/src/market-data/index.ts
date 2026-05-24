@@ -43,4 +43,5 @@ export {
   parseGmoStatusResponse,
   parseGmoSymbolsResponse,
   parseGmoTickerResponse,
+  parseGmoWebSocketTickerMessage,
 } from "./server/validation.js";

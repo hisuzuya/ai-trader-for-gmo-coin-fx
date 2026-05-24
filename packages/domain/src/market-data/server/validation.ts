@@ -28,6 +28,10 @@ export function parseGmoTickerResponse(
   return parseGmoApiResponse(value, arrayOf(parseGmoTicker));
 }
 
+export function parseGmoWebSocketTickerMessage(value: unknown): GmoFxTicker {
+  return parseGmoTicker(value, "ticker");
+}
+
 export function parseGmoSymbolsResponse(
   value: unknown,
 ): GmoFxApiResponse<GmoFxSymbol[]> {
