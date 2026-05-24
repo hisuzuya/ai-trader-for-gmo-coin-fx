@@ -64,6 +64,14 @@ describe("AI strategy proposal validation", () => {
     }
   });
 
+  it("accepts a valid strategy proposal inside a JSON code fence", () => {
+    const result = validateAiStrategyProposal(
+      `\`\`\`json\n${JSON.stringify(proposalFrom())}\n\`\`\``,
+    );
+
+    expect(result.status).toBe("accepted");
+  });
+
   it("rejects invalid JSON with a reason", () => {
     expectRejectedWith("{not json", "invalid_json");
   });
