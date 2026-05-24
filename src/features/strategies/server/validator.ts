@@ -352,5 +352,5 @@ const walkStrings = (
   }
 }
 
-const toPath = (path: Array<string | number>) =>
+const toPath = (path: PropertyKey[]) =>
   path.length === 0 ? "$" : `$.${path.map(String).join(".")}`
