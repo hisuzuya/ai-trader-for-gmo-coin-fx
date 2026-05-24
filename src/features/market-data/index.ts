@@ -27,6 +27,10 @@ export {
   normalizeGmoKlinesToCandles,
 } from "./server/normalizer.js";
 export {
+  CandleRepository,
+  toCandleInsertRows,
+} from "./server/candle-repository.js";
+export {
   calculateSpreadPips,
   normalizeTicker,
   parseUsdJpySymbolRule,
