@@ -15,6 +15,13 @@
       "when": 1779622601301,
       "tag": "0001_paper_trading_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779626050517,
+      "tag": "0002_ambiguous_piledriver",
+      "breakpoints": true
     }
   ]
 }

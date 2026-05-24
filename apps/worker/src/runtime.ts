@@ -1,14 +1,20 @@
 import {
+  aiTuningProposals,
   checkDbConnection,
   DbJobRunRecorder,
+  db,
   type JobRunRecorder,
+  paperAccounts,
+  paperTrades,
   runRecordedJob,
 } from "@ai-trade/db";
+import { desc, eq } from "drizzle-orm";
 import {
   type HistoricalImporter,
   type HistoricalImportResult,
   StubHistoricalImporter,
 } from "./jobs/historical-importer.js";
+import type { AiTunerService, AiTuningRunResult } from "./services/ai-tuner.js";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "./types.js";
 
 export class WorkerRuntime {
@@ -91,7 +97,69 @@ export class WorkerRuntime {
         detailString(paperTrader, "latestCandleOpenedAt"),
       websocketConnected: detailBoolean(collector, "websocketConnected"),
       lastReconnectReason: detailString(collector, "lastReconnectReason"),
-      lastAiInvocationStatus: null,
+      lastAiInvocationStatus: detailAiInvocationStatus(services),
+    };
+  }
+
+  async runAiTuning(): Promise<AiTuningRunResult> {
+    const aiTuner = this.services.find(isAiTunerService);
+
+    if (!aiTuner) {
+      throw new Error("AI tuner service is not registered.");
+    }
+
+    return aiTuner.runOnce();
+  }
+
+  async dashboardSummary(): Promise<WorkerDashboardSummary> {
+    const [accounts, trades, candidates] = await Promise.all([
+      db
+        .select({
+          name: paperAccounts.name,
+          balanceJpy: paperAccounts.balanceJpy,
+          status: paperAccounts.status,
+          updatedAt: paperAccounts.updatedAt,
+        })
+        .from(paperAccounts)
+        .orderBy(desc(paperAccounts.updatedAt))
+        .limit(6),
+      db
+        .select({
+          symbol: paperTrades.symbol,
+          side: paperTrades.side,
+          pnlJpy: paperTrades.pnlJpy,
+          closedAt: paperTrades.closedAt,
+        })
+        .from(paperTrades)
+        .orderBy(desc(paperTrades.closedAt))
+        .limit(6),
+      db
+        .select({
+          sourceStrategyName: aiTuningProposals.sourceStrategyName,
+          candidateStrategyName: aiTuningProposals.candidateStrategyName,
+          status: aiTuningProposals.status,
+          timeframe: aiTuningProposals.timeframe,
+          createdAt: aiTuningProposals.createdAt,
+        })
+        .from(aiTuningProposals)
+        .where(eq(aiTuningProposals.insertedIntoPaper, true))
+        .orderBy(desc(aiTuningProposals.createdAt))
+        .limit(6),
+    ]);
+
+    return {
+      accounts: accounts.map((account) => ({
+        ...account,
+        updatedAt: account.updatedAt.toISOString(),
+      })),
+      trades: trades.map((trade) => ({
+        ...trade,
+        closedAt: trade.closedAt.toISOString(),
+      })),
+      candidates: candidates.map((candidate) => ({
+        ...candidate,
+        createdAt: candidate.createdAt.toISOString(),
+      })),
     };
   }
 
@@ -109,6 +177,28 @@ export class WorkerRuntime {
   }
 }
 
+export type WorkerDashboardSummary = {
+  accounts: {
+    name: string;
+    balanceJpy: string;
+    status: string;
+    updatedAt: string;
+  }[];
+  trades: {
+    symbol: string;
+    side: string;
+    pnlJpy: string;
+    closedAt: string;
+  }[];
+  candidates: {
+    sourceStrategyName: string;
+    candidateStrategyName: string | null;
+    status: string;
+    timeframe: string;
+    createdAt: string;
+  }[];
+};
+
 function detailString(service: ServiceHealth | undefined, key: string): string | null {
   const value = service?.details?.[key];
   return typeof value === "string" ? value : null;
@@ -116,4 +206,24 @@ function detailString(service: ServiceHealth | undefined, key: string): string |
 
 function detailBoolean(service: ServiceHealth | undefined, key: string): boolean {
   return service?.details?.[key] === true;
+}
+
+function detailAiInvocationStatus(services: ServiceHealth[]): string | null {
+  const aiTuner = services.find((service) => service.name === "ai-tuner");
+  const latestResult = aiTuner?.details?.latestResult;
+
+  if (
+    typeof latestResult === "object" &&
+    latestResult !== null &&
+    "proposalStatus" in latestResult &&
+    typeof latestResult.proposalStatus === "string"
+  ) {
+    return latestResult.proposalStatus;
+  }
+
+  return null;
+}
+
+function isAiTunerService(service: WorkerService): service is AiTunerService {
+  return service.name === "ai-tuner" && "runOnce" in service;
 }

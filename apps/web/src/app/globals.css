@@ -28,16 +28,17 @@ body {
 .dashboard-shell {
   display: grid;
   min-height: 100vh;
-  place-items: center;
+  align-content: start;
+  gap: 18px;
   padding: 32px;
 }
 
 .status-panel {
-  width: min(100%, 760px);
+  width: min(100%, 1080px);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   background: rgba(24, 26, 31, 0.92);
-  padding: clamp(28px, 5vw, 56px);
+  padding: clamp(24px, 4vw, 44px);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
 }
 
@@ -52,7 +53,7 @@ body {
 
 h1 {
   margin: 0;
-  font-size: clamp(2.4rem, 7vw, 5.4rem);
+  font-size: clamp(2.2rem, 6vw, 4.6rem);
   letter-spacing: 0;
   line-height: 0.95;
 }
@@ -67,15 +68,18 @@ h1 {
 
 .status-grid {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
 .status-row {
   display: flex;
+  min-width: 0;
   min-height: 52px;
-  align-items: center;
+  align-items: flex-start;
+  flex-direction: column;
   justify-content: space-between;
-  gap: 18px;
+  gap: 8px;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
   padding: 14px 16px;
@@ -90,14 +94,72 @@ h1 {
   color: var(--accent-strong);
   font-size: 0.95rem;
   font-weight: 700;
-  text-align: right;
   overflow-wrap: anywhere;
+}
+
+.dashboard-section {
+  width: min(100%, 1080px);
+}
+
+.dashboard-section h2 {
+  margin: 18px 0 10px;
+  font-size: 1.05rem;
+  letter-spacing: 0;
+}
+
+.data-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.data-row,
+.empty-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(120px, 0.7fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 48px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: #111318;
+  padding: 12px 14px;
+}
+
+.data-row span,
+.data-row strong,
+.data-row small,
+.empty-row {
+  overflow-wrap: anywhere;
+}
+
+.data-row span {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.data-row strong {
+  color: var(--accent-strong);
+  font-size: 0.95rem;
+}
+
+.data-row small,
+.empty-row {
+  color: var(--muted);
+}
+
+.empty-row {
+  grid-template-columns: 1fr;
 }
 
 @media (max-width: 560px) {
   .dashboard-shell {
     align-items: start;
     padding: 18px;
+  }
+
+  .status-grid,
+  .data-row {
+    grid-template-columns: 1fr;
   }
 
   .status-row {

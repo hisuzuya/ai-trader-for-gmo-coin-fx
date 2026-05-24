@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   index,
   jsonb,
   numeric,
@@ -36,6 +37,18 @@ export const paperOrderAction = pgEnum("paper_order_action", ["entry", "exit"]);
 export const paperOrderSide = pgEnum("paper_order_side", ["BUY", "SELL"]);
 
 export const paperOrderStatus = pgEnum("paper_order_status", ["filled", "rejected"]);
+
+export const aiInvocationStatus = pgEnum("ai_invocation_status", [
+  "succeeded",
+  "failed",
+  "timeout",
+]);
+
+export const aiTuningProposalStatus = pgEnum("ai_tuning_proposal_status", [
+  "accepted",
+  "rejected",
+  "failed",
+]);
 
 export const candles = pgTable(
   "candles",
@@ -209,4 +222,47 @@ export const paperTrades = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
   (table) => [index("paper_trades_account_closed_at_idx").on(table.accountId, table.closedAt)],
+);
+
+export const aiInvocations = pgTable(
+  "ai_invocations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    provider: text("provider").notNull(),
+    purpose: text("purpose").notNull(),
+    promptHash: text("prompt_hash").notNull(),
+    promptRedacted: text("prompt_redacted").notNull(),
+    stdoutRaw: text("stdout_raw"),
+    stderrSummary: text("stderr_summary"),
+    parsedJson: jsonb("parsed_json"),
+    status: aiInvocationStatus("status").notNull(),
+    timeoutMs: numeric("timeout_ms", { precision: 18, scale: 0 }).notNull(),
+    cliVersion: text("cli_version"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }).notNull(),
+    errorSummary: text("error_summary"),
+  },
+  (table) => [index("ai_invocations_started_at_idx").on(table.startedAt)],
+);
+
+export const aiTuningProposals = pgTable(
+  "ai_tuning_proposals",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    invocationId: uuid("invocation_id").references(() => aiInvocations.id),
+    sourceStrategyName: text("source_strategy_name").notNull(),
+    candidateStrategyName: text("candidate_strategy_name"),
+    symbol: text("symbol").notNull(),
+    timeframe: text("timeframe").notNull(),
+    status: aiTuningProposalStatus("status").notNull(),
+    rationale: text("rationale"),
+    strategyDefinition: jsonb("strategy_definition_json"),
+    rejectReasons: jsonb("reject_reasons_json"),
+    insertedIntoPaper: boolean("inserted_into_paper").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [
+    index("ai_tuning_proposals_created_at_idx").on(table.createdAt),
+    index("ai_tuning_proposals_status_idx").on(table.status),
+  ],
 );
