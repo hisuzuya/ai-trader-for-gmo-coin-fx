@@ -10,8 +10,11 @@ Live tradingは将来スコープとして設計には含めるが、初期実�
 
 - 言語はTypeScript。
 - WebアプリはNext.js + tRPC。
-- 業務ロジックはNext.js内のvertical slice designで管理する。
-- `packages/*` への過度な分割は初期段階では避ける。
+- 実行単位は`apps/web`と`apps/worker`で分離する。
+- Web UIとtRPCは`apps/web`、Honoとschedulerは`apps/worker`に置く。
+- Drizzle schema / DB client / migrationsは`packages/db`で共有する。
+- Strategy DSL、market-data正規化、paper execution、risk gateなどの純粋ドメインロジックは`packages/domain`で共有する。
+- `packages/*`はDBと純粋ドメインに限定し、アプリ固有の処理まで過度に共通化しない。
 - collectorはNext.jsとは別プロセス。
 - workerは単一Node.jsプロセス。
 - worker内にcollector、paper-trader、ai-tuner、ai-reviewerを同居させる。
@@ -59,78 +62,94 @@ workerのHono APIは原則としてDocker network内部限定にする。外部�
 ## ディレクトリ方針
 
 ```text
-src/
-  app/
-    api/trpc/[trpc]/route.ts
-    (dashboard)/
-      market-data/
-      paper-trading/
-      strategies/
-      reviews/
+apps/
+  web/
+    src/
+      app/
+        api/trpc/[trpc]/route.ts
+        (dashboard)/
+          market-data/
+          paper-trading/
+          strategies/
+          reviews/
 
-  server/
-    trpc/
-      init.ts
-      root.ts
-
-  features/
-    market-data/
       server/
-      ui/
-      types.ts
+        trpc/
+          init.ts
+          root.ts
+        routers/
 
-    paper-trading/
-      server/
-      ui/
-      types.ts
-
-    strategies/
-      server/
-        definitions/
-        evaluator.ts
-        registry.ts
-        versioning.ts
-      ui/
-      types.ts
-
-    ai-tuning/
-      server/
-        claude-cli-provider.ts
-        prompt-builder.ts
-        proposal-validator.ts
-        adoption-policy.ts
-        daily-review.ts
-      ui/
-      types.ts
-
-    risk/
-      server/
-      types.ts
-
-    live-trading/
-      server/
-      types.ts
-
-  shared/
-    db/
-      schema/
-      client.ts
-    env/
-    logger/
-    time/
+      features/
+        market-data/
+          ui/
+        paper-trading/
+          ui/
+        strategies/
+          ui/
+        ai-tuning/
+          ui/
 
   worker/
-    main.ts
-    runtime.ts
-    hono-app.ts
-    services/
-      collector.ts
-      paper-trader.ts
-      ai-tuner.ts
-      ai-daily-reviewer.ts
+    src/
+      main.ts
+      runtime.ts
+      hono-app.ts
+      services/
+        collector.ts
+        paper-trader.ts
+        ai-tuner.ts
+        ai-daily-reviewer.ts
+      admin/
+        routes.ts
+
+packages/
+  db/
+    src/
+      schema/
+        candles.ts
+        features.ts
+        strategies.ts
+        paper-trading.ts
+        ai.ts
+      client.ts
+      repositories/
+      migrations/
+
+  domain/
+    src/
+      market-data/
+        gmo-fx-client.ts
+        normalizer.ts
+        candle-aggregator.ts
+        spread.ts
+        validation.ts
+      strategies/
+        schema.ts
+        validator.ts
+        baselines.ts
+        presets.ts
+      paper-trading/
+        execution-model.ts
+        account.ts
+      risk/
+        gates.ts
+      ai-tuning/
+        proposal-schema.ts
+
+  config/
+    src/
+      env.ts
+      logger.ts
+      time.ts
 ```
 
-`app`配下はルーティングと画面の入口に寄せる。取引、検証、AI、DB操作などの中核は`features/*`に置く。
+`apps/web`はNext.jsのrouting、dashboard UI、tRPC routerに限定する。`apps/worker`はHono API、scheduler、collector、paper trader、AI provider呼び出しに限定する。
+
+`packages/db`はDrizzle schema、DB client、migration、repositoryを持つ。DB接続を使う処理は`apps/web`と`apps/worker`から`packages/db`経由で行い、schema定義を重複させない。
+
+`packages/domain`はDBやHTTP serverに依存しない純粋ロジックだけを置く。market-data normalization、candle aggregation、Strategy DSL validation、paper execution model、risk gateはここに置き、Next.jsとworkerの両方から再利用する。
+
+アプリ固有のcomposition、scheduler、Hono route、tRPC procedure、UI stateはpackage化しない。これにより共通化しすぎによる依存逆転を避ける。
 
 ## Worker Runtime
 
@@ -1390,7 +1409,7 @@ next-web:
 worker:
   build:
     target: worker
-  command: node dist/worker/main.js
+  command: node apps/worker/dist/main.js
   internal_port: 8787
   exposed_to_tunnel: false
   mounts:
@@ -1587,18 +1606,19 @@ GMO API keyなど将来のlive trading用secretも、同じくworker専用secret
 おすすめの初期実装順:
 
 ```text
-1. Next.js + tRPC + Drizzle + TimescaleDBの最小構成を作る。
-2. docker-compose.local.ymlでnext-web / worker / timescaledbを起動する。
-3. Drizzle schemaとTimescaleDB migrationを作る。
-4. GMO public REST clientを作り、/status /ticker /symbols /klinesを取得する。
-5. historical importerでUSD_JPY 1min BID/ASK KLineをbackfillする。
-6. WebSocket collectorでUSD_JPY tickerを購読する。
-7. 1m candle builderと5m/15m aggregatorを実装する。
-8. paper execution modelを実装する。entryは次足open、SL/TP/trailingは1m intrabar判定で実装する。
-9. strategy DSLとbaseline strategyを実装する。
-10. ClaudeCliProviderを実装する。
-11. hourly tuningとcandidate並走を実装する。
-12. dashboardでsystem status / paper accounts / strategy comparison / daily reviewを表示する。
+1. `apps/web`、`apps/worker`、`packages/db`、`packages/domain`のworkspace骨格を作る。
+2. Next.js + tRPC + Drizzle + TimescaleDBの最小構成を作る。
+3. docker-compose.local.ymlでnext-web / worker / timescaledbを起動する。
+4. Drizzle schemaとTimescaleDB migrationを`packages/db`に作る。
+5. GMO public REST clientを`packages/domain`に作り、/status /ticker /symbols /klinesを取得する。
+6. historical importerでUSD_JPY 1min BID/ASK KLineをbackfillする。
+7. WebSocket collectorでUSD_JPY tickerを購読する。
+8. 1m candle builderと5m/15m aggregatorを実装する。
+9. paper execution modelを実装する。entryは次足open、SL/TP/trailingは1m intrabar判定で実装する。
+10. strategy DSLとbaseline strategyを実装する。
+11. ClaudeCliProviderを実装する。
+12. hourly tuningとcandidate並走を実装する。
+13. dashboardでsystem status / paper accounts / strategy comparison / daily reviewを表示する。
 ```
 
 初期実装ではlive trading、GMO Private API、実注文、保護注文、live用secret/env、live用dashboard操作は実装しない。
