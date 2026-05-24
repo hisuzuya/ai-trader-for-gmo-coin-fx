@@ -12,6 +12,12 @@ export default defineConfig({
       "@ai-trade/domain/market-data": fileURLToPath(
         new URL("../../packages/domain/src/market-data/index.ts", import.meta.url),
       ),
+      "@ai-trade/domain/paper-trading": fileURLToPath(
+        new URL("../../packages/domain/src/paper-trading/index.ts", import.meta.url),
+      ),
+      "@ai-trade/domain/strategies": fileURLToPath(
+        new URL("../../packages/domain/src/strategies/index.ts", import.meta.url),
+      ),
       "@ai-trade/domain": fileURLToPath(
         new URL("../../packages/domain/src/index.ts", import.meta.url),
       ),

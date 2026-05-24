@@ -80,12 +80,15 @@ export class WorkerRuntime {
   async status(): Promise<WorkerStatus> {
     const services = await this.serviceHealth();
     const collector = services.find((service) => service.name === "collector");
+    const paperTrader = services.find((service) => service.name === "paper-trader");
 
     return {
       startedAt: this.startedAt.toISOString(),
       services,
       latestTickerTimestamp: detailString(collector, "latestTickerTimestamp"),
-      latestCandleOpenedAt: null,
+      latestCandleOpenedAt:
+        detailString(collector, "latestCandleOpenedAt") ??
+        detailString(paperTrader, "latestCandleOpenedAt"),
       websocketConnected: detailBoolean(collector, "websocketConnected"),
       lastReconnectReason: detailString(collector, "lastReconnectReason"),
       lastAiInvocationStatus: null,

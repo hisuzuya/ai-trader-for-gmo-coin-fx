@@ -1,6 +1,9 @@
 import { env } from "@ai-trade/config";
 import {
+  type BidAskTick,
+  type CanonicalCandle,
   type GmoFxTicker,
+  LiveCandleBuilder,
   type MarketSymbol,
   parseGmoWebSocketTickerMessage,
 } from "@ai-trade/domain/market-data";
@@ -18,10 +21,16 @@ export interface TickerWebSocket {
 
 export type TickerWebSocketFactory = (url: string) => TickerWebSocket;
 
+export interface CandleWriter {
+  upsertMany(candles: CanonicalCandle[]): Promise<void>;
+}
+
 export interface CollectorServiceOptions {
   symbol?: MarketSymbol;
   url?: string;
   webSocketFactory?: TickerWebSocketFactory;
+  candleWriter?: CandleWriter;
+  candleBuilder?: LiveCandleBuilder;
   reconnectBackoffMs?: number;
   autoReconnect?: boolean;
 }
@@ -35,11 +44,14 @@ export class CollectorService implements WorkerService {
   private stopped = true;
   private connected = false;
   private latestTicker: GmoFxTicker | null = null;
+  private latestCandleOpenedAt: Date | null = null;
   private lastReconnectReason: string | null = null;
 
   private readonly symbol: MarketSymbol;
   private readonly url: string;
   private readonly webSocketFactory: TickerWebSocketFactory;
+  private readonly candleWriter: CandleWriter;
+  private readonly candleBuilder: LiveCandleBuilder;
   private readonly reconnectBackoffMs: number;
   private readonly autoReconnect: boolean;
 
@@ -47,6 +59,8 @@ export class CollectorService implements WorkerService {
     this.symbol = options.symbol ?? "USD_JPY";
     this.url = options.url ?? env.GMO_FX_PUBLIC_WEBSOCKET_URL;
     this.webSocketFactory = options.webSocketFactory ?? createDefaultWebSocket;
+    this.candleWriter = options.candleWriter ?? { upsertMany: async () => {} };
+    this.candleBuilder = options.candleBuilder ?? new LiveCandleBuilder();
     this.reconnectBackoffMs = options.reconnectBackoffMs ?? 5_000;
     this.autoReconnect = options.autoReconnect ?? true;
   }
@@ -77,6 +91,7 @@ export class CollectorService implements WorkerService {
       details: {
         websocketConnected: this.connected,
         latestTickerTimestamp: this.latestTicker?.timestamp ?? null,
+        latestCandleOpenedAt: this.latestCandleOpenedAt?.toISOString() ?? null,
         lastReconnectReason: this.lastReconnectReason,
       },
     };
@@ -109,6 +124,19 @@ export class CollectorService implements WorkerService {
   private readonly handleMessage = (event: unknown) => {
     const message = parseMessageEventData(event);
     this.latestTicker = parseGmoWebSocketTickerMessage(message);
+    const closedCandles = this.candleBuilder.addTick(toBidAskTick(this.latestTicker));
+    this.latestCandleOpenedAt =
+      latestOpenedAt(closedCandles) ?? this.candleBuilder.currentCandleOpenedAt;
+
+    if (closedCandles.length > 0) {
+      void this.candleWriter.upsertMany(closedCandles).catch((error: unknown) => {
+        this.state = "degraded";
+        this.lastReconnectReason =
+          error instanceof Error
+            ? `candle upsert failed: ${error.message}`
+            : "candle upsert failed";
+      });
+    }
   };
 
   private readonly handleClose = (event: unknown) => {
@@ -175,4 +203,23 @@ function closeReason(event: unknown): string {
   const suffix = [code, reason].filter(Boolean).join(" ");
 
   return suffix ? `websocket closed: ${suffix}` : "websocket closed";
+}
+
+function toBidAskTick(ticker: GmoFxTicker): BidAskTick {
+  return {
+    symbol: ticker.symbol,
+    bid: Number(ticker.bid),
+    ask: Number(ticker.ask),
+    timestamp: new Date(ticker.timestamp),
+  };
+}
+
+function latestOpenedAt(candles: CanonicalCandle[]): Date | null {
+  const latest = candles.reduce<Date | null>(
+    (current, candle) =>
+      current === null || candle.openedAt.getTime() > current.getTime() ? candle.openedAt : current,
+    null,
+  );
+
+  return latest;
 }
