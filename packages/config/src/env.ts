@@ -6,6 +6,10 @@ const serverEnvSchema = z.object({
     .url()
     .default("postgresql://ai_trade:ai_trade@localhost:5432/ai_trade"),
   WORKER_PORT: z.coerce.number().int().positive().default(8787),
+  GMO_FX_PUBLIC_WEBSOCKET_URL: z
+    .string()
+    .url()
+    .default("wss://forex-api.coin.z.com/ws/public/v1"),
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),

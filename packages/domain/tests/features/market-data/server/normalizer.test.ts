@@ -9,6 +9,7 @@ import {
   parseGmoKlinesResponse,
   parseGmoSymbolsResponse,
   parseGmoTickerResponse,
+  parseGmoWebSocketTickerMessage,
   parseUsdJpySymbolRule,
 } from "../../../../src/market-data/index.js";
 
@@ -39,6 +40,24 @@ describe("market-data normalizer", () => {
       ask: 156.124,
       mid: 156.123,
       spreadPips: 0.3,
+      status: "OPEN",
+    });
+  });
+
+  it("parses a GMO websocket ticker payload", () => {
+    expect(
+      parseGmoWebSocketTickerMessage({
+        symbol: "USD_JPY",
+        bid: "156.100",
+        ask: "156.103",
+        timestamp: "2026-05-24T08:51:51.000Z",
+        status: "OPEN",
+      }),
+    ).toEqual({
+      symbol: "USD_JPY",
+      bid: "156.100",
+      ask: "156.103",
+      timestamp: "2026-05-24T08:51:51.000Z",
       status: "OPEN",
     });
   });

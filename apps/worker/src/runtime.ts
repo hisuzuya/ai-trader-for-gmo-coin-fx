@@ -78,13 +78,16 @@ export class WorkerRuntime {
   }
 
   async status(): Promise<WorkerStatus> {
+    const services = await this.serviceHealth();
+    const collector = services.find((service) => service.name === "collector");
+
     return {
       startedAt: this.startedAt.toISOString(),
-      services: await this.serviceHealth(),
-      latestTickerTimestamp: null,
+      services,
+      latestTickerTimestamp: detailString(collector, "latestTickerTimestamp"),
       latestCandleOpenedAt: null,
-      websocketConnected: false,
-      lastReconnectReason: null,
+      websocketConnected: detailBoolean(collector, "websocketConnected"),
+      lastReconnectReason: detailString(collector, "lastReconnectReason"),
       lastAiInvocationStatus: null,
     };
   }
@@ -104,4 +107,19 @@ export class WorkerRuntime {
   private async serviceHealth(): Promise<ServiceHealth[]> {
     return Promise.all(this.services.map((service) => service.health()));
   }
+}
+
+function detailString(
+  service: ServiceHealth | undefined,
+  key: string,
+): string | null {
+  const value = service?.details?.[key];
+  return typeof value === "string" ? value : null;
+}
+
+function detailBoolean(
+  service: ServiceHealth | undefined,
+  key: string,
+): boolean {
+  return service?.details?.[key] === true;
 }
