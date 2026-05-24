@@ -23,8 +23,36 @@ describe("ai-runner Hono app", () => {
         mode: "disabled",
         implementation: "claude_cli",
         enabled: false,
+        ready: false,
         reason: "test disabled",
       },
+    });
+  });
+
+  it("returns readiness based on provider state", async () => {
+    const response = await createAiRunnerApp(fakeProvider()).request("/ready");
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.ok).toBe(false);
+    expect(body.provider.ready).toBe(false);
+  });
+
+  it("invokes Claude CLI through the provider", async () => {
+    const provider = fakeProvider();
+
+    const response = await createAiRunnerApp(provider).request("/invoke", {
+      method: "POST",
+      body: JSON.stringify({ prompt: 'Return JSON only: {"ok":true}', timeoutMs: 30000 }),
+      headers: { "content-type": "application/json" },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, stdout: '{"ok":true}' });
+    expect(provider.invoke).toHaveBeenCalledWith({
+      prompt: 'Return JSON only: {"ok":true}',
+      timeoutMs: 30000,
     });
   });
 
@@ -127,7 +155,16 @@ function fakeProvider(
       mode: "disabled",
       implementation: "claude_cli",
       enabled: false,
+      ready: false,
       reason: "test disabled",
+    }),
+    invoke: vi.fn().mockResolvedValue({
+      ok: true,
+      provider: "claude_cli",
+      stdout: '{"ok":true}',
+      startedAt: "2026-05-24T00:00:00.000Z",
+      finishedAt: "2026-05-24T00:00:01.000Z",
+      timeoutMs: 30000,
     }),
     generateStrategyProposal: vi.fn().mockResolvedValue(
       response ?? {

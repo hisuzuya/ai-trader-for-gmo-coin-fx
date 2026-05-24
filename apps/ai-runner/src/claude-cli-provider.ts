@@ -18,11 +18,37 @@ export type AiRunnerProviderState = {
   mode: "enabled" | "disabled";
   implementation: "claude_cli";
   enabled: boolean;
+  ready: boolean;
   reason: string;
 };
 
+export type ClaudeCliInvocationInput = {
+  prompt: string;
+  timeoutMs?: number;
+};
+
+export type ClaudeCliInvocationResult =
+  | {
+      ok: true;
+      provider: "claude_cli";
+      stdout: string;
+      stderrSummary?: string;
+      startedAt: string;
+      finishedAt: string;
+      timeoutMs: number;
+    }
+  | {
+      ok: false;
+      provider: "claude_cli";
+      error: string;
+      startedAt: string;
+      finishedAt: string;
+      timeoutMs: number;
+    };
+
 export interface StrategyProposalProvider {
   health(): Promise<AiRunnerProviderState>;
+  invoke(input: ClaudeCliInvocationInput): Promise<ClaudeCliInvocationResult>;
   generateStrategyProposal(input: StrategyProposalInput): Promise<AiStrategyProposalResponse>;
   generateDailyReview(input: DailyReviewInput): Promise<AiDailyReviewResponse>;
 }
@@ -50,10 +76,53 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
       mode: this.enabled ? "enabled" : "disabled",
       implementation: "claude_cli",
       enabled: this.enabled,
+      ready: this.enabled,
       reason: this.enabled
         ? "Claude CLI provider is enabled."
         : "Set CLAUDE_CLI_ENABLED=1 to enable strategy proposal generation.",
     };
+  }
+
+  async invoke(input: ClaudeCliInvocationInput): Promise<ClaudeCliInvocationResult> {
+    const startedAt = new Date();
+    const timeoutMs = input.timeoutMs ?? this.timeoutMs;
+
+    if (!this.enabled) {
+      return {
+        ok: false,
+        provider: "claude_cli",
+        error: "Claude CLI provider is disabled.",
+        startedAt: startedAt.toISOString(),
+        finishedAt: new Date().toISOString(),
+        timeoutMs,
+      };
+    }
+
+    try {
+      const { stdout, stderr } = await execFileAsync(this.executable, ["-p", input.prompt], {
+        timeout: timeoutMs,
+        maxBuffer: 1024 * 1024,
+      });
+
+      return {
+        ok: true,
+        provider: "claude_cli",
+        stdout,
+        stderrSummary: summarizeStderr(stderr),
+        startedAt: startedAt.toISOString(),
+        finishedAt: new Date().toISOString(),
+        timeoutMs,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        provider: "claude_cli",
+        error: error instanceof Error ? error.message : String(error),
+        startedAt: startedAt.toISOString(),
+        finishedAt: new Date().toISOString(),
+        timeoutMs,
+      };
+    }
   }
 
   async generateStrategyProposal(
