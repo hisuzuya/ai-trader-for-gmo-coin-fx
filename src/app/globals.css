@@ -1,0 +1,112 @@
+:root {
+  color-scheme: dark;
+  --background: #101114;
+  --panel: #181a1f;
+  --panel-border: #30343d;
+  --text: #f2f1eb;
+  --muted: #a8adba;
+  --accent: #75d7a6;
+  --accent-strong: #d9f99d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(135deg, rgba(117, 215, 166, 0.08), transparent 34%),
+    radial-gradient(circle at top right, rgba(217, 249, 157, 0.08), transparent 30%),
+    var(--background);
+  color: var(--text);
+  font-family:
+    "Avenir Next", "Helvetica Neue", system-ui, -apple-system, BlinkMacSystemFont,
+    sans-serif;
+}
+
+.dashboard-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 32px;
+}
+
+.status-panel {
+  width: min(100%, 760px);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: rgba(24, 26, 31, 0.92);
+  padding: clamp(28px, 5vw, 56px);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+}
+
+.status-kicker {
+  margin-bottom: 16px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 7vw, 5.4rem);
+  letter-spacing: 0;
+  line-height: 0.95;
+}
+
+.status-copy {
+  max-width: 58ch;
+  margin: 24px 0 36px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.status-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.status-row {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  background: #111318;
+}
+
+.status-row span {
+  color: var(--muted);
+}
+
+.status-row strong {
+  color: var(--accent-strong);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .dashboard-shell {
+    align-items: start;
+    padding: 18px;
+  }
+
+  .status-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .status-row strong {
+    text-align: left;
+  }
+}

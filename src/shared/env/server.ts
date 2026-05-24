@@ -1,0 +1,14 @@
+import { z } from "zod";
+
+const serverEnvSchema = z.object({
+  DATABASE_URL: z
+    .string()
+    .url()
+    .default("postgresql://ai_trade:ai_trade@localhost:5432/ai_trade"),
+  WORKER_PORT: z.coerce.number().int().positive().default(8787),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
+});
+
+export const env = serverEnvSchema.parse(process.env);

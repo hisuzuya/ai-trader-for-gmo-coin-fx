@@ -1,0 +1,53 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_DB: ai_trade
+      POSTGRES_USER: ai_trade
+      POSTGRES_PASSWORD: ai_trade
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_trade -d ai_trade"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  next-web:
+    image: node:24-bookworm-slim
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm dev --hostname 0.0.0.0"
+    environment:
+      DATABASE_URL: postgresql://ai_trade:ai_trade@timescaledb:5432/ai_trade
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - next-web-node-modules:/app/node_modules
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+
+  worker:
+    image: node:24-bookworm-slim
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm worker:start"
+    environment:
+      DATABASE_URL: postgresql://ai_trade:ai_trade@timescaledb:5432/ai_trade
+      WORKER_PORT: "8787"
+    ports:
+      - "8787:8787"
+    volumes:
+      - .:/app
+      - worker-node-modules:/app/node_modules
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+
+volumes:
+  timescaledb-data:
+  next-web-node-modules:
+  worker-node-modules:
