@@ -5,12 +5,45 @@ AI-assisted FX trading research system for GMO Coin FX USD/JPY.
 This repository is a paper trading and research tool. It is not financial
 advice, investment advice, or a recommendation to trade.
 
+## Overview
+
+`ai-trader-for-gmo-coin-fx` is an AI-assisted FX trading research system for GMO
+Coin FX USD/JPY. The current implementation focuses on collecting public market
+data, normalizing ticks and candles, running worker-side import jobs, and
+showing system status through a Next.js dashboard.
+
 Current status: Phase 0 scaffold. The current implementation is limited to
 paper trading and research workflows. Live trading, GMO Private API integration,
 and real order placement are planned for a later phase and are intentionally out
 of scope for the current codebase.
 
 See [docs/architecture.md](docs/architecture.md).
+
+## Architecture
+
+```mermaid
+flowchart LR
+  GMO["GMO Coin FX Public API"] --> Worker["Worker / Hono API"]
+  Worker --> Jobs["Market Data Import Jobs"]
+  Jobs --> Normalize["Tick & Candle Normalization"]
+  Normalize --> DB["TimescaleDB"]
+  DB --> Dashboard["Next.js Dashboard"]
+  Dashboard --> Status["System Status / Health"]
+  Worker --> Status
+```
+
+## App structure
+
+- `src/app`: Next.js dashboard and API routes.
+- `src/server/trpc`: tRPC router and server setup.
+- `src/worker`: Hono worker API, health endpoints, and background jobs.
+- `src/features/market-data`: GMO FX public API client, tick/candle
+  normalization, aggregation, and persistence.
+- `src/features/strategies`: Strategy DSL types, presets, schemas, and
+  validation.
+- `src/shared/db`: Drizzle schema and database client.
+- `drizzle`: Database migrations and metadata.
+- `tests`: Unit tests and API/market-data fixtures.
 
 ## Safety scope
 
