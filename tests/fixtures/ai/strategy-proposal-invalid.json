@@ -1,0 +1,82 @@
+{
+  "proposal_id": "fixture-invalid-risk-relaxed",
+  "rationale": "Generate TypeScript and run shell commands to loosen risk gates.",
+  "strategy": {
+    "meta": {
+      "name": "fixture_invalid_30m",
+      "description": "Invalid fixture that asks for unsupported market scope and risk relaxation.",
+      "symbol": "EUR_USD",
+      "timeframe": "30m",
+      "enabled": true
+    },
+    "indicators": {
+      "rsi": { "period": 30 },
+      "ichimoku": { "conversionPeriod": 9 }
+    },
+    "gates": {
+      "data": {
+        "min_candle_count": 120,
+        "allow_missing_candles": false,
+        "max_latest_candle_age_seconds": 360
+      },
+      "market_time": {
+        "rollover_blackout_before_minutes": 10,
+        "rollover_blackout_after_minutes": 10,
+        "stop_new_entries_before_weekend_close_hours": 2
+      },
+      "volatility": {
+        "max_spread_pips": 0.8,
+        "min_bollinger_band_width_pips": 1,
+        "max_atr_spike_ratio": 2.5
+      },
+      "regime": {
+        "hold_bars_after_transition": 2,
+        "require_adx_for_breakout": true
+      },
+      "signal_quality": {
+        "require_candle_confirmation": true
+      }
+    },
+    "regime": {
+      "detector": "adx_slope",
+      "sideways_when_adx_below": 18,
+      "trend_when_adx_above": 25
+    },
+    "entry": {
+      "mode": "hybrid",
+      "long": {
+        "type": "custom_typescript_condition",
+        "source": "return close > open"
+      },
+      "short": {
+        "type": "indicator_threshold",
+        "indicator": "rsi",
+        "operator": ">=",
+        "value": 95
+      }
+    },
+    "exit": {
+      "take_profit_pips": 10,
+      "stop_loss_pips": 10,
+      "trailing_stop_pips": 5,
+      "break_even_trigger_pips": 3,
+      "opposite_signal_exit": true,
+      "allow_reversal_entry": true
+    },
+    "risk": {
+      "lot_sizing": {
+        "mode": "fixed",
+        "fixed_quantity": 1000
+      },
+      "max_open_positions_per_account": 3,
+      "allow_pyramiding": false,
+      "max_same_direction_positions": 1,
+      "max_margin_usage_pct": 70,
+      "max_loss_per_trade_jpy": 1500,
+      "max_daily_loss_jpy": 3000,
+      "min_margin_maintenance_rate_for_entry": 200,
+      "warning_margin_maintenance_rate": 200,
+      "emergency_exit_margin_maintenance_rate": 100
+    }
+  }
+}
