@@ -2,9 +2,30 @@
 
 AI-assisted FX paper trading system for GMO Coin FX USD/JPY.
 
-Current status: Phase 0 scaffold. Live trading, GMO Private API, and real order placement are intentionally out of scope.
+This repository is a paper trading and research tool. It is not financial
+advice, investment advice, or a recommendation to trade.
+
+Current status: Phase 0 scaffold. Live trading, GMO Private API, and real order
+placement are intentionally out of scope.
 
 See [docs/architecture.md](docs/architecture.md).
+
+## Safety scope
+
+- Paper trading and research workflows only.
+- No live order execution.
+- No GMO Private API integration.
+- No real order placement.
+- Do not commit API keys, `.env` files, database dumps, private logs, or other
+  sensitive material.
+
+## Contributing
+
+Small fixes, tests, documentation improvements, and paper-trading research
+workflow improvements are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Please do not submit changes that add live order execution, private trading API
+credentials, secrets, or secret-like values.
 
 ## Local requirements
 
