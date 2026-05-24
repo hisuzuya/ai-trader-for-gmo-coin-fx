@@ -265,6 +265,66 @@ describe("worker Hono app", () => {
     expect(store.invocations).toHaveLength(1);
     expect(store.reviews).toHaveLength(1);
   });
+
+  it("records a manual paper decision", async () => {
+    const runtime = {
+      health: vi.fn(),
+      ready: vi.fn(),
+      status: vi.fn(),
+      dashboardSummary: vi.fn(),
+      runHistoricalImport: vi.fn(),
+      runAiTuning: vi.fn(),
+      runDailyReview: vi.fn(),
+      recordPaperDecision: vi.fn().mockResolvedValue({
+        ok: true,
+        strategyRunId: "f5bf1c6e-f63f-4cb1-8cb8-7107ec0382a8",
+        strategyName: "candidate_1m_spread_guard",
+        action: "retire_candidate",
+        status: "retired",
+      }),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request("/paper-decisions", {
+      method: "POST",
+      body: JSON.stringify({
+        strategyRunId: "f5bf1c6e-f63f-4cb1-8cb8-7107ec0382a8",
+        action: "retire_candidate",
+      }),
+      headers: { "content-type": "application/json" },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      ok: true,
+      strategyRunId: "f5bf1c6e-f63f-4cb1-8cb8-7107ec0382a8",
+      strategyName: "candidate_1m_spread_guard",
+      action: "retire_candidate",
+      status: "retired",
+    });
+    expect(runtime.recordPaperDecision).toHaveBeenCalledWith({
+      strategyRunId: "f5bf1c6e-f63f-4cb1-8cb8-7107ec0382a8",
+      action: "retire_candidate",
+    });
+  });
+
+  it("rejects invalid paper decision requests", async () => {
+    const runtime = {
+      recordPaperDecision: vi.fn(),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request("/paper-decisions", {
+      method: "POST",
+      body: JSON.stringify({
+        strategyRunId: "not-a-uuid",
+        action: "retire_candidate",
+      }),
+      headers: { "content-type": "application/json" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(runtime.recordPaperDecision).not.toHaveBeenCalled();
+  });
 });
 
 type JobRunRecord = {

@@ -1,0 +1,78 @@
+services:
+  timescaledb:
+    restart: unless-stopped
+    ports: !override []
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  next-web:
+    build:
+      context: .
+      target: next-web
+    image: ai-trade-next-web:latest
+    restart: unless-stopped
+    command: node apps/web/server.js
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports: !override
+      - "127.0.0.1:3000:3000"
+      - "10.30.0.2:3000:3000"
+    volumes: !override []
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  worker:
+    build:
+      context: .
+      target: worker
+    image: ai-trade-worker:latest
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      AI_TUNING_ENABLED: "true"
+      AI_DAILY_REVIEW_ENABLED: "true"
+      AI_RUNNER_INTERNAL_URL: http://ai-runner:8788
+    ports: !override
+      - "127.0.0.1:8787:8787"
+    volumes: !override []
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  ai-runner:
+    build:
+      context: .
+      target: ai-runner
+    image: ai-trade-ai-runner:latest
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      CLAUDE_CLI_ENABLED: "1"
+      CLAUDE_CONFIG_DIR: /home/node/.claude
+    ports: !override
+      - "127.0.0.1:8788:8788"
+    volumes: !override
+      - type: bind
+        source: /opt/ai-trade/secrets/claude
+        target: /home/node/.claude
+        read_only: true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

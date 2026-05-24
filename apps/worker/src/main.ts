@@ -8,12 +8,12 @@ import { WorkerRuntime } from "./runtime.js";
 import { AiDailyReviewerService } from "./services/ai-daily-reviewer.js";
 import { AiTunerService } from "./services/ai-tuner.js";
 import { CollectorService } from "./services/collector.js";
-import { PaperTraderService } from "./services/paper-trader.js";
+import { DbCandidateStrategyRepository, PaperTraderService } from "./services/paper-trader.js";
 
 const runtime = new WorkerRuntime(
   [
     new CollectorService({ candleWriter: new CandleRepository() }),
-    new PaperTraderService(),
+    new PaperTraderService({ candidateRepository: new DbCandidateStrategyRepository() }),
     new AiTunerService(),
     new AiDailyReviewerService(),
   ],

@@ -4,6 +4,7 @@ import { BASELINE_STRATEGIES, baselineStrategies } from "@ai-trade/domain/strate
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  type CandidateStrategyRepository,
   InMemoryPaperTradingRepository,
   type PaperCandleRepository,
   type PaperStrategyRunner,
@@ -165,6 +166,43 @@ describe("PaperTraderService", () => {
     const health = await service.health();
 
     expect(health.details?.strategyCount).toBe(baselineStrategies.length);
+  });
+
+  it("runs accepted candidate strategies from the candidate repository", async () => {
+    const candidate = {
+      ...BASELINE_STRATEGIES["1m"],
+      meta: {
+        ...BASELINE_STRATEGIES["1m"].meta,
+        name: "candidate_1m_spread_guard",
+      },
+    };
+    const candidateRepository: CandidateStrategyRepository = {
+      listRunnableCandidates: vi.fn().mockResolvedValue([candidate]),
+    };
+    const tradingRepository = new InMemoryPaperTradingRepository();
+    const service = new PaperTraderService({
+      strategies: [BASELINE_STRATEGIES["1m"]],
+      candidateRepository,
+      candleRepository: new FakePaperCandleRepository((input) =>
+        makeCandleSets(input.timeframe, input.limit),
+      ),
+      tradingRepository,
+      strategyRunner: {
+        evaluate: vi.fn().mockResolvedValue({ action: "HOLD", reason: "hold" }),
+      },
+    });
+
+    const statuses = await service.runOnce(new Date("2026-05-24T00:10:00.000Z"));
+
+    expect(candidateRepository.listRunnableCandidates).toHaveBeenCalledOnce();
+    expect(statuses.map((status) => status.strategyName)).toEqual([
+      "baseline_1m",
+      "candidate_1m_spread_guard",
+    ]);
+    expect(tradingRepository.steps.map((step) => step.strategy.meta.name)).toEqual([
+      "baseline_1m",
+      "candidate_1m_spread_guard",
+    ]);
   });
 
   it("schedules recurring paper evaluation after startup", async () => {
