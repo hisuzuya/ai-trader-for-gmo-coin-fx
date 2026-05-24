@@ -1,11 +1,25 @@
 import { checkDbConnection } from "@/shared/db/client";
+import {
+  DbJobRunRecorder,
+  type JobRunRecorder,
+  runRecordedJob,
+} from "@/worker/jobs/job-run-recorder";
+import {
+  type HistoricalImportResult,
+  type HistoricalImporter,
+  StubHistoricalImporter,
+} from "@/worker/jobs/historical-importer";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "@/worker/types";
 
 export class WorkerRuntime {
   private readonly startedAt = new Date();
   private started = false;
 
-  constructor(private readonly services: WorkerService[]) {}
+  constructor(
+    private readonly services: WorkerService[],
+    private readonly historicalImporter: HistoricalImporter = new StubHistoricalImporter(),
+    private readonly jobRunRecorder: JobRunRecorder = new DbJobRunRecorder(),
+  ) {}
 
   async start(): Promise<void> {
     if (this.started) {
@@ -73,6 +87,18 @@ export class WorkerRuntime {
       lastReconnectReason: null,
       lastAiInvocationStatus: null,
     };
+  }
+
+  async runHistoricalImport(date: string): Promise<{
+    jobRunId: string;
+    result: HistoricalImportResult;
+  }> {
+    return runRecordedJob(
+      this.jobRunRecorder,
+      "historical-import",
+      { date },
+      () => this.historicalImporter.importDate({ date }),
+    );
   }
 
   private async serviceHealth(): Promise<ServiceHealth[]> {
