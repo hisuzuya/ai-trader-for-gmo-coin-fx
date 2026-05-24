@@ -26,6 +26,36 @@ export type AiStrategyProposal = {
   strategy: StrategyDefinition;
 };
 
+export type StrategyProposalInput = {
+  baseline: StrategyDefinition;
+  recentPerformance: {
+    netProfitJpy: number;
+    tradeCount: number;
+    maxDrawdownJpy: number;
+  };
+  rejectedCandidateSummaries: string[];
+  explorationPolicy: string;
+};
+
+export type AiStrategyProposalResponse = {
+  invocation: {
+    id: string;
+    provider: "claude_cli";
+    status: "succeeded" | "failed" | "timeout";
+    promptHash: string;
+    promptRedacted: string;
+    stdoutRaw?: string;
+    stderrSummary?: string;
+    parsedJson?: unknown;
+    timeoutMs: number;
+    cliVersion?: string;
+    startedAt: string;
+    finishedAt: string;
+    errorSummary?: string;
+  };
+  proposal?: AiStrategyProposal;
+};
+
 export type AiProposalValidationResult =
   | {
       status: "accepted";

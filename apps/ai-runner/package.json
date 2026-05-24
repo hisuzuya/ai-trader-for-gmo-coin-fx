@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-trade/domain": "workspace:*",
     "@hono/node-server": "^1.19.6",
     "hono": "^4.10.6"
   }

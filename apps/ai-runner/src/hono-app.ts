@@ -1,12 +1,13 @@
+import type { StrategyProposalInput } from "@ai-trade/domain/ai-tuning";
 import { Hono } from "hono";
 
-export type AiRunnerProviderState = {
-  name: "claude_cli";
-  mode: "disabled";
-  implementation: "stub";
-  enabled: false;
-  reason: string;
-};
+import {
+  type AiRunnerProviderState,
+  ClaudeCliProvider,
+  type StrategyProposalProvider,
+} from "./claude-cli-provider.js";
+
+export type { AiRunnerProviderState };
 
 export type AiRunnerHealth = {
   ok: true;
@@ -14,32 +15,58 @@ export type AiRunnerHealth = {
   provider: AiRunnerProviderState;
 };
 
-const providerState: AiRunnerProviderState = {
-  name: "claude_cli",
-  mode: "disabled",
-  implementation: "stub",
-  enabled: false,
-  reason: "Claude CLI execution is not implemented in this stub.",
-};
-
-export function createAiRunnerApp() {
+export function createAiRunnerApp(provider: StrategyProposalProvider = new ClaudeCliProvider()) {
   const app = new Hono();
 
-  app.get("/health", (c) =>
+  app.get("/health", async (c) =>
     c.json({
       ok: true,
       service: "ai-runner",
-      provider: providerState,
+      provider: await provider.health(),
     } satisfies AiRunnerHealth),
   );
 
-  app.get("/ready", (c) =>
+  app.get("/ready", async (c) =>
     c.json({
       ok: true,
       service: "ai-runner",
-      provider: providerState,
+      provider: await provider.health(),
     } satisfies AiRunnerHealth),
   );
+
+  app.post("/strategy-proposals", async (c) => {
+    const body = await c.req.json().catch(() => null);
+
+    if (!isStrategyProposalInput(body)) {
+      return c.json(
+        {
+          ok: false,
+          error:
+            "Request body must include baseline, recentPerformance, rejectedCandidateSummaries, and explorationPolicy.",
+        },
+        400,
+      );
+    }
+
+    const response = await provider.generateStrategyProposal(body);
+    return c.json({
+      ok: response.invocation.status === "succeeded",
+      ...response,
+    });
+  });
 
   return app;
+}
+
+function isStrategyProposalInput(input: unknown): input is StrategyProposalInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "baseline" in input &&
+    "recentPerformance" in input &&
+    "rejectedCandidateSummaries" in input &&
+    "explorationPolicy" in input &&
+    Array.isArray(input.rejectedCandidateSummaries) &&
+    typeof input.explorationPolicy === "string"
+  );
 }

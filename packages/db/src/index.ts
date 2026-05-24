@@ -1,5 +1,12 @@
 export { checkDbConnection, db, pgPool } from "./client.js";
 export {
+  type AiInvocationRecordInput,
+  type AiTuningProposalRecordInput,
+  AiTuningRepository,
+  toAiInvocationInsertRow,
+  toAiTuningProposalInsertRow,
+} from "./repositories/ai-tuning-repository.js";
+export {
   CandleRepository,
   toCandleInsertRows,
 } from "./repositories/candle-repository.js";

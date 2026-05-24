@@ -1,9 +1,10 @@
 import type { JobRunMetadata, JobRunRecorder, StartedJobRun } from "@ai-trade/db";
+import { BASELINE_STRATEGIES } from "@ai-trade/domain/strategies";
 import { describe, expect, it, vi } from "vitest";
-
 import { createWorkerApp } from "./hono-app.js";
 import type { HistoricalImporter } from "./jobs/historical-importer.js";
 import { WorkerRuntime } from "./runtime.js";
+import { type AiProvider, AiTunerService, InMemoryAiTuningStore } from "./services/ai-tuner.js";
 import { StaticWorkerService } from "./services/static-service.js";
 
 describe("worker Hono app", () => {
@@ -128,6 +129,61 @@ describe("worker Hono app", () => {
         errorSummary: "import failed",
       },
     ]);
+  });
+
+  it("runs AI tuning and returns the candidate insertion result", async () => {
+    const store = new InMemoryAiTuningStore();
+    const aiProvider: AiProvider = {
+      generateStrategyProposal: vi.fn().mockResolvedValue({
+        invocation: {
+          id: "f5bf1c6e-f63f-4cb1-8cb8-7107ec0382a8",
+          provider: "claude_cli",
+          status: "succeeded",
+          promptHash: "hash",
+          promptRedacted: "{}",
+          timeoutMs: 120000,
+          startedAt: "2026-05-24T00:00:00.000Z",
+          finishedAt: "2026-05-24T00:00:01.000Z",
+        },
+        proposal: {
+          rationale: "Reduce spread exposure.",
+          strategy: {
+            ...BASELINE_STRATEGIES["1m"],
+            meta: {
+              ...BASELINE_STRATEGIES["1m"].meta,
+              name: "candidate_1m_spread_guard",
+            },
+          },
+        },
+      }),
+    };
+    const runtime = new WorkerRuntime([
+      new AiTunerService({
+        enabled: true,
+        intervalMs: null,
+        strategies: [BASELINE_STRATEGIES["1m"]],
+        aiProvider,
+        store,
+      }),
+    ]);
+    await runtime.start();
+
+    const response = await createWorkerApp(runtime).request("/jobs/ai-tuning", {
+      method: "POST",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: true,
+      result: {
+        sourceStrategyName: "baseline_1m",
+        proposalStatus: "accepted",
+        candidateStrategyName: "candidate_1m_spread_guard",
+      },
+    });
+    expect(store.invocations).toHaveLength(1);
+    expect(store.proposals).toHaveLength(1);
   });
 });
 

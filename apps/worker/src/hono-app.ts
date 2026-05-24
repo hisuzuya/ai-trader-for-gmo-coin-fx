@@ -11,6 +11,22 @@ export function createWorkerApp(runtime: WorkerRuntime) {
     return c.json(ready, ready.ok ? 200 : 503);
   });
   app.get("/status", async (c) => c.json(await runtime.status()));
+  app.get("/dashboard", async (c) => {
+    try {
+      return c.json({
+        ok: true,
+        summary: await runtime.dashboardSummary(),
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Dashboard summary failed.",
+        },
+        500,
+      );
+    }
+  });
   app.get("/metrics", (c) =>
     c.json({
       format: "json",
@@ -43,6 +59,24 @@ export function createWorkerApp(runtime: WorkerRuntime) {
           ok: false,
           date: body.date,
           error: error instanceof Error ? error.message : "Historical import failed.",
+        },
+        500,
+      );
+    }
+  });
+
+  app.post("/jobs/ai-tuning", async (c) => {
+    try {
+      const result = await runtime.runAiTuning();
+      return c.json({
+        ok: result.proposalStatus === "accepted",
+        result,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "AI tuning failed.",
         },
         500,
       );

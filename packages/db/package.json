@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
+    "./repositories/ai-tuning-repository": "./src/repositories/ai-tuning-repository.ts",
     "./repositories/candle-repository": "./src/repositories/candle-repository.ts",
     "./repositories/job-run-recorder": "./src/repositories/job-run-recorder.ts",
     "./repositories/paper-trading-repository": "./src/repositories/paper-trading-repository.ts"
