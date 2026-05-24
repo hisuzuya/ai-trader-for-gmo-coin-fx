@@ -1,0 +1,13 @@
+{
+  "status": 0,
+  "data": [
+    {
+      "symbol": "USD_JPY",
+      "tickSize": "0.001",
+      "minOpenOrderSize": "100",
+      "maxOrderSize": "500000",
+      "sizeStep": "1"
+    }
+  ],
+  "responsetime": "2026-05-24T08:51:51.000Z"
+}
