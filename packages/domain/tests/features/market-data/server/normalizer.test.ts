@@ -1,7 +1,4 @@
 import { describe, expect, it } from "vitest";
-import tickerFixture from "../../../fixtures/gmo/ticker-response.json" with { type: "json" };
-import symbolsFixture from "../../../fixtures/gmo/symbols-response.json" with { type: "json" };
-import klinesFixture from "../../../fixtures/gmo/klines-response.json" with { type: "json" };
 import {
   deriveMidCandlesFromBidAsk,
   normalizeGmoKlinesToCandles,
@@ -12,6 +9,9 @@ import {
   parseGmoWebSocketTickerMessage,
   parseUsdJpySymbolRule,
 } from "../../../../src/market-data/index.js";
+import klinesFixture from "../../../fixtures/gmo/klines-response.json" with { type: "json" };
+import symbolsFixture from "../../../fixtures/gmo/symbols-response.json" with { type: "json" };
+import tickerFixture from "../../../fixtures/gmo/ticker-response.json" with { type: "json" };
 
 describe("market-data normalizer", () => {
   it("parses USD_JPY symbol rules as numeric runtime config", () => {
@@ -30,9 +30,7 @@ describe("market-data normalizer", () => {
 
   it("normalizes ticker bid/ask into mid and spread_pips", () => {
     const ticker = first(parseGmoTickerResponse(tickerFixture).data);
-    const rule = parseUsdJpySymbolRule(
-      first(parseGmoSymbolsResponse(symbolsFixture).data),
-    );
+    const rule = parseUsdJpySymbolRule(first(parseGmoSymbolsResponse(symbolsFixture).data));
 
     expect(normalizeTicker(ticker, rule)).toMatchObject({
       symbol: "USD_JPY",

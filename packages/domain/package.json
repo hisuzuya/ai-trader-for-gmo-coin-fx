@@ -10,7 +10,7 @@
     "./ai-tuning": "./src/ai-tuning/index.ts"
   },
   "scripts": {
-    "lint": "eslint .",
+    "lint": "biome ci .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

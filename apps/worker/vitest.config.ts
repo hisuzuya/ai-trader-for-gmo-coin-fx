@@ -1,5 +1,5 @@
-import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
@@ -8,9 +8,7 @@ export default defineConfig({
       "@ai-trade/config": fileURLToPath(
         new URL("../../packages/config/src/index.ts", import.meta.url),
       ),
-      "@ai-trade/db": fileURLToPath(
-        new URL("../../packages/db/src/index.ts", import.meta.url),
-      ),
+      "@ai-trade/db": fileURLToPath(new URL("../../packages/db/src/index.ts", import.meta.url)),
       "@ai-trade/domain/market-data": fileURLToPath(
         new URL("../../packages/domain/src/market-data/index.ts", import.meta.url),
       ),

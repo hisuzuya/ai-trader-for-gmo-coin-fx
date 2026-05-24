@@ -1,12 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
-
 import type { CanonicalCandle } from "@ai-trade/domain/market-data";
-
-import { candles } from "../../../../src/schema/index.js";
+import { describe, expect, it, vi } from "vitest";
 import {
   CandleRepository,
   toCandleInsertRows,
 } from "../../../../src/repositories/candle-repository.js";
+import { candles } from "../../../../src/schema/index.js";
 
 describe("CandleRepository", () => {
   it("upserts canonical candles by candle identity", async () => {
@@ -37,12 +35,7 @@ describe("CandleRepository", () => {
     ]);
     expect(onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        target: [
-          candles.symbol,
-          candles.timeframe,
-          candles.priceType,
-          candles.openedAt,
-        ],
+        target: [candles.symbol, candles.timeframe, candles.priceType, candles.openedAt],
         set: expect.objectContaining({
           open: expect.any(Object),
           high: expect.any(Object),
@@ -78,15 +71,15 @@ describe("CandleRepository", () => {
   });
 
   it("rejects non-finite numeric values before writing", () => {
-    expect(() =>
-      toCandleInsertRows([{ ...baseCandle, close: Number.POSITIVE_INFINITY }]),
-    ).toThrow(RangeError);
+    expect(() => toCandleInsertRows([{ ...baseCandle, close: Number.POSITIVE_INFINITY }])).toThrow(
+      RangeError,
+    );
   });
 
   it("rejects values outside numeric(18, 6) range before writing", () => {
-    expect(() =>
-      toCandleInsertRows([{ ...baseCandle, close: 1_000_000_000_000 }]),
-    ).toThrow(RangeError);
+    expect(() => toCandleInsertRows([{ ...baseCandle, close: 1_000_000_000_000 }])).toThrow(
+      RangeError,
+    );
   });
 });
 

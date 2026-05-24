@@ -14,9 +14,8 @@ export default async function DashboardPage() {
         <div className="status-kicker">Phase 0 Scaffold</div>
         <h1 id="status-heading">System Status</h1>
         <p className="status-copy">
-          Next.js dashboard, tRPC, Drizzle, TimescaleDB, and worker runtime are
-          wired for local verification. Live trading and private order APIs are
-          intentionally out of scope.
+          Next.js dashboard, tRPC, Drizzle, TimescaleDB, and worker runtime are wired for local
+          verification. Live trading and private order APIs are intentionally out of scope.
         </p>
 
         <div className="status-grid">

@@ -12,7 +12,7 @@
   "scripts": {
     "generate": "drizzle-kit generate --config drizzle.config.ts",
     "migrate": "drizzle-kit migrate --config drizzle.config.ts",
-    "lint": "eslint .",
+    "lint": "biome ci .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

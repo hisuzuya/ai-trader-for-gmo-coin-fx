@@ -1,6 +1,5 @@
-import { serve } from "@hono/node-server";
-
 import { env } from "@ai-trade/config";
+import { serve } from "@hono/node-server";
 
 import { createWorkerApp } from "./hono-app.js";
 import { GmoHistoricalImporter } from "./jobs/historical-importer.js";

@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { aggregateCandles, type CanonicalCandle } from "../../../../src/market-data/index.js";
 import sampleCandles from "../../../fixtures/candles/usd_jpy_1m_sample.json" with { type: "json" };
-import {
-  aggregateCandles,
-  type CanonicalCandle,
-} from "../../../../src/market-data/index.js";
 
 describe("aggregateCandles", () => {
   it("aggregates complete 1m candles into 5m candles", () => {
@@ -41,9 +38,7 @@ describe("aggregateCandles", () => {
     const aggregated = aggregateCandles(toCandles(sampleCandles).slice(0, 7), "5m");
 
     expect(aggregated).toHaveLength(1);
-    expect(aggregated[0]?.openedAt).toEqual(
-      new Date("2026-05-24T00:00:00.000Z"),
-    );
+    expect(aggregated[0]?.openedAt).toEqual(new Date("2026-05-24T00:00:00.000Z"));
   });
 });
 

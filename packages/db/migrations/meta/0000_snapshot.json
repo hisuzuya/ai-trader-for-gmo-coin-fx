@@ -290,30 +290,17 @@
     "public.candle_price_type": {
       "name": "candle_price_type",
       "schema": "public",
-      "values": [
-        "bid",
-        "ask",
-        "mid"
-      ]
+      "values": ["bid", "ask", "mid"]
     },
     "public.candle_source": {
       "name": "candle_source",
       "schema": "public",
-      "values": [
-        "websocket",
-        "rest_klines",
-        "derived"
-      ]
+      "values": ["websocket", "rest_klines", "derived"]
     },
     "public.job_run_status": {
       "name": "job_run_status",
       "schema": "public",
-      "values": [
-        "running",
-        "succeeded",
-        "failed",
-        "skipped"
-      ]
+      "values": ["running", "succeeded", "failed", "skipped"]
     }
   },
   "schemas": {},
