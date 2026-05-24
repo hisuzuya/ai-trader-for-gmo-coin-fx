@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { CanonicalCandle } from "../../market-data/index.js";
 import type {
   PaperAccountState,
@@ -467,10 +469,17 @@ function isInRolloverBlackout(input: PaperTradingStepInput): boolean {
 }
 
 function deterministicId(prefix: string, ...parts: unknown[]): string {
-  const normalizedParts = parts.map((part) =>
-    String(part).replaceAll(/[^a-zA-Z0-9]+/g, "_"),
-  );
-  return `${prefix}_${normalizedParts.join("_")}`;
+  const digest = createHash("sha256")
+    .update([prefix, ...parts.map(String)].join("|"))
+    .digest("hex");
+
+  return [
+    digest.slice(0, 8),
+    digest.slice(8, 12),
+    `4${digest.slice(13, 16)}`,
+    `8${digest.slice(17, 20)}`,
+    digest.slice(20, 32),
+  ].join("-");
 }
 
 function roundPrice(value: number): number {
