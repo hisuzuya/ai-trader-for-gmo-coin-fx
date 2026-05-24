@@ -36,6 +36,7 @@ services:
       target: worker
     image: ai-trade-worker:latest
     restart: unless-stopped
+    command: pnpm --filter @ai-trade/worker start
     env_file:
       - .env.production
     environment:
@@ -58,6 +59,7 @@ services:
       target: ai-runner
     image: ai-trade-ai-runner:latest
     restart: unless-stopped
+    command: pnpm --filter @ai-trade/ai-runner start
     env_file:
       - .env.production
     environment:
