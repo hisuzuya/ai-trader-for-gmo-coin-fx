@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { CanonicalCandle } from "@ai-trade/domain/market-data";
 
 import { CollectorService, type TickerWebSocket } from "./collector.js";
 
@@ -29,6 +30,7 @@ describe("CollectorService", () => {
       details: {
         websocketConnected: true,
         latestTickerTimestamp: "2026-05-24T08:51:51.000Z",
+        latestCandleOpenedAt: "2026-05-24T08:51:00.000Z",
         lastReconnectReason: null,
       },
     });
@@ -62,6 +64,72 @@ describe("CollectorService", () => {
       },
     });
   });
+
+  it("upserts closed live candles without touching the network or database", async () => {
+    const socket = new FakeTickerWebSocket();
+    const candleWriter = new FakeCandleWriter();
+    const service = new CollectorService({
+      url: "wss://example.test/ws",
+      webSocketFactory: () => socket,
+      candleWriter,
+      autoReconnect: false,
+    });
+
+    await service.start();
+    socket.emit("open");
+    socket.emit("message", {
+      data: JSON.stringify({
+        symbol: "USD_JPY",
+        bid: "156.100",
+        ask: "156.103",
+        timestamp: "2026-05-24T08:51:51.000Z",
+        status: "OPEN",
+      }),
+    });
+    socket.emit("message", {
+      data: JSON.stringify({
+        symbol: "USD_JPY",
+        bid: "156.120",
+        ask: "156.123",
+        timestamp: "2026-05-24T08:52:00.000Z",
+        status: "OPEN",
+      }),
+    });
+
+    expect(candleWriter.upserts).toHaveLength(1);
+    expect(candleWriter.upserts[0]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          timeframe: "1m",
+          priceType: "bid",
+          openedAt: new Date("2026-05-24T08:51:00.000Z"),
+          close: 156.1,
+          source: "websocket",
+        }),
+        expect.objectContaining({
+          timeframe: "1m",
+          priceType: "ask",
+          openedAt: new Date("2026-05-24T08:51:00.000Z"),
+          close: 156.103,
+          source: "websocket",
+        }),
+        expect.objectContaining({
+          timeframe: "1m",
+          priceType: "mid",
+          openedAt: new Date("2026-05-24T08:51:00.000Z"),
+          close: 156.102,
+          source: "derived",
+        }),
+      ]),
+    );
+    await expect(service.health()).resolves.toMatchObject({
+      details: {
+        latestTickerTimestamp: "2026-05-24T08:52:00.000Z",
+        latestCandleOpenedAt: "2026-05-24T08:51:00.000Z",
+        websocketConnected: true,
+      },
+    });
+  });
 });
 
 class FakeTickerWebSocket implements TickerWebSocket {
@@ -90,5 +158,13 @@ class FakeTickerWebSocket implements TickerWebSocket {
     for (const listener of this.listeners.get(type) ?? []) {
       listener(event);
     }
+  }
+}
+
+class FakeCandleWriter {
+  readonly upserts: CanonicalCandle[][] = [];
+
+  async upsertMany(candles: CanonicalCandle[]): Promise<void> {
+    this.upserts.push(candles);
   }
 }

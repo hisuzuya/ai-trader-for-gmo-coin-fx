@@ -1,4 +1,5 @@
 import { env } from "@ai-trade/config";
+import { CandleRepository } from "@ai-trade/db";
 import { serve } from "@hono/node-server";
 
 import { createWorkerApp } from "./hono-app.js";
@@ -9,7 +10,7 @@ import { StaticWorkerService } from "./services/static-service.js";
 
 const runtime = new WorkerRuntime(
   [
-    new CollectorService(),
+    new CollectorService({ candleWriter: new CandleRepository() }),
     new StaticWorkerService("paper-trader"),
     new StaticWorkerService("ai-tuner"),
     new StaticWorkerService("ai-daily-reviewer"),

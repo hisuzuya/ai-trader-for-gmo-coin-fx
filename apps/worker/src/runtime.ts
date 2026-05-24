@@ -85,7 +85,7 @@ export class WorkerRuntime {
       startedAt: this.startedAt.toISOString(),
       services,
       latestTickerTimestamp: detailString(collector, "latestTickerTimestamp"),
-      latestCandleOpenedAt: null,
+      latestCandleOpenedAt: detailString(collector, "latestCandleOpenedAt"),
       websocketConnected: detailBoolean(collector, "websocketConnected"),
       lastReconnectReason: detailString(collector, "lastReconnectReason"),
       lastAiInvocationStatus: null,
