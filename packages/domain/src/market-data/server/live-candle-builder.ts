@@ -1,9 +1,4 @@
-import type {
-  CandlePriceType,
-  CanonicalCandle,
-  MarketSymbol,
-  NormalizedTicker,
-} from "../types.js";
+import type { CandlePriceType, CanonicalCandle, MarketSymbol, NormalizedTicker } from "../types.js";
 import { aggregateCandles } from "./candle-aggregator.js";
 import { calculateSpreadPips } from "./spread.js";
 

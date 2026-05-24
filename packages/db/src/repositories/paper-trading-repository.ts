@@ -40,10 +40,7 @@ export function toPaperPositionInsertRow(input: {
     openedAt: input.position.openedAt,
     stopLossPrice: toNumericString(input.position.stopLossPrice, "stopLossPrice"),
     takeProfitPrice: toNumericString(input.position.takeProfitPrice, "takeProfitPrice"),
-    trailingStopPrice: optionalNumericString(
-      input.position.trailingStopPrice,
-      "trailingStopPrice",
-    ),
+    trailingStopPrice: optionalNumericString(input.position.trailingStopPrice, "trailingStopPrice"),
     breakEvenStopPrice: optionalNumericString(
       input.position.breakEvenStopPrice,
       "breakEvenStopPrice",
@@ -54,10 +51,7 @@ export function toPaperPositionInsertRow(input: {
   };
 }
 
-export function toPaperOrderInsertRow(input: {
-  order: PaperOrderEvent;
-  strategyRunId?: string;
-}) {
+export function toPaperOrderInsertRow(input: { order: PaperOrderEvent; strategyRunId?: string }) {
   return {
     id: input.order.id,
     accountId: input.order.accountId,

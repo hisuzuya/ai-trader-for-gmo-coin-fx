@@ -10,10 +10,10 @@ import type {
   PaperPositionState,
   PaperRiskCheckResult,
   PaperTradeEvent,
+  PaperTradeSignal,
   PaperTradingDefaults,
   PaperTradingStepInput,
   PaperTradingStepResult,
-  PaperTradeSignal,
 } from "../types.js";
 import {
   PAPER_FIXED_QUANTITY,

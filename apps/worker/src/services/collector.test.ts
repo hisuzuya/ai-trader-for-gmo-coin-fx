@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { CanonicalCandle } from "@ai-trade/domain/market-data";
+import { describe, expect, it } from "vitest";
 
 import { CollectorService, type TickerWebSocket } from "./collector.js";
 

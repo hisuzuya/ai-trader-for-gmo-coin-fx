@@ -1,19 +1,12 @@
 import { describe, expect, it } from "vitest";
-import {
-  type CanonicalCandle,
-  LiveCandleBuilder,
-} from "../../../../src/market-data/index.js";
+import { type CanonicalCandle, LiveCandleBuilder } from "../../../../src/market-data/index.js";
 
 describe("LiveCandleBuilder", () => {
   it("emits closed 1m bid/ask/mid candles when the next minute starts", () => {
     const builder = new LiveCandleBuilder();
 
-    expect(
-      builder.addTick(tick("2026-05-24T08:51:10.000Z", 156.1, 156.103)),
-    ).toHaveLength(0);
-    expect(builder.addTick(tick("2026-05-24T08:51:40.000Z", 156.09, 156.11))).toHaveLength(
-      0,
-    );
+    expect(builder.addTick(tick("2026-05-24T08:51:10.000Z", 156.1, 156.103))).toHaveLength(0);
+    expect(builder.addTick(tick("2026-05-24T08:51:40.000Z", 156.09, 156.11))).toHaveLength(0);
 
     const closed = builder.addTick(tick("2026-05-24T08:52:00.000Z", 156.12, 156.123));
 

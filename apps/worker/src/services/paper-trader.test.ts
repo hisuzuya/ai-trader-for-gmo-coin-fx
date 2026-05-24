@@ -1,7 +1,5 @@
 import type { CanonicalCandle } from "@ai-trade/domain/market-data";
-import {
-  type PaperCandleSet,
-} from "@ai-trade/domain/paper-trading";
+import type { PaperCandleSet } from "@ai-trade/domain/paper-trading";
 import { BASELINE_STRATEGIES, baselineStrategies } from "@ai-trade/domain/strategies";
 import { describe, expect, it, vi } from "vitest";
 

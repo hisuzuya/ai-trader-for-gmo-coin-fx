@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import type {
   PaperOrderEvent,
   PaperPositionState,
   PaperTradeEvent,
 } from "@ai-trade/domain/paper-trading";
 import { createPaperAccountState } from "@ai-trade/domain/paper-trading";
+import { describe, expect, it } from "vitest";
 import {
   toPaperAccountInsertRow,
   toPaperOrderInsertRow,

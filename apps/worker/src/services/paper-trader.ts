@@ -13,19 +13,13 @@ import {
   toPaperPositionInsertRow,
   toPaperTradeInsertRow,
 } from "@ai-trade/db";
-import type {
-  CandleTimeframe,
-  CanonicalCandle,
-  MarketSymbol,
-} from "@ai-trade/domain/market-data";
+import type { CandleTimeframe, CanonicalCandle, MarketSymbol } from "@ai-trade/domain/market-data";
 import {
   createPaperAccountState,
   executePaperTradingStep,
   type PaperAccountState,
   type PaperCandleSet,
-  type PaperOrderEvent,
   type PaperPositionState,
-  type PaperTradeEvent,
   type PaperTradeSignal,
   type PaperTradingStepResult,
 } from "@ai-trade/domain/paper-trading";
@@ -41,11 +35,7 @@ export type PaperStrategyDecision = {
   reason: string;
 };
 
-export type PaperStrategyStatusState =
-  | "waiting_for_data"
-  | "evaluated"
-  | "disabled"
-  | "failed";
+export type PaperStrategyStatusState = "waiting_for_data" | "evaluated" | "disabled" | "failed";
 
 export type PaperStrategyStatus = {
   strategyName: string;
@@ -73,7 +63,10 @@ export interface PaperCandleRepository {
 }
 
 export interface PaperTradingRepository {
-  loadAccount(input: { accountId: string; strategy: StrategyDefinition }): Promise<PaperAccountState>;
+  loadAccount(input: {
+    accountId: string;
+    strategy: StrategyDefinition;
+  }): Promise<PaperAccountState>;
   loadOpenPosition(input: {
     accountId: string;
     strategy: StrategyDefinition;
@@ -344,8 +337,7 @@ export class DbPaperTradingRepository implements PaperTradingRepository {
       takeProfitPrice: Number(row.takeProfitPrice),
       trailingStopPips: input.strategy.exit.trailing_stop_pips,
       breakEvenTriggerPips: input.strategy.exit.break_even_trigger_pips,
-      trailingStopPrice:
-        row.trailingStopPrice === null ? undefined : Number(row.trailingStopPrice),
+      trailingStopPrice: row.trailingStopPrice === null ? undefined : Number(row.trailingStopPrice),
       breakEvenStopPrice:
         row.breakEvenStopPrice === null ? undefined : Number(row.breakEvenStopPrice),
       bestPriceSinceOpen: Number(row.bestPriceSinceOpen),
@@ -586,24 +578,25 @@ function toCandleSets(canonicalCandles: CanonicalCandle[]): PaperCandleSet[] {
     grouped.set(key, [...(grouped.get(key) ?? []), candle]);
   }
 
-  return [...grouped.values()]
-    .map((group) => {
-      const mid = group.find((candle) => candle.priceType === "mid");
-      if (!mid) {
-        return undefined;
-      }
-      const bid = group.find((candle) => candle.priceType === "bid");
-      const ask = group.find((candle) => candle.priceType === "ask");
-      const spreadPips = mid.spreadPips ?? spreadFromBidAsk(bid, ask) ?? DEFAULT_SPREAD_PIPS;
-      return {
-        mid,
-        bid,
-        ask,
-        spreadPips,
-        spreadSource: bid && ask ? "websocket_bid_ask" : "default",
-      } satisfies PaperCandleSet;
-    })
-    .filter((candleSet): candleSet is PaperCandleSet => candleSet !== undefined);
+  const candleSets: PaperCandleSet[] = [];
+  for (const group of grouped.values()) {
+    const mid = group.find((candle) => candle.priceType === "mid");
+    if (!mid) {
+      continue;
+    }
+    const bid = group.find((candle) => candle.priceType === "bid");
+    const ask = group.find((candle) => candle.priceType === "ask");
+    const spreadPips = mid.spreadPips ?? spreadFromBidAsk(bid, ask) ?? DEFAULT_SPREAD_PIPS;
+    candleSets.push({
+      mid,
+      bid,
+      ask,
+      spreadPips,
+      spreadSource: bid && ask ? "websocket_bid_ask" : "default",
+    });
+  }
+
+  return candleSets;
 }
 
 function candleRowToCanonical(row: {

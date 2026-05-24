@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
-  jsonb,
   index,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -208,7 +208,5 @@ export const paperTrades = pgTable(
     metadata: jsonb("metadata_json"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
-  (table) => [
-    index("paper_trades_account_closed_at_idx").on(table.accountId, table.closedAt),
-  ],
+  (table) => [index("paper_trades_account_closed_at_idx").on(table.accountId, table.closedAt)],
 );

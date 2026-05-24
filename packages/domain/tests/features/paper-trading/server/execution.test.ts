@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { BASELINE_STRATEGIES } from "../../../../src/strategies/index.js";
 import {
   createPaperAccountState,
   executePaperTradingStep,
   type PaperCandleSet,
   type PaperPositionState,
 } from "../../../../src/paper-trading/index.js";
+import { BASELINE_STRATEGIES } from "../../../../src/strategies/index.js";
 
 describe("executePaperTradingStep", () => {
   it("opens a fixed quantity long position at the next ask open", () => {

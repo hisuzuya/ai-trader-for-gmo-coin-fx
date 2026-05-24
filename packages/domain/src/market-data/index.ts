@@ -12,15 +12,15 @@ export {
   importGmoHistoricalCandles,
 } from "./server/historical-importer.js";
 export {
-  deriveMidCandlesFromBidAsk,
-  normalizeGmoKlinesToCandles,
-  normalizeGmoKlineToCandle,
-} from "./server/normalizer.js";
-export {
   type BidAskTick,
   LiveCandleBuilder,
   type LiveCandleBuilderOptions,
 } from "./server/live-candle-builder.js";
+export {
+  deriveMidCandlesFromBidAsk,
+  normalizeGmoKlinesToCandles,
+  normalizeGmoKlineToCandle,
+} from "./server/normalizer.js";
 export {
   calculateSpreadPips,
   normalizeTicker,
