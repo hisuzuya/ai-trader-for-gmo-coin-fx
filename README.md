@@ -41,12 +41,14 @@ reads stored data and worker health/status to show the current system state.
 - `apps/web`: Next.js dashboard, status page, and tRPC routes.
 - `apps/worker`: Hono worker API, health endpoints, readiness checks, and
   background jobs.
-- `apps/ai-runner`: AI runner service boundary for future strategy proposal and
-  review workflows.
+- `apps/ai-runner`: isolated Claude CLI runner used by the worker over the
+  internal Docker network for strategy proposal and review workflows.
 - `packages/domain`: market-data clients, tick/candle normalization,
   aggregation, strategy DSL types, schemas, and validation.
 - `packages/db`: Drizzle schema, database client, repositories, migrations, and
   metadata.
+- `packages/config`: Shared environment/config helpers.
+- `docs`: Architecture docs, ADRs, and roadmap.
 
 ## Safety scope
 
@@ -105,10 +107,11 @@ DATABASE_URL=postgresql://ai_trade:ai_trade@localhost:5432/ai_trade pnpm db:migr
 ## Commands
 
 ```bash
-pnpm dev          # Next.js dashboard
-pnpm worker:dev   # Worker Hono API
-pnpm db:generate  # Generate Drizzle migrations from schema
-pnpm db:migrate   # Apply Drizzle migrations
+pnpm dev:web       # Next.js dashboard
+pnpm dev:worker    # Worker Hono API
+pnpm dev:ai-runner # AI Runner Hono API
+pnpm db:generate   # Generate Drizzle migrations from schema
+pnpm db:migrate    # Apply Drizzle migrations
 pnpm lint
 pnpm typecheck
 pnpm test
