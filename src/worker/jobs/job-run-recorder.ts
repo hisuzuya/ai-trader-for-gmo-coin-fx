@@ -14,18 +14,11 @@ export type StartedJobRun = {
 export interface JobRunRecorder {
   start(jobName: string, metadata?: JobRunMetadata): Promise<StartedJobRun>;
   succeed(jobRunId: string, metadata?: JobRunMetadata): Promise<void>;
-  fail(
-    jobRunId: string,
-    errorSummary: string,
-    metadata?: JobRunMetadata,
-  ): Promise<void>;
+  fail(jobRunId: string, errorSummary: string, metadata?: JobRunMetadata): Promise<void>;
 }
 
 export class DbJobRunRecorder implements JobRunRecorder {
-  async start(
-    jobName: string,
-    metadata?: JobRunMetadata,
-  ): Promise<StartedJobRun> {
+  async start(jobName: string, metadata?: JobRunMetadata): Promise<StartedJobRun> {
     const [jobRun] = await db
       .insert(jobRuns)
       .values({
@@ -42,10 +35,7 @@ export class DbJobRunRecorder implements JobRunRecorder {
     return jobRun;
   }
 
-  async succeed(
-    jobRunId: string,
-    metadata?: JobRunMetadata,
-  ): Promise<void> {
+  async succeed(jobRunId: string, metadata?: JobRunMetadata): Promise<void> {
     await db
       .update(jobRuns)
       .set({
@@ -56,11 +46,7 @@ export class DbJobRunRecorder implements JobRunRecorder {
       .where(eq(jobRuns.id, jobRunId));
   }
 
-  async fail(
-    jobRunId: string,
-    errorSummary: string,
-    metadata?: JobRunMetadata,
-  ): Promise<void> {
+  async fail(jobRunId: string, errorSummary: string, metadata?: JobRunMetadata): Promise<void> {
     await db
       .update(jobRuns)
       .set({

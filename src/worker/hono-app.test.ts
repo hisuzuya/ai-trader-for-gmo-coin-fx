@@ -2,11 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createWorkerApp } from "@/worker/hono-app";
 import type { HistoricalImporter } from "@/worker/jobs/historical-importer";
-import type {
-  JobRunMetadata,
-  JobRunRecorder,
-  StartedJobRun,
-} from "@/worker/jobs/job-run-recorder";
+import type { JobRunMetadata, JobRunRecorder, StartedJobRun } from "@/worker/jobs/job-run-recorder";
 import { WorkerRuntime } from "@/worker/runtime";
 import { StaticWorkerService } from "@/worker/services/static-service";
 
@@ -51,14 +47,11 @@ describe("worker Hono app", () => {
       jobRunRecorder,
     );
 
-    const response = await createWorkerApp(runtime).request(
-      "/jobs/historical-import",
-      {
-        method: "POST",
-        body: JSON.stringify({ date: "20260524" }),
-        headers: { "content-type": "application/json" },
-      },
-    );
+    const response = await createWorkerApp(runtime).request("/jobs/historical-import", {
+      method: "POST",
+      body: JSON.stringify({ date: "20260524" }),
+      headers: { "content-type": "application/json" },
+    });
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -92,14 +85,11 @@ describe("worker Hono app", () => {
       new InMemoryJobRunRecorder(),
     );
 
-    const response = await createWorkerApp(runtime).request(
-      "/jobs/historical-import",
-      {
-        method: "POST",
-        body: JSON.stringify({ date: "2026-05-24" }),
-        headers: { "content-type": "application/json" },
-      },
-    );
+    const response = await createWorkerApp(runtime).request("/jobs/historical-import", {
+      method: "POST",
+      body: JSON.stringify({ date: "2026-05-24" }),
+      headers: { "content-type": "application/json" },
+    });
 
     expect(response.status).toBe(400);
     expect(importer.importDate).not.toHaveBeenCalled();
@@ -116,14 +106,11 @@ describe("worker Hono app", () => {
       jobRunRecorder,
     );
 
-    const response = await createWorkerApp(runtime).request(
-      "/jobs/historical-import",
-      {
-        method: "POST",
-        body: JSON.stringify({ date: "20260524" }),
-        headers: { "content-type": "application/json" },
-      },
-    );
+    const response = await createWorkerApp(runtime).request("/jobs/historical-import", {
+      method: "POST",
+      body: JSON.stringify({ date: "20260524" }),
+      headers: { "content-type": "application/json" },
+    });
     const body = await response.json();
 
     expect(response.status).toBe(500);
@@ -155,10 +142,7 @@ type JobRunRecord = {
 class InMemoryJobRunRecorder implements JobRunRecorder {
   readonly records: JobRunRecord[] = [];
 
-  async start(
-    jobName: string,
-    metadata?: JobRunMetadata,
-  ): Promise<StartedJobRun> {
+  async start(jobName: string, metadata?: JobRunMetadata): Promise<StartedJobRun> {
     const id = `job-run-${this.records.length + 1}`;
     this.records.push({
       id,
@@ -170,21 +154,14 @@ class InMemoryJobRunRecorder implements JobRunRecorder {
     return { id };
   }
 
-  async succeed(
-    jobRunId: string,
-    metadata?: JobRunMetadata,
-  ): Promise<void> {
+  async succeed(jobRunId: string, metadata?: JobRunMetadata): Promise<void> {
     this.update(jobRunId, {
       status: "succeeded",
       metadata,
     });
   }
 
-  async fail(
-    jobRunId: string,
-    errorSummary: string,
-    metadata?: JobRunMetadata,
-  ): Promise<void> {
+  async fail(jobRunId: string, errorSummary: string, metadata?: JobRunMetadata): Promise<void> {
     this.update(jobRunId, {
       status: "failed",
       metadata,

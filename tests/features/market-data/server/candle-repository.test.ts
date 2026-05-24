@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-
-import { candles } from "../../../../src/shared/db/schema/index.js";
+import type { CanonicalCandle } from "../../../../src/features/market-data/index.js";
 import {
   CandleRepository,
   toCandleInsertRows,
 } from "../../../../src/features/market-data/server/candle-repository.js";
-import type { CanonicalCandle } from "../../../../src/features/market-data/index.js";
+import { candles } from "../../../../src/shared/db/schema/index.js";
 
 describe("CandleRepository", () => {
   it("upserts canonical candles by candle identity", async () => {
@@ -36,12 +35,7 @@ describe("CandleRepository", () => {
     ]);
     expect(onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        target: [
-          candles.symbol,
-          candles.timeframe,
-          candles.priceType,
-          candles.openedAt,
-        ],
+        target: [candles.symbol, candles.timeframe, candles.priceType, candles.openedAt],
         set: expect.objectContaining({
           open: expect.any(Object),
           high: expect.any(Object),
@@ -77,15 +71,15 @@ describe("CandleRepository", () => {
   });
 
   it("rejects non-finite numeric values before writing", () => {
-    expect(() =>
-      toCandleInsertRows([{ ...baseCandle, close: Number.POSITIVE_INFINITY }]),
-    ).toThrow(RangeError);
+    expect(() => toCandleInsertRows([{ ...baseCandle, close: Number.POSITIVE_INFINITY }])).toThrow(
+      RangeError,
+    );
   });
 
   it("rejects values outside numeric(18, 6) range before writing", () => {
-    expect(() =>
-      toCandleInsertRows([{ ...baseCandle, close: 1_000_000_000_000 }]),
-    ).toThrow(RangeError);
+    expect(() => toCandleInsertRows([{ ...baseCandle, close: 1_000_000_000_000 }])).toThrow(
+      RangeError,
+    );
   });
 });
 

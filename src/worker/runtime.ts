@@ -1,14 +1,14 @@
 import { checkDbConnection } from "@/shared/db/client";
 import {
+  type HistoricalImporter,
+  type HistoricalImportResult,
+  StubHistoricalImporter,
+} from "@/worker/jobs/historical-importer";
+import {
   DbJobRunRecorder,
   type JobRunRecorder,
   runRecordedJob,
 } from "@/worker/jobs/job-run-recorder";
-import {
-  type HistoricalImportResult,
-  type HistoricalImporter,
-  StubHistoricalImporter,
-} from "@/worker/jobs/historical-importer";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "@/worker/types";
 
 export class WorkerRuntime {
@@ -93,11 +93,8 @@ export class WorkerRuntime {
     jobRunId: string;
     result: HistoricalImportResult;
   }> {
-    return runRecordedJob(
-      this.jobRunRecorder,
-      "historical-import",
-      { date },
-      () => this.historicalImporter.importDate({ date }),
+    return runRecordedJob(this.jobRunRecorder, "historical-import", { date }, () =>
+      this.historicalImporter.importDate({ date }),
     );
   }
 

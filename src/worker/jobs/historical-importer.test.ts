@@ -11,9 +11,7 @@ import { GmoHistoricalImporter } from "@/worker/jobs/historical-importer";
 
 describe("GmoHistoricalImporter", () => {
   it("imports GMO historical klines into the candle repository", async () => {
-    const getKlines = vi.fn(async (params: GetKlinesParams) =>
-      klineResponse(params.priceType),
-    );
+    const getKlines = vi.fn(async (params: GetKlinesParams) => klineResponse(params.priceType));
     const repository = new FakeCandleRepository();
     const importer = new GmoHistoricalImporter({
       client: { getKlines },
@@ -77,9 +75,7 @@ class FakeCandleRepository {
   });
 }
 
-function klineResponse(
-  priceType: GmoFxPriceType,
-): GmoFxApiResponse<GmoFxKline[]> {
+function klineResponse(priceType: GmoFxPriceType): GmoFxApiResponse<GmoFxKline[]> {
   return {
     status: 0,
     data: Array.from({ length: 15 }, (_, index) => {

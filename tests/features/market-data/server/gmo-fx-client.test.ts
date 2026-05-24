@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import statusFixture from "../../../fixtures/gmo/status-response.json" with { type: "json" };
-import tickerFixture from "../../../fixtures/gmo/ticker-response.json" with { type: "json" };
-import symbolsFixture from "../../../fixtures/gmo/symbols-response.json" with { type: "json" };
-import klinesFixture from "../../../fixtures/gmo/klines-response.json" with { type: "json" };
 import {
   GmoFxPublicClient,
   MarketDataValidationError,
 } from "../../../../src/features/market-data/index.js";
+import klinesFixture from "../../../fixtures/gmo/klines-response.json" with { type: "json" };
+import statusFixture from "../../../fixtures/gmo/status-response.json" with { type: "json" };
+import symbolsFixture from "../../../fixtures/gmo/symbols-response.json" with { type: "json" };
+import tickerFixture from "../../../fixtures/gmo/ticker-response.json" with { type: "json" };
 
 describe("GmoFxPublicClient", () => {
   it("parses GMO public REST responses with endpoint query parameters", async () => {
@@ -53,9 +53,7 @@ describe("GmoFxPublicClient", () => {
         }),
     });
 
-    await expect(client.getTicker()).rejects.toBeInstanceOf(
-      MarketDataValidationError,
-    );
+    await expect(client.getTicker()).rejects.toBeInstanceOf(MarketDataValidationError);
   });
 });
 

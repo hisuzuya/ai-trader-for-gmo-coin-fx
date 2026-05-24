@@ -23,7 +23,7 @@ export function createWorkerApp(runtime: WorkerRuntime) {
     if (!isHistoricalImportBody(body)) {
       return c.json(
         {
-          error: "Request body must be { date: \"YYYYMMDD\" }.",
+          error: 'Request body must be { date: "YYYYMMDD" }.',
         },
         400,
       );
@@ -42,10 +42,7 @@ export function createWorkerApp(runtime: WorkerRuntime) {
         {
           ok: false,
           date: body.date,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Historical import failed.",
+          error: error instanceof Error ? error.message : "Historical import failed.",
         },
         500,
       );

@@ -8,10 +8,7 @@ import type {
 } from "../types.js";
 import { aggregateCandles } from "./candle-aggregator.js";
 import { GmoFxPublicClient } from "./gmo-fx-client.js";
-import {
-  deriveMidCandlesFromBidAsk,
-  normalizeGmoKlinesToCandles,
-} from "./normalizer.js";
+import { deriveMidCandlesFromBidAsk, normalizeGmoKlinesToCandles } from "./normalizer.js";
 
 type HistoricalImporterClient = Pick<GmoFxPublicClient, "getKlines">;
 
@@ -60,10 +57,7 @@ export async function importGmoHistoricalCandles(
     priceType: "ASK",
     interval: "1min",
   });
-  const midOneMinuteCandles = deriveMidCandlesFromBidAsk(
-    bidOneMinuteCandles,
-    askOneMinuteCandles,
-  );
+  const midOneMinuteCandles = deriveMidCandlesFromBidAsk(bidOneMinuteCandles, askOneMinuteCandles);
 
   const allCandles = [
     ...bidOneMinuteCandles,
@@ -109,9 +103,7 @@ async function fetchOneMinuteKlines(
   });
 }
 
-function countByTimeframe(
-  candles: CanonicalCandle[],
-): Record<CandleTimeframe, number> {
+function countByTimeframe(candles: CanonicalCandle[]): Record<CandleTimeframe, number> {
   return {
     "1m": candles.filter((candle) => candle.timeframe === "1m").length,
     "5m": candles.filter((candle) => candle.timeframe === "5m").length,
@@ -119,9 +111,7 @@ function countByTimeframe(
   };
 }
 
-function countByPriceType(
-  candles: CanonicalCandle[],
-): Record<CandlePriceType, number> {
+function countByPriceType(candles: CanonicalCandle[]): Record<CandlePriceType, number> {
   return {
     bid: candles.filter((candle) => candle.priceType === "bid").length,
     ask: candles.filter((candle) => candle.priceType === "ask").length,

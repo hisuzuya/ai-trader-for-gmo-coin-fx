@@ -55,10 +55,7 @@ function aggregateBucket(
     if (current.openedAt.getTime() - previous.openedAt.getTime() !== expectedStepMs) {
       throw new RangeError("1m candles must be contiguous");
     }
-    if (
-      current.symbol !== first.symbol ||
-      current.priceType !== first.priceType
-    ) {
+    if (current.symbol !== first.symbol || current.priceType !== first.priceType) {
       throw new RangeError("cannot aggregate mixed candle identities");
     }
   }

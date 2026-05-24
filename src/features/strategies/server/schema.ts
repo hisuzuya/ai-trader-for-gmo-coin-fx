@@ -1,14 +1,10 @@
-import { z } from "zod"
-import {
-  ALLOWED_INDICATORS,
-  SUPPORTED_SYMBOLS,
-  SUPPORTED_TIMEFRAMES,
-} from "../types.js"
-import { INITIAL_RISK_LIMITS, PARAMETER_RANGES } from "./presets.js"
+import { z } from "zod";
+import { ALLOWED_INDICATORS, SUPPORTED_SYMBOLS, SUPPORTED_TIMEFRAMES } from "../types.js";
+import { INITIAL_RISK_LIMITS, PARAMETER_RANGES } from "./presets.js";
 
-const integer = () => z.number().int()
-const positiveInteger = () => integer().positive()
-const boundedNumber = (min: number, max: number) => z.number().min(min).max(max)
+const integer = () => z.number().int();
+const positiveInteger = () => integer().positive();
+const boundedNumber = (min: number, max: number) => z.number().min(min).max(max);
 
 const periodListSchema = (allowed: readonly number[]) =>
   z
@@ -17,13 +13,22 @@ const periodListSchema = (allowed: readonly number[]) =>
     .max(allowed.length)
     .refine((periods) => periods.every((period) => allowed.includes(period)), {
       message: `periods must be one of: ${allowed.join(", ")}`,
-    })
+    });
 
 export const indicatorsSchema = z
   .object({
-    sma: z.object({ periods: periodListSchema(PARAMETER_RANGES.sma.periods) }).strict().optional(),
-    ema: z.object({ periods: periodListSchema(PARAMETER_RANGES.ema.periods) }).strict().optional(),
-    rsi: z.object({ period: boundedNumber(7, 21) }).strict().optional(),
+    sma: z
+      .object({ periods: periodListSchema(PARAMETER_RANGES.sma.periods) })
+      .strict()
+      .optional(),
+    ema: z
+      .object({ periods: periodListSchema(PARAMETER_RANGES.ema.periods) })
+      .strict()
+      .optional(),
+    rsi: z
+      .object({ period: boundedNumber(7, 21) })
+      .strict()
+      .optional(),
     bollingerBands: z
       .object({
         period: boundedNumber(10, 30),
@@ -63,7 +68,7 @@ export const indicatorsSchema = z
   .strict()
   .refine((indicators) => Object.keys(indicators).length > 0, {
     message: "at least one indicator is required",
-  })
+  });
 
 const indicatorRefSchema = z
   .object({
@@ -72,14 +77,14 @@ const indicatorRefSchema = z
     output: z.string().min(1).max(32).optional(),
     period: positiveInteger().optional(),
   })
-  .strict()
+  .strict();
 
 const priceRefSchema = z
   .object({
     kind: z.literal("price"),
     source: z.enum(["close", "high", "low", "open"]),
   })
-  .strict()
+  .strict();
 
 export const conditionSchema: z.ZodTypeAny = z.lazy(() =>
   z.discriminatedUnion("type", [
@@ -139,7 +144,7 @@ export const conditionSchema: z.ZodTypeAny = z.lazy(() =>
       })
       .strict(),
   ]),
-)
+);
 
 export const strategyGatesSchema = z
   .object({
@@ -179,7 +184,7 @@ export const strategyGatesSchema = z
       })
       .strict(),
   })
-  .strict()
+  .strict();
 
 export const riskDefinitionSchema = z
   .object({
@@ -199,7 +204,7 @@ export const riskDefinitionSchema = z
     warning_margin_maintenance_rate: z.number().min(250),
     emergency_exit_margin_maintenance_rate: z.number().min(150),
   })
-  .strict()
+  .strict();
 
 export const strategyDefinitionSchema = z
   .object({
@@ -244,7 +249,7 @@ export const strategyDefinitionSchema = z
       .strict(),
     risk: riskDefinitionSchema,
   })
-  .strict()
+  .strict();
 
 export const aiStrategyProposalSchema = z
   .object({
@@ -252,4 +257,4 @@ export const aiStrategyProposalSchema = z
     rationale: z.string().min(1).max(2000),
     strategy: strategyDefinitionSchema,
   })
-  .strict()
+  .strict();

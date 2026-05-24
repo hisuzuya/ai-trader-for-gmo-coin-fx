@@ -1,5 +1,5 @@
-import type { StrategyDefinition, StrategyTimeframe } from "../types.js"
-import { INDICATOR_PRESET, INITIAL_RISK_LIMITS } from "./presets.js"
+import type { StrategyDefinition, StrategyTimeframe } from "../types.js";
+import { INDICATOR_PRESET, INITIAL_RISK_LIMITS } from "./presets.js";
 
 const commonRisk = {
   lot_sizing: {
@@ -12,20 +12,19 @@ const commonRisk = {
   max_margin_usage_pct: INITIAL_RISK_LIMITS.max_margin_usage_pct,
   max_loss_per_trade_jpy: INITIAL_RISK_LIMITS.max_loss_per_trade_jpy,
   max_daily_loss_jpy: INITIAL_RISK_LIMITS.max_daily_loss_jpy,
-  min_margin_maintenance_rate_for_entry:
-    INITIAL_RISK_LIMITS.min_margin_maintenance_rate_for_entry,
+  min_margin_maintenance_rate_for_entry: INITIAL_RISK_LIMITS.min_margin_maintenance_rate_for_entry,
   warning_margin_maintenance_rate: INITIAL_RISK_LIMITS.warning_margin_maintenance_rate,
   emergency_exit_margin_maintenance_rate:
     INITIAL_RISK_LIMITS.emergency_exit_margin_maintenance_rate,
-} satisfies StrategyDefinition["risk"]
+} satisfies StrategyDefinition["risk"];
 
-const commonIndicators = INDICATOR_PRESET satisfies StrategyDefinition["indicators"]
+const commonIndicators = INDICATOR_PRESET satisfies StrategyDefinition["indicators"];
 
 const commonRegime = {
   detector: "adx_slope",
   sideways_when_adx_below: 18,
   trend_when_adx_above: 25,
-} satisfies StrategyDefinition["regime"]
+} satisfies StrategyDefinition["regime"];
 
 const hybridLong = {
   type: "any",
@@ -57,7 +56,7 @@ const hybridLong = {
       ],
     },
   ],
-} satisfies StrategyDefinition["entry"]["long"]
+} satisfies StrategyDefinition["entry"]["long"];
 
 const hybridShort = {
   type: "any",
@@ -89,7 +88,7 @@ const hybridShort = {
       ],
     },
   ],
-} satisfies StrategyDefinition["entry"]["short"]
+} satisfies StrategyDefinition["entry"]["short"];
 
 const exitByTimeframe: Record<StrategyTimeframe, StrategyDefinition["exit"]> = {
   "1m": {
@@ -116,25 +115,25 @@ const exitByTimeframe: Record<StrategyTimeframe, StrategyDefinition["exit"]> = {
     opposite_signal_exit: true,
     allow_reversal_entry: false,
   },
-}
+};
 
 const maxSpreadByTimeframe: Record<StrategyTimeframe, number> = {
   "1m": 0.5,
   "5m": 0.8,
   "15m": 1,
-}
+};
 
 const minCandleCountByTimeframe: Record<StrategyTimeframe, number> = {
   "1m": 150,
   "5m": 120,
   "15m": 100,
-}
+};
 
 const modeByTimeframe: Record<StrategyTimeframe, StrategyDefinition["entry"]["mode"]> = {
   "1m": "hybrid",
   "5m": "hybrid",
   "15m": "trend_biased_hybrid",
-}
+};
 
 const buildBaseline = (timeframe: StrategyTimeframe): StrategyDefinition => ({
   meta: {
@@ -177,12 +176,12 @@ const buildBaseline = (timeframe: StrategyTimeframe): StrategyDefinition => ({
   },
   exit: exitByTimeframe[timeframe],
   risk: commonRisk,
-})
+});
 
 export const BASELINE_STRATEGIES = {
   "1m": buildBaseline("1m"),
   "5m": buildBaseline("5m"),
   "15m": buildBaseline("15m"),
-} as const satisfies Record<StrategyTimeframe, StrategyDefinition>
+} as const satisfies Record<StrategyTimeframe, StrategyDefinition>;
 
-export const baselineStrategies = Object.values(BASELINE_STRATEGIES)
+export const baselineStrategies = Object.values(BASELINE_STRATEGIES);

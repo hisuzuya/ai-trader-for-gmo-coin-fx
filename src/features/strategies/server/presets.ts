@@ -1,4 +1,4 @@
-import type { IndicatorDefinitions } from "../types.js"
+import type { IndicatorDefinitions } from "../types.js";
 
 export const INDICATOR_PRESET: Required<IndicatorDefinitions> = {
   sma: { periods: [20, 50, 100] },
@@ -8,7 +8,7 @@ export const INDICATOR_PRESET: Required<IndicatorDefinitions> = {
   atr: { period: 14, longPeriod: 50, maxSpikeRatio: 2.5 },
   adx: { period: 14, trendThreshold: 25, weakTrendThreshold: 18 },
   macd: { fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
-}
+};
 
 export const PARAMETER_RANGES = {
   sma: {
@@ -41,7 +41,7 @@ export const PARAMETER_RANGES = {
     slowPeriod: { min: 20, max: 35 },
     signalPeriod: { min: 5, max: 12 },
   },
-} as const
+} as const;
 
 export const INITIAL_RISK_LIMITS = {
   max_open_positions_per_account: 2,
@@ -54,4 +54,4 @@ export const INITIAL_RISK_LIMITS = {
   warning_margin_maintenance_rate: 250,
   emergency_exit_margin_maintenance_rate: 150,
   fixed_quantity: 1000,
-} as const
+} as const;

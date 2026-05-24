@@ -1,24 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  importGmoHistoricalCandles,
   type CandleWriter,
   type CanonicalCandle,
   type GetKlinesParams,
   type GmoFxApiResponse,
   type GmoFxKline,
   type GmoFxPriceType,
+  importGmoHistoricalCandles,
 } from "../../../../src/features/market-data/index.js";
 
 describe("importGmoHistoricalCandles", () => {
   it("fetches BID/ASK 1min KLines and plans 1m/5m/15m bid ask mid candles", async () => {
     const writer = new FakeCandleWriter();
-    const getKlines = vi.fn(
-      async (params: GetKlinesParams) => {
-        expect(params.interval).toBe("1min");
-        expect(params.date).toBe("20260524");
-        return klineResponse(params.priceType);
-      },
-    );
+    const getKlines = vi.fn(async (params: GetKlinesParams) => {
+      expect(params.interval).toBe("1min");
+      expect(params.date).toBe("20260524");
+      return klineResponse(params.priceType);
+    });
 
     const result = await importGmoHistoricalCandles({
       client: { getKlines },
@@ -105,9 +103,7 @@ class FakeCandleWriter implements CandleWriter {
   }
 }
 
-function klineResponse(
-  priceType: GmoFxPriceType,
-): GmoFxApiResponse<GmoFxKline[]> {
+function klineResponse(priceType: GmoFxPriceType): GmoFxApiResponse<GmoFxKline[]> {
   return {
     status: 0,
     data: Array.from({ length: 15 }, (_, index) => {

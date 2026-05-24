@@ -1,8 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-
-import { env } from "@/shared/env/server";
 import * as schema from "@/shared/db/schema";
+import { env } from "@/shared/env/server";
 
 const globalForDb = globalThis as typeof globalThis & {
   aiTradePgPool?: Pool;
