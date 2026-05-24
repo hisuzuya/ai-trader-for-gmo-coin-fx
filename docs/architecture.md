@@ -151,6 +151,7 @@ interface WorkerService {
 - Honoによる`/health`、`/status`、`/metrics`提供。
 - `SIGTERM` / `SIGINT`でgraceful shutdown。
 - いずれかのserviceがfatalになった場合はprocessを終了し、Docker Composeのrestart policyに復旧を委ねる。
+- restart後はDB上のcheckpointと未完了job_runsを読み、欠損したmarket data、未処理candle、未評価paper tickをreplayする。
 
 ### Hono API
 
@@ -242,6 +243,28 @@ job_runs:
   - metadata_json
 ```
 
+jobは少なくとも以下の実行制御を持つ。
+
+```text
+job_control:
+  - unique(job_name, target_key, scheduled_for)
+  - status: queued | running | succeeded | failed | skipped
+  - locked_by
+  - locked_until
+  - attempt
+  - max_attempts
+  - checkpoint_json
+```
+
+replay / checkpoint方針:
+
+- collectorは最新保存済み1m candle、latest ticker timestamp、WebSocket reconnect reasonをcheckpointとして保存する。
+- restart時は最後に確定した1m candle以降をREST KLineでbackfillし、WebSocket live streamに復帰する。
+- candle aggregation、feature generation、paper traderはすべてidempotent upsertにし、`symbol + timeframe + opened_at + strategy/account`単位で再実行できるようにする。
+- `running`のまま`locked_until`を過ぎたjobはstaleとして扱い、次回scheduler tickで再取得する。
+- AI tuning / daily review / backupはcollectorとpaper traderを停止させない。AIやbackupの失敗は該当jobをfailedにし、market data収集とpaper tradingは継続する。
+- backupは初期実装ではworker内jobでもよいが、Phase 5までに独立したCompose serviceへ分離できるようにjob interfaceを保つ。
+
 ## Market Data
 
 対象は初期実装では`USD_JPY`のみ。ただしdomain modelとDB schemaは複数symbol対応にする。
@@ -324,10 +347,12 @@ source:
   - date=YYYYMMDD
 
 normalization:
-  - BID/ASKそれぞれのOHLCを保存またはmid candleへ変換
+  - BID/ASKそれぞれの1m OHLCを保存する
+  - mid candleはBID/ASK candleからderivedとして生成する
   - spread推定にBID/ASK差を使う
-  - 1mをcanonical sourceにする
-  - 5m / 15mはアプリ側で再集計して保存
+  - signal/featuresのcanonical inputはmid 1mにする
+  - execution priceとspread/slippage評価はBID/ASKまたは保存済みspreadを使う
+  - 5m / 15mはアプリ側でprice_typeごとに再集計して保存する
 ```
 
 初期実装では、collectorによるlive candle生成と、historical importerによるREST KLine backfillを分ける。liveとbackfillの両方が同じ`candles` schemaにupsertできるようにする。
@@ -342,6 +367,7 @@ TimescaleDBを最初から使う。Drizzleで通常テーブルを定義し、hy
 candles
   - symbol
   - timeframe
+  - price_type
   - opened_at
   - open
   - high
@@ -349,16 +375,18 @@ candles
   - close
   - volume
   - source
-  - unique(symbol, timeframe, opened_at)
+  - unique(symbol, timeframe, price_type, opened_at)
   - hypertable(opened_at)
 
 features
   - symbol
   - timeframe
+  - price_type
   - opened_at
   - feature_set_version
+  - input_source_version
   - values_jsonb
-  - unique(symbol, timeframe, opened_at, feature_set_version)
+  - unique(symbol, timeframe, price_type, opened_at, feature_set_version)
   - hypertable(opened_at)
 
 strategy_definitions
@@ -404,7 +432,24 @@ unique:
 
 初期は`volume`を必須にしない。GMO FXのKLine payloadがOHLC中心であるため、volume依存の戦略は初期DSLでは無効にする。
 
-1mは`rest_klines`または`websocket`由来で保存する。5m / 15mは1mからアプリ側で生成し、`source = derived` として保存する。mid candleはBID/ASK candleから生成する。
+1mのBID/ASK candleは`rest_klines`または`websocket`由来で保存する。mid 1m candleはBID/ASK 1m candleから生成し、`source = derived` として保存する。5m / 15mは1mからprice_typeごとにアプリ側で生成し、`source = derived` として保存する。
+
+canonical input方針:
+
+```text
+strategy signal:
+  - price_type = mid
+  - timeframe = strategy timeframe
+
+feature generation:
+  - price_type = mid
+  - spread_pips / spread_sourceはBID/ASKまたはticker snapshotから保存する
+
+paper execution:
+  - BUY entry / close SELLはASK相当
+  - SELL entry / close BUYはBID相当
+  - BID/ASK candleがない場合のみmid +/- spread/2で代替する
+```
 
 ### Feature Schema
 
@@ -415,19 +460,24 @@ features:
   id: uuid
   symbol: text
   timeframe: text
+  price_type: mid
   opened_at: timestamptz
   feature_set_version: text
+  input_source_version: text
   values: jsonb
   created_at: timestamptz
 
 unique:
   - symbol
   - timeframe
+  - price_type
   - opened_at
   - feature_set_version
 ```
 
 初期の`feature_set_version`は`fx-core-v1`にする。
+
+`features.values`はjsonbで保存するが、`feature_set_version`ごとにschema manifestをコード上に持ち、AI proposal validationとpaper traderは同じmanifestを参照する。strategy runには使用した`feature_set_version`と`input_source_version`を保存し、後から同じ入力で再計算できるようにする。
 
 `fx-core-v1`:
 
@@ -863,7 +913,7 @@ allow_reversal_entry: false
 
 ## Paper Trading
 
-初期実装ではpaper tradingのみを実行する。live tradingは設計上のadapterとして残す。
+初期実装ではpaper tradingのみを実行する。MVP buildにはlive order adapter、GMO Private API client、実注文route、実注文用secretを含めない。
 
 ```text
 Strategy Engine
@@ -871,8 +921,9 @@ Strategy Engine
   -> OrderIntent
   -> ExecutionAdapter
        - PaperExecutionAdapter
-       - GmoFxExecutionAdapter future
 ```
+
+将来live tradingへ進む場合も、MVPとは別設計、別PR、別Compose profileで追加する。paper trading用のdomain modelは将来adapterを差し替えられる形に保つが、初期実装では`GmoFxExecutionAdapter`という具体実装を作らない。
 
 ### Execution Model
 
@@ -904,7 +955,32 @@ close SELL position
   - execution_price = next_open + spread_pips / 2 + slippage_pips
 ```
 
-シグナル足のcloseで約定させる方式は、検証が楽観的になりやすいため採用しない。bid/ask + 可変slippage + 約定拒否のようなより現実寄りのモデルは、tick/orderbookデータが必要になった段階で将来拡張として扱う。
+signal entry / opposite signal exitは次足openで約定させる。hard SL、TP、break-even、trailing stop、emergency exitは保守的にintrabar判定する。
+
+intrabar判定:
+
+```text
+source:
+  - 1m strategy: 次の1m candleのhigh/low
+  - 5m strategy: 5m保有区間内の1m candle high/low
+  - 15m strategy: 15m保有区間内の1m candle high/low
+
+BUY position:
+  - SL判定はBID lowで見る
+  - TP判定はBID highで見る
+
+SELL position:
+  - SL判定はASK highで見る
+  - TP判定はASK lowで見る
+
+when both TP and SL touched in same 1m candle:
+  - SL優先で約定させる
+  - 理由をpaper_orders.execution_reasonに保存する
+```
+
+BID/ASK candleがない区間では、mid candleに保存済みspreadを加減してBID/ASK相当を推定する。spread_sourceが`default`の区間はcandidate採用判定で不利に扱う。
+
+シグナル足のcloseで約定させる方式は、検証が楽観的になりやすいため採用しない。tick/orderbook由来の可変slippageや約定拒否は、より現実寄りのモデルが必要になった段階で将来拡張として扱う。
 
 ### Paper Account
 
@@ -944,6 +1020,8 @@ lot_sizing:
 
 固定数量はUSD/JPYの1,000通貨を初期値にする。固定数量でもrisk gateは必ず通す。固定数量が証拠金余力、最大損失、スプレッド悪化耐性を満たさない場合はentryしない。
 
+20,000円口座、25倍、USD/JPYが150〜160円台の場合、1,000通貨の必要証拠金は概ね6,000〜6,400円で、口座の約30%強を使う。`max_margin_usage_pct: 50`を守ると2ポジション同時保有はほぼ通らないため、初期実装では1口座1ポジションに固定する。
+
 日次損失上限は初期値として2,000円にする。20,000円口座では10%に相当するため、日次レビューではこの上限到達だけでなく、1,000円以上の損失も警告対象として扱う。
 
 1取引あたりの最大許容損失は初期値として1,000円にする。これは日次損失上限2,000円の50%に相当するため、2回の大きな負けで当日停止しうる前提で評価する。
@@ -958,16 +1036,17 @@ emergency_exit_margin_maintenance_rate: 150%
 
 300%未満では新規entryを停止する。250%未満ではdashboardと日次レビューで警告する。150%未満ではpaper上でもemergency exit相当として評価し、将来live tradingでは緊急決済候補にする。
 
-同時保有ポジションは、各paper accountごとに最大2まで許可する。ただし同方向への積み増しは初期実装では禁止し、証拠金使用率50%のrisk gateを必ず通す。
+同時保有ポジションは、各paper accountごとに最大1までにする。積み増しと両建ては初期実装では禁止し、証拠金使用率50%のrisk gateを必ず通す。
 
 ```text
-max_open_positions_per_account: 2
+max_open_positions_per_account: 1
 allow_pyramiding: false
 max_same_direction_positions: 1
+allow_hedged_positions: false
 max_margin_usage_pct: 50
 ```
 
-2ポジション目は、証拠金使用率、証拠金維持率、日次損失、1取引損失、spread/slippage stressを通過した場合のみentry可能にする。
+2ポジション同時保有は、残高、固定数量、margin usage上限を再設計する週次レビュー後の拡張候補にする。
 
 paper tradingは複数候補を同時に並走する。
 
@@ -1160,7 +1239,18 @@ gate例:
 
 ## Live Trading Future Scope
 
-初期実装ではlive orderを出さない。ただし、将来差し替えられるようにdomain modelはpaper/live共通にする。
+初期実装ではlive orderを出さない。MVP buildではlive trading関連の具体実装を含めない。ただし、将来差し替えられるようにdomain modelはpaper/live共通にする。
+
+MVP buildで禁止するもの:
+
+- GMO Private API client。
+- `GmoFxExecutionAdapter`などの実注文adapter。
+- 実注文を発火できるdashboard操作。
+- live order用のtRPC mutation / Hono admin endpoint。
+- GMO Private API secretのenv定義とmount。
+- `LIVE_TRADING_ENABLED=true`で有効化できるコードパス。
+
+CIでは、MVP buildにlive order adapter、private API client、実注文mutation、private secret envが含まれないことを静的チェックする。
 
 将来実装候補:
 
@@ -1215,7 +1305,7 @@ Daily Review
   - warnings
 ```
 
-baseline昇格やlive適用など、人間承認が必要な操作はdashboardから行えるようにする。ただし初期実装ではlive適用ボタンは無効化または非表示にする。
+baseline昇格など、人間承認が必要なpaper trading操作はdashboardから行えるようにする。MVP dashboardにはlive適用ボタン、実注文操作、GMO Private API secret入力欄を置かない。
 
 ## Testing
 
@@ -1246,7 +1336,7 @@ e2e:
   - dashboard reads status
 ```
 
-外部APIに依存するテストは通常CIではmockにする。GMO live APIを叩くsmoke testは手動または明示的な環境変数がある場合だけ実行する。
+外部APIに依存するテストは通常CIではmockにする。GMO public APIを実際に叩くsmoke testは手動または明示的な環境変数がある場合だけ実行する。
 
 ```text
 RUN_GMO_LIVE_SMOKE=1
@@ -1335,10 +1425,9 @@ GMO_FX_PUBLIC_WS_URL
 ENABLED_SYMBOLS
 CLAUDE_CONFIG_DIR
 AI_TUNING_ENABLED
-LIVE_TRADING_ENABLED=false
 ```
 
-`LIVE_TRADING_ENABLED` は初期実装では常に`false`。将来live tradingを実装する場合も、default falseにする。
+MVP envにはlive trading用secretや`LIVE_TRADING_ENABLED`を置かない。将来live tradingを実装する場合も、default falseのfeature flagだけで有効化できる形にはせず、別Compose profile、別secret mount、明示的な人間承認flowを必須にする。
 
 ### Target VM
 
@@ -1505,14 +1594,14 @@ GMO API keyなど将来のlive trading用secretも、同じくworker専用secret
 5. historical importerでUSD_JPY 1min BID/ASK KLineをbackfillする。
 6. WebSocket collectorでUSD_JPY tickerを購読する。
 7. 1m candle builderと5m/15m aggregatorを実装する。
-8. paper execution modelを実装する。
+8. paper execution modelを実装する。entryは次足open、SL/TP/trailingは1m intrabar判定で実装する。
 9. strategy DSLとbaseline strategyを実装する。
 10. ClaudeCliProviderを実装する。
 11. hourly tuningとcandidate並走を実装する。
 12. dashboardでsystem status / paper accounts / strategy comparison / daily reviewを表示する。
 ```
 
-初期実装ではlive trading、GMO Private API、実注文、保護注文は実装しない。
+初期実装ではlive trading、GMO Private API、実注文、保護注文、live用secret/env、live用dashboard操作は実装しない。
 
 ## MVP Phases
 
@@ -1550,7 +1639,9 @@ goal:
 done:
   - 1m / 5m / 15m baselineが並走する
   - fixed quantity 1,000でpaper tradesが記録される
+  - 各paper accountは最大1ポジションで動く
   - spread/slippage込み損益が表示される
+  - SL/TP/trailingが1m intrabarで保守的に判定される
   - risk gateでentryが止まる
 ```
 
