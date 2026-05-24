@@ -112,7 +112,7 @@ const parseProposalJson = (
   }
 
   try {
-    return { ok: true, value: JSON.parse(input) };
+    return { ok: true, value: JSON.parse(stripJsonFence(input)) };
   } catch (error) {
     return {
       ok: false,
@@ -124,6 +124,13 @@ const parseProposalJson = (
     };
   }
 };
+
+function stripJsonFence(input: string): string {
+  const trimmed = input.trim();
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
+
+  return fenced?.[1] ?? trimmed;
+}
 
 const mapZodIssueToRejectReason = (issue: ZodIssue): RejectReason => {
   const path = toPath(issue.path);
