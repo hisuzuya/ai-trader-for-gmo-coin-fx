@@ -1,4 +1,4 @@
-import type { StrategyProposalInput } from "@ai-trade/domain/ai-tuning";
+import type { DailyReviewInput, StrategyProposalInput } from "@ai-trade/domain/ai-tuning";
 import { Hono } from "hono";
 
 import {
@@ -55,6 +55,27 @@ export function createAiRunnerApp(provider: StrategyProposalProvider = new Claud
     });
   });
 
+  app.post("/daily-reviews", async (c) => {
+    const body = await c.req.json().catch(() => null);
+
+    if (!isDailyReviewInput(body)) {
+      return c.json(
+        {
+          ok: false,
+          error:
+            "Request body must include reviewDate, timezone, accountSummaries, candidateSummaries, warningSignals, and operationsContext.",
+        },
+        400,
+      );
+    }
+
+    const response = await provider.generateDailyReview(body);
+    return c.json({
+      ok: response.invocation.status === "succeeded",
+      ...response,
+    });
+  });
+
   return app;
 }
 
@@ -68,5 +89,23 @@ function isStrategyProposalInput(input: unknown): input is StrategyProposalInput
     "explorationPolicy" in input &&
     Array.isArray(input.rejectedCandidateSummaries) &&
     typeof input.explorationPolicy === "string"
+  );
+}
+
+function isDailyReviewInput(input: unknown): input is DailyReviewInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "reviewDate" in input &&
+    "timezone" in input &&
+    "accountSummaries" in input &&
+    "candidateSummaries" in input &&
+    "warningSignals" in input &&
+    "operationsContext" in input &&
+    typeof input.reviewDate === "string" &&
+    input.timezone === "Asia/Tokyo" &&
+    Array.isArray(input.accountSummaries) &&
+    Array.isArray(input.candidateSummaries) &&
+    Array.isArray(input.warningSignals)
   );
 }

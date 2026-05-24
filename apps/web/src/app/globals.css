@@ -112,6 +112,11 @@ h1 {
   gap: 8px;
 }
 
+.review-grid {
+  display: grid;
+  gap: 10px;
+}
+
 .data-row,
 .empty-row {
   display: grid;
@@ -151,6 +156,61 @@ h1 {
   grid-template-columns: 1fr;
 }
 
+.review-panel {
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: #111318;
+  padding: 16px;
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--muted);
+}
+
+.review-header strong {
+  color: var(--accent-strong);
+}
+
+.review-panel p {
+  margin: 14px 0 16px;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.review-columns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.review-list {
+  min-width: 0;
+}
+
+.review-list h3 {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.82rem;
+}
+
+.review-list ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.review-list li,
+.muted-line {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 560px) {
   .dashboard-shell {
     align-items: start;
@@ -158,7 +218,8 @@ h1 {
   }
 
   .status-grid,
-  .data-row {
+  .data-row,
+  .review-columns {
     grid-template-columns: 1fr;
   }
 

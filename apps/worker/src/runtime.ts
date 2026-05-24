@@ -1,4 +1,5 @@
 import {
+  aiDailyReviews,
   aiTuningProposals,
   checkDbConnection,
   DbJobRunRecorder,
@@ -14,6 +15,7 @@ import {
   type HistoricalImportResult,
   StubHistoricalImporter,
 } from "./jobs/historical-importer.js";
+import type { AiDailyReviewerService, DailyReviewRunResult } from "./services/ai-daily-reviewer.js";
 import type { AiTunerService, AiTuningRunResult } from "./services/ai-tuner.js";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "./types.js";
 
@@ -111,8 +113,18 @@ export class WorkerRuntime {
     return aiTuner.runOnce();
   }
 
+  async runDailyReview(): Promise<DailyReviewRunResult> {
+    const dailyReviewer = this.services.find(isAiDailyReviewerService);
+
+    if (!dailyReviewer) {
+      throw new Error("AI daily reviewer service is not registered.");
+    }
+
+    return dailyReviewer.runOnce();
+  }
+
   async dashboardSummary(): Promise<WorkerDashboardSummary> {
-    const [accounts, trades, candidates] = await Promise.all([
+    const [accounts, trades, candidates, dailyReviews] = await Promise.all([
       db
         .select({
           name: paperAccounts.name,
@@ -145,6 +157,20 @@ export class WorkerRuntime {
         .where(eq(aiTuningProposals.insertedIntoPaper, true))
         .orderBy(desc(aiTuningProposals.createdAt))
         .limit(6),
+      db
+        .select({
+          reviewDate: aiDailyReviews.reviewDate,
+          status: aiDailyReviews.status,
+          summary: aiDailyReviews.summary,
+          baselinePromotionCandidates: aiDailyReviews.baselinePromotionCandidates,
+          candidateRetirementCandidates: aiDailyReviews.candidateRetirementCandidates,
+          warnings: aiDailyReviews.warnings,
+          nextActions: aiDailyReviews.nextActions,
+          createdAt: aiDailyReviews.createdAt,
+        })
+        .from(aiDailyReviews)
+        .orderBy(desc(aiDailyReviews.createdAt))
+        .limit(3),
     ]);
 
     return {
@@ -159,6 +185,10 @@ export class WorkerRuntime {
       candidates: candidates.map((candidate) => ({
         ...candidate,
         createdAt: candidate.createdAt.toISOString(),
+      })),
+      dailyReviews: dailyReviews.map((review) => ({
+        ...review,
+        createdAt: review.createdAt.toISOString(),
       })),
     };
   }
@@ -197,6 +227,16 @@ export type WorkerDashboardSummary = {
     timeframe: string;
     createdAt: string;
   }[];
+  dailyReviews: {
+    reviewDate: string;
+    status: string;
+    summary: string | null;
+    baselinePromotionCandidates: unknown;
+    candidateRetirementCandidates: unknown;
+    warnings: unknown;
+    nextActions: unknown;
+    createdAt: string;
+  }[];
 };
 
 function detailString(service: ServiceHealth | undefined, key: string): string | null {
@@ -226,4 +266,8 @@ function detailAiInvocationStatus(services: ServiceHealth[]): string | null {
 
 function isAiTunerService(service: WorkerService): service is AiTunerService {
   return service.name === "ai-tuner" && "runOnce" in service;
+}
+
+function isAiDailyReviewerService(service: WorkerService): service is AiDailyReviewerService {
+  return service.name === "ai-daily-reviewer" && "runOnce" in service;
 }

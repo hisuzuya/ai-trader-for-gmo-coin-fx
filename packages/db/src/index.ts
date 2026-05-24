@@ -1,5 +1,10 @@
 export { checkDbConnection, db, pgPool } from "./client.js";
 export {
+  type AiDailyReviewRecordInput,
+  AiDailyReviewRepository,
+  toAiDailyReviewInsertRow,
+} from "./repositories/ai-daily-review-repository.js";
+export {
   type AiInvocationRecordInput,
   type AiTuningProposalRecordInput,
   AiTuningRepository,

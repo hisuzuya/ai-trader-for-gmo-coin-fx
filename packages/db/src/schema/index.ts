@@ -50,6 +50,12 @@ export const aiTuningProposalStatus = pgEnum("ai_tuning_proposal_status", [
   "failed",
 ]);
 
+export const aiDailyReviewStatus = pgEnum("ai_daily_review_status", [
+  "accepted",
+  "rejected",
+  "failed",
+]);
+
 export const candles = pgTable(
   "candles",
   {
@@ -264,5 +270,27 @@ export const aiTuningProposals = pgTable(
   (table) => [
     index("ai_tuning_proposals_created_at_idx").on(table.createdAt),
     index("ai_tuning_proposals_status_idx").on(table.status),
+  ],
+);
+
+export const aiDailyReviews = pgTable(
+  "ai_daily_reviews",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    invocationId: uuid("invocation_id").references(() => aiInvocations.id),
+    reviewDate: text("review_date").notNull(),
+    status: aiDailyReviewStatus("status").notNull(),
+    summary: text("summary"),
+    baselinePromotionCandidates: jsonb("baseline_promotion_candidates_json"),
+    candidateRetirementCandidates: jsonb("candidate_retirement_candidates_json"),
+    warnings: jsonb("warnings_json"),
+    nextActions: jsonb("next_actions_json"),
+    rejectReasons: jsonb("reject_reasons_json"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [
+    index("ai_daily_reviews_created_at_idx").on(table.createdAt),
+    index("ai_daily_reviews_review_date_idx").on(table.reviewDate),
+    index("ai_daily_reviews_status_idx").on(table.status),
   ],
 );
