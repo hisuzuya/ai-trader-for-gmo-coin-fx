@@ -12,4 +12,10 @@ export {
   type StartedJobRun,
   summarizeError,
 } from "./repositories/job-run-recorder.js";
+export {
+  toPaperAccountInsertRow,
+  toPaperOrderInsertRow,
+  toPaperPositionInsertRow,
+  toPaperTradeInsertRow,
+} from "./repositories/paper-trading-repository.js";
 export * from "./schema/index.js";

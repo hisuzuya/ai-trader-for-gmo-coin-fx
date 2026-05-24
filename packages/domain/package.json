@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./market-data": "./src/market-data/index.ts",
+    "./paper-trading": "./src/paper-trading/index.ts",
     "./strategies": "./src/strategies/index.ts",
     "./ai-tuning": "./src/ai-tuning/index.ts"
   },

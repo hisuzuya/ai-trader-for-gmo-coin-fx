@@ -8,6 +8,13 @@
       "when": 1779613585179,
       "tag": "0000_famous_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779622601301,
+      "tag": "0001_paper_trading_domain",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,9 @@ export default defineConfig({
       "@ai-trade/domain/market-data": fileURLToPath(
         new URL("./src/market-data/index.ts", import.meta.url),
       ),
+      "@ai-trade/domain/paper-trading": fileURLToPath(
+        new URL("./src/paper-trading/index.ts", import.meta.url),
+      ),
       "@ai-trade/domain/strategies": fileURLToPath(
         new URL("./src/strategies/index.ts", import.meta.url),
       ),
