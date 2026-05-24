@@ -193,6 +193,8 @@ describe("worker Hono app", () => {
   });
 
   it("runs AI daily review and records the accepted review", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-24T00:00:00.000Z"));
     const store = new InMemoryDailyReviewStore();
     const aiProvider: DailyReviewProvider = {
       generateDailyReview: vi.fn().mockResolvedValue({
@@ -264,6 +266,7 @@ describe("worker Hono app", () => {
     });
     expect(store.invocations).toHaveLength(1);
     expect(store.reviews).toHaveLength(1);
+    vi.useRealTimers();
   });
 
   it("records a manual paper decision", async () => {
