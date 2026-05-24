@@ -193,7 +193,7 @@ timescaledb:
 cloudflared:
   image: cloudflare/cloudflared
   route:
-    - ai-trading.rayven.cloud -> http://next-web:3000
+    - <dashboard-hostname> -> http://next-web:3000
 ```
 
 local開発では`cloudflared`は必須にしない。`next-web`はlocalhostで確認し、workerとDBはDocker Composeで起動する。
@@ -219,37 +219,37 @@ MVP envにはlive trading用secretや`LIVE_TRADING_ENABLED`を置かない。将
 
 ### Target VM
 
-初期デプロイ先はProxmox上の専用VM `ai-trading-01` とする。
+初期デプロイ先は、既存LANと分離された専用VMとする。公開リポジトリには実host名、VMID、IP address、Cloudflare hostname、SSH aliasなどの運用実値を記録しない。
 
 ```text
-host: Proxmox PC2 pve-pc2
-vmid: 203
-hostname: ai-trading-01
-ip: 10.30.0.2/24
-gateway: 10.30.0.1
+host: <hypervisor-host>
+vmid: <vmid>
+hostname: <vm-hostname>
+ip: <isolated-subnet-vm-ip>/<prefix>
+gateway: <isolated-subnet-gateway>
 spec:
   - 4 cores
   - 8GB RAM
   - 100GB disk
 network:
-  - vmbr-trading only
+  - isolated bridge only
 ```
 
-VMは専用内部ブリッジ `vmbr-trading` にのみ接続する。`vmbr-trading` のhost側IPは `10.30.0.1/24` とし、物理LANへ直接ブリッジしない。
+VMは専用内部ブリッジにのみ接続し、物理LANへ直接ブリッジしない。
 
 ネットワーク分離方針:
 
 ```text
 allowed:
   - VM -> internet via NAT
-  - SSH from 10.30.0.1
-  - SSH from 10.11.0.10 via Cloudflare tunnel route
+  - SSH from isolated gateway
+  - SSH via Cloudflare tunnel route
 
 blocked:
   - VM -> 10.0.0.0/8
   - VM -> 172.16.0.0/12
   - VM -> 192.168.0.0/16
-  - Mac -> 10.30.0.2 direct SSH
+  - operator machine -> VM direct SSH
 ```
 
 nftablesでVMから既存VM/LANへの横移動を遮断する。UFWは有効化し、incoming deny / outgoing allowを基本とする。
@@ -257,19 +257,18 @@ nftablesでVMから既存VM/LANへの横移動を遮断する。UFWは有効化�
 Cloudflare / SSH:
 
 ```text
-ssh hostname: ai-trading-ssh.rayven.cloud
+ssh hostname: <ssh-access-hostname>
 ssh route:
   Cloudflare
-  -> PC1 cloudflared
-  -> PC1 static route
-  -> PC2
-  -> 10.30.0.2:22
+  -> tunnel host cloudflared
+  -> internal route
+  -> isolated VM:22
 
 local ssh alias:
-  ssh ai-trading
+  ssh <vm-alias>
 ```
 
-Web公開用hostname `ai-trading.rayven.cloud` はNext.js導入後に追加する。Cloudflare Tunnelは `next-web` service のみを公開対象にし、`timescaledb` と `worker` は公開しない。
+Web公開用hostnameはNext.js導入後に追加する。Cloudflare Tunnelは `next-web` service のみを公開対象にし、`timescaledb` と `worker` は公開しない。
 
 VM初期状態:
 
@@ -292,16 +291,16 @@ VM初期セットアップのおすすめ手順:
 
 ```text
 1. Docker EngineとDocker Compose pluginを導入する。
-2. /opt/ai-trade を作成する。
-3. /opt/ai-trade/secrets/claude を作成する。
-4. /opt/ai-trade/backups を作成する。
+2. application directoryを作成する。
+3. Claude CLI credential用secret directoryを作成する。
+4. backup directoryを作成する。
 5. repositoryを配置する。
 6. .env.production を配置する。
 7. docker compose pull/buildを実行する。
 8. migrationを適用する。
 9. workerの/readyを確認する。
 10. next-webのhealthを確認する。
-11. Cloudflare Tunnelに ai-trading.rayven.cloud を追加する。
+11. Cloudflare Tunnelにdashboard hostnameを追加する。
 12. dashboardからSystem Statusを確認する。
 ```
 
@@ -344,11 +343,11 @@ paper trading段階ではVM内backup volumeを初期保存先にする。live tr
 
 ### Secrets
 
-Claude CLIの認証情報は、VM上の専用ディレクトリをai-runner containerにread-only mountする。
+Claude CLIの認証情報は、VM上の専用ディレクトリをai-runner containerにread-only mountする。host側の実pathは公開リポジトリに記録しない。
 
 ```text
 host:
-  /opt/ai-trade/secrets/claude/
+  <claude-config-host-directory>
 
 ai-runner container:
   /home/node/.claude:ro
@@ -368,5 +367,5 @@ GMO API keyなど将来のlive trading用secretも、同じくworker専用secret
 ## 未決事項
 
 - Claude CLIをai-runner container内で安定動作させるためのベースイメージと認証mountの実機検証。
-- Cloudflare TunnelのWeb hostname `ai-trading.rayven.cloud` 追加。
+- Cloudflare TunnelのWeb hostname追加。
 - 外部backup保存先の選定。paper段階ではVM内backup volumeで開始する。

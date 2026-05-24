@@ -22,7 +22,6 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
     ports: !override
       - "127.0.0.1:3000:3000"
-      - "10.30.0.2:3000:3000"
     volumes: !override []
     logging:
       driver: json-file
@@ -70,7 +69,7 @@ services:
       - "127.0.0.1:8788:8788"
     volumes: !override
       - type: bind
-        source: /opt/ai-trade/secrets/claude
+        source: ./secrets/claude
         target: /home/node/.claude
         read_only: true
     logging:

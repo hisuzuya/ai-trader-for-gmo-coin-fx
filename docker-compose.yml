@@ -116,7 +116,7 @@ services:
       AI_RUNNER_PORT: "8788"
       CLAUDE_CONFIG_DIR: /home/node/.claude
     volumes:
-      - /opt/ai-trade/secrets/claude:/home/node/.claude:ro
+      - ./secrets/claude:/home/node/.claude:ro
     healthcheck:
       test:
         [
