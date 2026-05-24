@@ -2,7 +2,9 @@
 .env
 .env.*
 node_modules/
+.pnpm-store/
 .next/
 dist/
 coverage/
 *.log
+tsconfig.tsbuildinfo
