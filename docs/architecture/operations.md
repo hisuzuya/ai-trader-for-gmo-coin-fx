@@ -131,6 +131,9 @@ services:
     - single Node.js process
     - Hono health/status
 
+  db-migrate:
+    - Drizzle migration one-shot job before worker startup
+
   ai-runner:
     - Hono internal API
     - Claude CLI
@@ -149,31 +152,40 @@ services:
 ```text
 next-web:
   build:
-    target: next-standalone
-  command: node server.js
+    target: next-web
+  command: node apps/web/server.js
   internal_port: 3000
+  host_bind: 127.0.0.1:3000
   exposed_to_tunnel: true
 
 worker:
   build:
     target: worker
-  command: node apps/worker/dist/main.js
+  command: node apps/worker/dist/main.cjs
   internal_port: 8787
   exposed_to_tunnel: false
   mounts:
     - backup volume if backup runs here
 
+db-migrate:
+  build:
+    target: db-migrate
+  command: pnpm db:migrate
+  depends_on:
+    - timescaledb healthy
+  restart: "no"
+
 ai-runner:
   build:
     target: ai-runner
-  command: node apps/ai-runner/dist/main.js
+  command: node apps/ai-runner/dist/main.cjs
   internal_port: 8788
   exposed_to_tunnel: false
   mounts:
     - claude config read-only
 
 timescaledb:
-  image: timescale/timescaledb:latest-pg16
+  image: timescale/timescaledb:2.17.2-pg16
   exposed_to_host: false
   volume:
     - timescaledb-data

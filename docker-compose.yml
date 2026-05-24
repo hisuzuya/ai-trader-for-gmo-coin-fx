@@ -1,66 +1,136 @@
 services:
   timescaledb:
     image: timescale/timescaledb:2.17.2-pg16
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: ai_trade
-      POSTGRES_USER: ai_trade
-      POSTGRES_PASSWORD: ai_trade
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${AI_TRADE_POSTGRES_DB:-ai_trade}
+      POSTGRES_USER: ${AI_TRADE_POSTGRES_USER:-ai_trade}
+      POSTGRES_PASSWORD: ${AI_TRADE_POSTGRES_PASSWORD:-ai_trade}
     volumes:
       - timescaledb-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ai_trade -d ai_trade"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 20
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   next-web:
-    image: node:24-bookworm-slim
-    working_dir: /app
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @ai-trade/web dev --hostname 0.0.0.0"
+    build:
+      context: .
+      target: next-web
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
     environment:
-      DATABASE_URL: postgresql://ai_trade:ai_trade@timescaledb:5432/ai_trade
+      DATABASE_URL: postgresql://${AI_TRADE_POSTGRES_USER:-ai_trade}:${AI_TRADE_POSTGRES_PASSWORD:-ai_trade}@timescaledb:5432/${AI_TRADE_POSTGRES_DB:-ai_trade}
+      WORKER_INTERNAL_URL: http://worker:8787
       NEXT_TELEMETRY_DISABLED: "1"
     ports:
-      - "3000:3000"
-    volumes:
-      - .:/app
-      - next-web-node-modules:/app/node_modules
+      - "127.0.0.1:3000:3000"
     depends_on:
       timescaledb:
         condition: service_healthy
+      worker:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/api/trpc/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   worker:
-    image: node:24-bookworm-slim
-    working_dir: /app
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @ai-trade/worker start"
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
     environment:
-      DATABASE_URL: postgresql://ai_trade:ai_trade@timescaledb:5432/ai_trade
+      DATABASE_URL: postgresql://${AI_TRADE_POSTGRES_USER:-ai_trade}:${AI_TRADE_POSTGRES_PASSWORD:-ai_trade}@timescaledb:5432/${AI_TRADE_POSTGRES_DB:-ai_trade}
       WORKER_PORT: "8787"
-    ports:
-      - "8787:8787"
-    volumes:
-      - .:/app
-      - worker-node-modules:/app/node_modules
+      AI_RUNNER_INTERNAL_URL: http://ai-runner:8788
+    depends_on:
+      ai-runner:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:8787/ready').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  db-migrate:
+    build:
+      context: .
+      target: db-migrate
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      DATABASE_URL: postgresql://${AI_TRADE_POSTGRES_USER:-ai_trade}:${AI_TRADE_POSTGRES_PASSWORD:-ai_trade}@timescaledb:5432/${AI_TRADE_POSTGRES_DB:-ai_trade}
     depends_on:
       timescaledb:
         condition: service_healthy
+    restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   ai-runner:
-    image: node:24-bookworm-slim
-    working_dir: /app
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @ai-trade/ai-runner start"
+    build:
+      context: .
+      target: ai-runner
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
     environment:
       AI_RUNNER_PORT: "8788"
-    ports:
-      - "8788:8788"
+      CLAUDE_CONFIG_DIR: /home/node/.claude
     volumes:
-      - .:/app
-      - ai-runner-node-modules:/app/node_modules
+      - /opt/ai-trade/secrets/claude:/home/node/.claude:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:8788/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 volumes:
   timescaledb-data:
-  next-web-node-modules:
-  worker-node-modules:
-  ai-runner-node-modules:

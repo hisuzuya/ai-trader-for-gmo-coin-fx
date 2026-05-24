@@ -1,0 +1,42 @@
+services:
+  timescaledb:
+    ports:
+      - "5432:5432"
+
+  next-web:
+    image: node:24-bookworm-slim
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @ai-trade/web dev --hostname 0.0.0.0"
+    ports: !override
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - next-web-node-modules:/app/node_modules
+
+  worker:
+    image: node:24-bookworm-slim
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @ai-trade/worker start"
+    ports: !override
+      - "8787:8787"
+    volumes:
+      - .:/app
+      - worker-node-modules:/app/node_modules
+
+  ai-runner:
+    image: node:24-bookworm-slim
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @ai-trade/ai-runner start"
+    ports: !override
+      - "8788:8788"
+    volumes:
+      - .:/app
+      - ai-runner-node-modules:/app/node_modules
+
+volumes:
+  next-web-node-modules:
+  worker-node-modules:
+  ai-runner-node-modules:

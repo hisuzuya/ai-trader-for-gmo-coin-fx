@@ -84,10 +84,10 @@ pnpm typecheck
 pnpm test
 ```
 
-Start the full local stack:
+Start the full local development stack:
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
 Services:
@@ -105,6 +105,23 @@ Apply Drizzle migrations after TimescaleDB is running:
 ```bash
 DATABASE_URL=postgresql://ai_trade:ai_trade@localhost:5432/ai_trade pnpm db:migrate
 ```
+
+## Production container startup
+
+The default Compose file is production-oriented. It builds runtime images first
+and starts built artifacts instead of running development servers or installing
+dependencies at container startup:
+
+```bash
+docker compose up -d --build
+```
+
+Production defaults bind only the dashboard to `127.0.0.1:3000`; `worker`,
+`ai-runner`, and `timescaledb` stay on the Docker network. Override
+`AI_TRADE_POSTGRES_DB`, `AI_TRADE_POSTGRES_USER`, and
+`AI_TRADE_POSTGRES_PASSWORD` through Compose's project environment, for example
+with a root `.env` file or exported shell variables, when defaults are not
+acceptable. Runtime application flags can be placed in `.env.production`.
 
 ## Commands
 

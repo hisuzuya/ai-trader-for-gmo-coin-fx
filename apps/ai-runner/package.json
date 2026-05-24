@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/main.cjs",
     "start": "tsx src/main.ts",
+    "start:prod": "node dist/main.cjs",
     "lint": "biome ci .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
