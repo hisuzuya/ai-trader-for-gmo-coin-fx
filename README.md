@@ -22,14 +22,18 @@ See [docs/architecture.md](docs/architecture.md).
 ## Architecture
 
 ```mermaid
-flowchart LR
-  GMO["GMO Coin FX Public API"] --> Worker["Worker / Hono API"]
-  Worker --> Jobs["Market Data Import Jobs"]
-  Jobs --> Normalize["Tick & Candle Normalization"]
-  Normalize --> DB["TimescaleDB"]
-  DB --> Dashboard["Next.js Dashboard"]
-  Dashboard --> Status["System Status / Health"]
-  Worker --> Status
+flowchart TD
+  GMO["GMO Coin FX Public API<br/>ticks / candles"]
+  Worker["Worker / Hono API<br/>import jobs and health endpoints"]
+  Normalize["Market data pipeline<br/>normalize, validate, aggregate"]
+  DB["TimescaleDB<br/>candles, features, job runs"]
+  Dashboard["Next.js dashboard<br/>system status and research UI"]
+
+  GMO -->|"public market data"| Worker
+  Worker -->|"import job output"| Normalize
+  Normalize -->|"canonical candles / features"| DB
+  DB -->|"read models"| Dashboard
+  Worker -->|"health / ready / status"| Dashboard
 ```
 
 ## App structure
