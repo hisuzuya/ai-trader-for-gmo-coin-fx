@@ -10,7 +10,7 @@ import {
 export type { AiRunnerProviderState };
 
 export type AiRunnerHealth = {
-  ok: true;
+  ok: boolean;
   service: "ai-runner";
   provider: AiRunnerProviderState;
 };
@@ -26,13 +26,33 @@ export function createAiRunnerApp(provider: StrategyProposalProvider = new Claud
     } satisfies AiRunnerHealth),
   );
 
-  app.get("/ready", async (c) =>
-    c.json({
-      ok: true,
+  app.get("/ready", async (c) => {
+    const providerHealth = await provider.health();
+    const body = {
+      ok: providerHealth.ready,
       service: "ai-runner",
-      provider: await provider.health(),
-    } satisfies AiRunnerHealth),
-  );
+      provider: providerHealth,
+    } satisfies AiRunnerHealth;
+
+    return c.json(body, body.ok ? 200 : 503);
+  });
+
+  app.post("/invoke", async (c) => {
+    const body = await c.req.json().catch(() => null);
+
+    if (!isInvocationInput(body)) {
+      return c.json(
+        {
+          ok: false,
+          error: "Request body must be { prompt: string, timeoutMs?: number }.",
+        },
+        400,
+      );
+    }
+
+    const result = await provider.invoke(body);
+    return c.json(result, result.ok ? 200 : 503);
+  });
 
   app.post("/strategy-proposals", async (c) => {
     const body = await c.req.json().catch(() => null);
@@ -89,6 +109,21 @@ function isStrategyProposalInput(input: unknown): input is StrategyProposalInput
     "explorationPolicy" in input &&
     Array.isArray(input.rejectedCandidateSummaries) &&
     typeof input.explorationPolicy === "string"
+  );
+}
+
+function isInvocationInput(input: unknown): input is { prompt: string; timeoutMs?: number } {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "prompt" in input &&
+    typeof input.prompt === "string" &&
+    input.prompt.trim().length > 0 &&
+    (!("timeoutMs" in input) ||
+      input.timeoutMs === undefined ||
+      (typeof input.timeoutMs === "number" &&
+        Number.isInteger(input.timeoutMs) &&
+        input.timeoutMs > 0))
   );
 }
 
