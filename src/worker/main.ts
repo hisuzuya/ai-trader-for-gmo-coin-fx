@@ -2,15 +2,19 @@ import { serve } from "@hono/node-server";
 
 import { env } from "@/shared/env/server";
 import { createWorkerApp } from "@/worker/hono-app";
+import { GmoHistoricalImporter } from "@/worker/jobs/historical-importer";
 import { WorkerRuntime } from "@/worker/runtime";
 import { StaticWorkerService } from "@/worker/services/static-service";
 
-const runtime = new WorkerRuntime([
-  new StaticWorkerService("collector"),
-  new StaticWorkerService("paper-trader"),
-  new StaticWorkerService("ai-tuner"),
-  new StaticWorkerService("ai-daily-reviewer"),
-]);
+const runtime = new WorkerRuntime(
+  [
+    new StaticWorkerService("collector"),
+    new StaticWorkerService("paper-trader"),
+    new StaticWorkerService("ai-tuner"),
+    new StaticWorkerService("ai-daily-reviewer"),
+  ],
+  new GmoHistoricalImporter(),
+);
 
 async function main() {
   await runtime.start();
