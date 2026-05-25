@@ -87,7 +87,7 @@ pnpm test
 Start the full local development stack:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+docker compose -f docker/compose.yml -f docker/compose.development.yml up --build
 ```
 
 Services:
@@ -113,7 +113,7 @@ and starts built artifacts instead of running development servers or installing
 dependencies at container startup:
 
 ```bash
-docker compose up -d --build
+docker compose -f docker/compose.yml up -d --build
 ```
 
 Production defaults bind only the dashboard to `127.0.0.1:3000`; `worker`,

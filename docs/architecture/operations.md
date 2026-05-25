@@ -93,7 +93,7 @@ integration:
   - worker AiProvider client with mocked ai-runner
 
 e2e:
-  - docker compose up
+  - docker compose -f docker/compose.yml up
   - migration apply
   - seed candles
   - run paper trader
@@ -296,7 +296,7 @@ VM初期セットアップのおすすめ手順:
 4. backup directoryを作成する。
 5. repositoryを配置する。
 6. .env.production を配置する。
-7. docker compose pull/buildを実行する。
+7. docker compose -f docker/compose.yml pull/buildを実行する。
 8. migrationを適用する。
 9. workerの/readyを確認する。
 10. next-webのhealthを確認する。

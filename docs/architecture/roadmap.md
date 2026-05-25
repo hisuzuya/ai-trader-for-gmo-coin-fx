@@ -7,7 +7,7 @@
 ```text
 1. `apps/web`、`apps/worker`、`apps/ai-runner`、`packages/db`、`packages/domain`のpnpm workspace骨格を作る。
 2. Next.js + tRPC + Drizzle + TimescaleDBの最小構成を作る。
-3. docker-compose.local.ymlでnext-web / worker / ai-runner / timescaledbを起動する。
+3. docker/compose.development.ymlでnext-web / worker / ai-runner / timescaledbを起動する。
 4. Drizzle schemaとTimescaleDB migrationを`packages/db`に作る。
 5. GMO public REST clientを`packages/domain`に作り、/status /ticker /symbols /klinesを取得する。
 6. historical importerでUSD_JPY 1min BID/ASK KLineをbackfillする。
