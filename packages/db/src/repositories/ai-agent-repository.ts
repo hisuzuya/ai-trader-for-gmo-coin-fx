@@ -5,6 +5,8 @@ import {
   type AgentRunResponse,
   type AgentStrategyProposal,
   type AgentToolCallLog,
+  type CharacterId,
+  isCharacterId,
 } from "@ai-trade/domain/ai-agents";
 import { validateAiStrategyProposal } from "@ai-trade/domain/strategies";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -21,7 +23,7 @@ import {
   strategyRuns,
 } from "../schema/index.js";
 
-type AiAgentDatabase = Pick<typeof db, "delete" | "insert" | "select" | "transaction">;
+type AiAgentDatabase = Pick<typeof db, "delete" | "insert" | "select" | "transaction" | "update">;
 type AiAgentWriteDatabase = Pick<typeof db, "insert" | "select" | "update">;
 const SECRET_LIKE_PATTERN =
   /(sk-[A-Za-z0-9_-]{16,}|[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY)[A-Z0-9_]*\s*[:=]\s*["']?[^"',\s}]+)/;
@@ -36,6 +38,35 @@ export type AgentVersionInput = {
   systemPrompt: string;
   allowedTools: string[];
   note?: string;
+};
+
+export type CreateAgentInput = {
+  name: string;
+  persona: string;
+  systemPrompt: string;
+  allowedTools: string[];
+  runIntervalSec: number;
+  model: string;
+  characterId: CharacterId | null;
+  maxConsecutiveFailures?: number;
+  tokenBudgetPerRun?: number;
+  costBudgetPerRunUsd?: number;
+  sharedMemoryEnabled?: boolean;
+  note?: string;
+};
+
+export type UpdateAgentSettingsInput = {
+  agentId: string;
+  name?: string;
+  persona?: string;
+  characterId?: CharacterId | null;
+  status?: "active" | "paused";
+  runIntervalSec?: number;
+  model?: string;
+  tokenBudgetPerRun?: number;
+  costBudgetPerRunUsd?: number;
+  sharedMemoryEnabled?: boolean;
+  pausedReason?: string | null;
 };
 
 export type AgentRunRecordInput = {
@@ -397,6 +428,178 @@ export class AiAgentRepository {
     });
   }
 
+  async listProposalRecords(filter: {
+    agentId?: string;
+    status?: "accepted" | "rejected";
+    limit?: number;
+    before?: Date;
+  }): Promise<
+    {
+      id: string;
+      agentId: string;
+      strategyName: string;
+      validationStatus: string;
+      rejectionReasons: unknown;
+      insertedStrategyRunId: string | null;
+      strategyRunStatus: string | null;
+      createdAt: string;
+    }[]
+  > {
+    const conditions = [] as ReturnType<typeof eq>[];
+    if (filter.agentId) conditions.push(eq(aiAgentStrategyProposals.agentId, filter.agentId));
+    if (filter.status)
+      conditions.push(eq(aiAgentStrategyProposals.validationStatus, filter.status));
+
+    const limit = Math.min(Math.max(filter.limit ?? 50, 1), 200);
+    const baseQuery = this.database
+      .select({
+        id: aiAgentStrategyProposals.id,
+        agentId: aiAgentStrategyProposals.agentId,
+        strategyName: aiAgentStrategyProposals.strategyName,
+        validationStatus: aiAgentStrategyProposals.validationStatus,
+        rejectionReasons: aiAgentStrategyProposals.rejectionReasons,
+        insertedStrategyRunId: aiAgentStrategyProposals.insertedStrategyRunId,
+        strategyRunStatus: strategyRuns.status,
+        createdAt: aiAgentStrategyProposals.createdAt,
+      })
+      .from(aiAgentStrategyProposals)
+      .leftJoin(strategyRuns, eq(strategyRuns.id, aiAgentStrategyProposals.insertedStrategyRunId));
+
+    const filtered =
+      conditions.length > 0
+        ? baseQuery.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+        : baseQuery;
+
+    const rows = await filtered.orderBy(desc(aiAgentStrategyProposals.createdAt)).limit(limit);
+
+    return rows.map((row) => ({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  }
+
+  async listRunRecords(filter: {
+    agentId?: string;
+    status?: "succeeded" | "failed" | "timeout" | "rejected_output";
+    limit?: number;
+  }): Promise<
+    {
+      id: string;
+      agentId: string;
+      agentVersion: number;
+      status: string;
+      outputSummary: unknown;
+      toolCalls: unknown;
+      tokenUsage: unknown;
+      error: string | null;
+      startedAt: string;
+      finishedAt: string | null;
+    }[]
+  > {
+    const conditions = [] as ReturnType<typeof eq>[];
+    if (filter.agentId) conditions.push(eq(aiAgentRuns.agentId, filter.agentId));
+    if (filter.status) conditions.push(eq(aiAgentRuns.status, filter.status));
+
+    const limit = Math.min(Math.max(filter.limit ?? 50, 1), 200);
+    const baseQuery = this.database
+      .select({
+        id: aiAgentRuns.id,
+        agentId: aiAgentRuns.agentId,
+        agentVersion: aiAgentRuns.agentVersion,
+        status: aiAgentRuns.status,
+        outputSummary: aiAgentRuns.outputSummary,
+        toolCalls: aiAgentRuns.toolCalls,
+        tokenUsage: aiAgentRuns.tokenUsage,
+        error: aiAgentRuns.error,
+        startedAt: aiAgentRuns.startedAt,
+        finishedAt: aiAgentRuns.finishedAt,
+      })
+      .from(aiAgentRuns);
+
+    const filtered =
+      conditions.length > 0
+        ? baseQuery.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+        : baseQuery;
+
+    const rows = await filtered.orderBy(desc(aiAgentRuns.startedAt)).limit(limit);
+
+    return rows.map((row) => ({
+      ...row,
+      agentVersion: Number(row.agentVersion),
+      startedAt: row.startedAt.toISOString(),
+      finishedAt: row.finishedAt?.toISOString() ?? null,
+    }));
+  }
+
+  async createAgent(input: CreateAgentInput): Promise<{ id: string }> {
+    return this.database.transaction(async (tx) => {
+      const allowedTools = filterAllowedTools(input.allowedTools);
+      const rows = await tx
+        .insert(aiAgents)
+        .values({
+          name: input.name,
+          persona: input.persona,
+          systemPrompt: input.systemPrompt,
+          allowedTools,
+          status: "active",
+          currentVersion: "1",
+          runIntervalSec: String(input.runIntervalSec),
+          model: input.model,
+          maxConsecutiveFailures: String(input.maxConsecutiveFailures ?? 3),
+          consecutiveFailures: "0",
+          tokenBudgetPerRun: String(input.tokenBudgetPerRun ?? 200000),
+          costBudgetPerRunUsd: String(input.costBudgetPerRunUsd ?? 5),
+          pausedReason: null,
+          sharedMemoryEnabled: input.sharedMemoryEnabled ?? false,
+          characterId: input.characterId,
+        })
+        .returning({ id: aiAgents.id });
+
+      const created = rows[0];
+
+      if (!created) {
+        throw new Error("Failed to create agent.");
+      }
+
+      await tx.insert(aiAgentVersions).values({
+        agentId: created.id,
+        version: "1",
+        systemPrompt: input.systemPrompt,
+        allowedTools,
+        note: input.note ?? `Created from character ${input.characterId}.`,
+      });
+
+      return { id: created.id };
+    });
+  }
+
+  async updateAgentSettings(input: UpdateAgentSettingsInput): Promise<{ updated: boolean }> {
+    const values: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+    if (input.name !== undefined) values.name = input.name;
+    if (input.persona !== undefined) values.persona = input.persona;
+    if (input.characterId !== undefined) values.characterId = input.characterId;
+    if (input.status !== undefined) values.status = input.status;
+    if (input.runIntervalSec !== undefined) values.runIntervalSec = String(input.runIntervalSec);
+    if (input.model !== undefined) values.model = input.model;
+    if (input.tokenBudgetPerRun !== undefined)
+      values.tokenBudgetPerRun = String(input.tokenBudgetPerRun);
+    if (input.costBudgetPerRunUsd !== undefined)
+      values.costBudgetPerRunUsd = String(input.costBudgetPerRunUsd);
+    if (input.sharedMemoryEnabled !== undefined)
+      values.sharedMemoryEnabled = input.sharedMemoryEnabled;
+    if (input.pausedReason !== undefined) values.pausedReason = input.pausedReason;
+
+    const rows = await this.database
+      .update(aiAgents)
+      .set(values)
+      .where(eq(aiAgents.id, input.agentId))
+      .returning({ id: aiAgents.id });
+
+    return { updated: rows.length > 0 };
+  }
+
   async deleteMemory(input: { agentId: string; memoryId: string }): Promise<{ deleted: boolean }> {
     const rows = await this.database
       .delete(aiAgentMemories)
@@ -439,6 +642,7 @@ export function toResearchAgentSeedRow() {
     costBudgetPerRunUsd: "5",
     pausedReason: null,
     sharedMemoryEnabled: true,
+    characterId: "ceres" satisfies CharacterId,
   };
 }
 
@@ -459,6 +663,7 @@ export function toResearchAgent1hSeedRow() {
     costBudgetPerRunUsd: "5",
     pausedReason: null,
     sharedMemoryEnabled: true,
+    characterId: "iris" satisfies CharacterId,
   };
 }
 
@@ -652,6 +857,7 @@ function toAgentDefinition(row: typeof aiAgents.$inferSelect): AgentDefinition {
     costBudgetPerRunUsd: Number(row.costBudgetPerRunUsd),
     pausedReason: row.pausedReason ?? undefined,
     sharedMemoryEnabled: row.sharedMemoryEnabled,
+    characterId: isCharacterId(row.characterId) ? row.characterId : null,
   };
 }
 

@@ -1,4 +1,7 @@
+import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import Link from "next/link";
+import { CharacterPickerModal } from "@/components/agents/CharacterPickerModal";
+import { type CrewAgentSummary, CrewTile } from "@/components/agents/CrewTile";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +20,7 @@ type AgentSummary = {
   costBudgetPerRunUsd: number;
   pausedReason?: string;
   sharedMemoryEnabled: boolean;
+  characterId?: string | null;
   latestRun: {
     status: string;
     startedAt: string;
@@ -32,9 +36,7 @@ type AgentSummary = {
 async function getAgents(): Promise<AgentSummary[]> {
   const response = await fetch(
     new URL("/agents", process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787"),
-    {
-      cache: "no-store",
-    },
+    { cache: "no-store" },
   ).catch(() => null);
 
   if (!response?.ok) {
@@ -45,79 +47,129 @@ async function getAgents(): Promise<AgentSummary[]> {
   return Array.isArray(body.agents) ? body.agents : [];
 }
 
-export default async function AgentsPage() {
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AgentsPage({ searchParams }: PageProps) {
+  const query = await searchParams;
+  const filter = typeof query.filter === "string" ? query.filter : "all";
+  const characterParam = typeof query.character === "string" ? query.character : null;
+  const errorParam = typeof query.error === "string" ? query.error : null;
+  const warningParam = typeof query.warning === "string" ? query.warning : null;
   const agents = await getAgents();
 
+  const filtered =
+    filter === "active"
+      ? agents.filter((agent) => agent.status === "active")
+      : filter === "paused"
+        ? agents.filter((agent) => agent.status === "paused")
+        : agents;
+
+  const unassignedAgents = filtered.filter((agent) => !getCharacter(agent.characterId));
+  const assignedAgents = filtered.filter((agent) => getCharacter(agent.characterId));
+
   return (
-    <main className="agent-shell">
-      <header className="agent-top">
+    <section className="page-shell">
+      <header className="page-header">
         <div>
-          <p className="agent-kicker">Research + Evaluation</p>
+          <p className="page-kicker">Crew Roster</p>
           <h1>Agents</h1>
         </div>
-        <Link className="agent-nav-link" href="/">
-          Dashboard
-        </Link>
+        <div className="page-actions">
+          <Link
+            href="/agents?filter=all"
+            className={filter === "all" ? "btn-secondary" : "btn-ghost"}
+          >
+            All
+          </Link>
+          <Link
+            href="/agents?filter=active"
+            className={filter === "active" ? "btn-secondary" : "btn-ghost"}
+          >
+            Active
+          </Link>
+          <Link
+            href="/agents?filter=paused"
+            className={filter === "paused" ? "btn-secondary" : "btn-ghost"}
+          >
+            Paused
+          </Link>
+          <a href="#picker" className="btn-primary">
+            ＋ New Agent
+          </a>
+        </div>
       </header>
 
-      <section className="agent-grid" aria-label="AI agents">
-        {agents.length === 0 ? (
-          <div className="agent-empty">Agent scheduler is not ready.</div>
+      {/* 上段: 既存のエージェント */}
+      <section className="panel">
+        <div className="panel-title">
+          <h2>編成済みエージェント ({assignedAgents.length})</h2>
+        </div>
+        {assignedAgents.length === 0 ? (
+          <p style={{ color: "var(--muted)" }}>
+            まだエージェントがいません。下のキャラクターから 1 体選んで編成してください。
+          </p>
         ) : (
-          agents.map((agent) => (
-            <Link key={agent.id} className="agent-card" href={`/agents/${agent.id}`}>
-              <div className="agent-card-head">
-                <div>
-                  <h2>{agent.name}</h2>
-                  <p>{agent.persona}</p>
-                </div>
-                <span className={`agent-status ${agent.status}`}>{agent.status}</span>
-              </div>
-              <dl className="agent-metrics">
-                <div>
-                  <dt>Version</dt>
-                  <dd>{agent.currentVersion}</dd>
-                </div>
-                <div>
-                  <dt>Interval</dt>
-                  <dd>{agent.runIntervalSec}s</dd>
-                </div>
-                <div>
-                  <dt>Tools</dt>
-                  <dd>{agent.allowedTools.length}</dd>
-                </div>
-                <div>
-                  <dt>Proposals</dt>
-                  <dd>
-                    {agent.acceptedProposalCount}/{agent.proposalCount}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Runs</dt>
-                  <dd>
-                    {agent.succeededRunCount}/{agent.succeededRunCount + agent.failedRunCount}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Failures</dt>
-                  <dd>
-                    {agent.consecutiveFailures}/{agent.maxConsecutiveFailures}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Budget</dt>
-                  <dd>${agent.costBudgetPerRunUsd}</dd>
-                </div>
-              </dl>
-              <p className="agent-model">
-                Latest run: {agent.latestRun ? agent.latestRun.status : "none"}
-              </p>
-              {agent.pausedReason ? <p className="agent-model">{agent.pausedReason}</p> : null}
-              <p className="agent-model">{agent.model}</p>
-            </Link>
-          ))
+          <div className="crew-grid">
+            {assignedAgents.map((agent) => {
+              const character = getCharacter(agent.characterId);
+              if (!character) return null;
+              const summary: CrewAgentSummary = {
+                id: agent.id,
+                name: agent.name,
+                status: agent.status,
+                currentVersion: agent.currentVersion,
+                acceptedProposalCount: agent.acceptedProposalCount,
+                proposalCount: agent.proposalCount,
+                succeededRunCount: agent.succeededRunCount,
+                failedRunCount: agent.failedRunCount,
+                latestRunStatus: agent.latestRun?.status ?? null,
+              };
+              return <CrewTile key={agent.id} character={character} agent={summary} />;
+            })}
+          </div>
         )}
       </section>
-    </main>
+
+      {/* キャラ未設定のエージェント (旧データ向け) */}
+      {unassignedAgents.length > 0 ? (
+        <section className="panel">
+          <div className="panel-title">
+            <h2>キャラ未設定のエージェント ({unassignedAgents.length})</h2>
+          </div>
+          <p style={{ color: "var(--muted)", marginBottom: 12 }}>
+            既存のエージェントにキャラが未割り当てです。詳細画面の Edit
+            からキャラを選択してください。
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {unassignedAgents.map((agent) => (
+              <Link key={agent.id} href={`/agents/${agent.id}`} className="activity-row">
+                <span
+                  className="character-avatar placeholder"
+                  style={{ width: 36, height: 36 }}
+                  aria-hidden
+                >
+                  ?
+                </span>
+                <div>
+                  <div className="activity-row-title">{agent.name}</div>
+                  <div className="activity-row-meta">{agent.persona}</div>
+                </div>
+                <span className="activity-row-status">v{agent.currentVersion}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* 下段: キャラクターピッカー (モーダル起動) */}
+      <div id="picker" />
+      <CharacterPickerModal
+        initialCharacterId={characterParam}
+        initialError={errorParam}
+        initialWarning={warningParam}
+      />
+    </section>
   );
 }

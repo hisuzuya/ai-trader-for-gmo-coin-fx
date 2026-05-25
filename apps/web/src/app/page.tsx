@@ -1,5 +1,6 @@
 import type { UTCTimestamp } from "lightweight-charts";
 import Link from "next/link";
+import { CrewPanelSection } from "@/components/agents/CrewPanelSection";
 import { type CandlePoint, CandlestickChart } from "@/components/CandlestickChart";
 import { PnlChart, type PnlPoint } from "@/components/PnlChart";
 import { appRouter } from "@/server/trpc/root";
@@ -189,332 +190,340 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const candleUp = candleChange >= 0;
 
   return (
-    <main className="tv-shell">
-      <Sidebar />
-      <TopBar healthOk={health.ok} healthService={health.service} timestamp={health.timestamp} />
-      <TickerStrip
-        balance={totalBalance}
-        pnl={totalPnl}
-        winRate={winRate}
-        trades={dashboard.trades.length}
-        candidates={activeCandidates}
-      />
+    <>
+      <CrewPanelSection />
+      <main className="tv-shell">
+        <Sidebar />
+        <TopBar healthOk={health.ok} healthService={health.service} timestamp={health.timestamp} />
+        <TickerStrip
+          balance={totalBalance}
+          pnl={totalPnl}
+          winRate={winRate}
+          trades={dashboard.trades.length}
+          candidates={activeCandidates}
+        />
 
-      <div className="tv-main">
-        <div className="tv-col tv-col-left">
-          <section className="tv-panel" aria-label="ペーパー口座">
-            <PanelHeader title="ペーパー口座" meta={`${dashboard.accounts.length}`} />
-            <div className="tv-panel-body">
-              {dashboard.accounts.length === 0 ? (
-                <EmptyState text="口座が同期されていません" />
-              ) : (
-                <>
-                  <div className="tv-watchlist-head">
-                    <span>口座名</span>
-                    <span style={{ textAlign: "right" }}>残高</span>
-                  </div>
-                  <Link
-                    href="/"
-                    scroll={false}
-                    className={`tv-watchlist-row tv-watchlist-row-link ${
-                      isAccountView ? "" : "active"
-                    }`}
-                  >
-                    <div className="tv-watchlist-name">
-                      <span className="tv-watchlist-symbol">全口座 (集計)</span>
-                      <span className="tv-watchlist-sub">
-                        <span className="tv-tag">ALL</span>
-                        <span>{dashboard.accounts.length} accounts</span>
-                      </span>
+        <div className="tv-main">
+          <div className="tv-col tv-col-left">
+            <section className="tv-panel" aria-label="ペーパー口座">
+              <PanelHeader title="ペーパー口座" meta={`${dashboard.accounts.length}`} />
+              <div className="tv-panel-body">
+                {dashboard.accounts.length === 0 ? (
+                  <EmptyState text="口座が同期されていません" />
+                ) : (
+                  <>
+                    <div className="tv-watchlist-head">
+                      <span>口座名</span>
+                      <span style={{ textAlign: "right" }}>残高</span>
                     </div>
-                    <div className="tv-watchlist-balance">
-                      {formatJpy(totalBalance)}
-                      <small>JPY</small>
-                    </div>
-                  </Link>
-                  {dashboard.accounts.map((account) => {
-                    const isSelected = selectedAccountName === account.name;
-                    return (
-                      <Link
-                        href={`/?account=${encodeURIComponent(account.name)}`}
-                        scroll={false}
-                        key={account.name}
-                        className={`tv-watchlist-row tv-watchlist-row-link ${
-                          isSelected ? "active" : ""
-                        }`}
-                      >
-                        <div className="tv-watchlist-name">
-                          <span className="tv-watchlist-symbol">{account.name}</span>
-                          <span className="tv-watchlist-sub">
-                            <span className={`tv-tag ${normalizeStatus(account.status)}`}>
-                              {translateStatus(account.status)}
-                            </span>
-                            <span>{formatDateTime(account.updatedAt)}</span>
-                          </span>
-                        </div>
-                        <div className="tv-watchlist-balance">
-                          {formatJpy(Number(account.balanceJpy))}
-                          <small>JPY</small>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </>
-              )}
-            </div>
-          </section>
-        </div>
-
-        <div className="tv-col tv-col-center">
-          <section
-            className="tv-panel tv-chart-panel tv-chart-panel-price"
-            aria-label="価格チャート"
-          >
-            <PanelHeader
-              title={`${formatSymbol(recentCandles.symbol)} · ${recentCandles.timeframe.toUpperCase()} · ${recentCandles.priceType.toUpperCase()}`}
-              meta={`${candleSeries.length} bars`}
-            />
-            <div className="tv-panel-body">
-              <div className="tv-chart-summary">
-                <div className="tv-chart-headline">
-                  <span className="tv-chart-headline-label">終値 / Last</span>
-                  <span className={`tv-chart-headline-value ${candleUp ? "profit" : "loss"}`}>
-                    {lastCandle ? lastCandle.close.toFixed(3) : "—"}
-                    {lastCandle && firstCandle ? (
-                      <span className="tv-chart-headline-delta">
-                        {candleUp ? "▲" : "▼"} {Math.abs(candleChange).toFixed(3)} (
-                        {candleChangePct >= 0 ? "+" : "−"}
-                        {Math.abs(candleChangePct).toFixed(2)}%)
-                      </span>
-                    ) : null}
-                  </span>
-                </div>
-                <div className="tv-chart-stats">
-                  <div className="tv-chart-stat">
-                    <span className="tv-chart-stat-label">高値 / High</span>
-                    <span className="tv-chart-stat-value">
-                      {lastCandle ? lastCandle.high.toFixed(3) : "—"}
-                    </span>
-                  </div>
-                  <div className="tv-chart-stat">
-                    <span className="tv-chart-stat-label">安値 / Low</span>
-                    <span className="tv-chart-stat-value">
-                      {lastCandle ? lastCandle.low.toFixed(3) : "—"}
-                    </span>
-                  </div>
-                  <div className="tv-chart-stat">
-                    <span className="tv-chart-stat-label">本数 / Bars</span>
-                    <span className="tv-chart-stat-value">
-                      {candleSeries.length.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {candleSeries.length > 0 ? (
-                <CandlestickChart
-                  data={candleSeries}
-                  query={{
-                    symbol: recentCandles.symbol,
-                    timeframe: recentCandles.timeframe,
-                    priceType: recentCandles.priceType,
-                  }}
-                  initialLimit={1000}
-                />
-              ) : (
-                <div className="tv-chart-empty">
-                  USD/JPYのMIDキャンドルが取得できていません(worker未起動 / データ未蓄積)
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="tv-panel tv-chart-panel tv-chart-panel-compact" aria-label="累積損益">
-            <PanelHeader
-              title={`累積損益 / Cumulative PnL${selectedAccountName ? ` (${selectedAccountName})` : ""}`}
-              meta={dashboard.trades.length > 0 ? `${dashboard.trades.length} fills` : "0 fills"}
-            />
-            <div className="tv-panel-body">
-              <div className="tv-chart-summary tv-chart-summary-compact">
-                <div className="tv-chart-headline">
-                  <span className="tv-chart-headline-label">確定損益 / Realized</span>
-                  <span
-                    className={`tv-chart-headline-value tv-chart-headline-value-sm ${pnlPositive ? "profit" : "loss"}`}
-                  >
-                    {formatJpySigned(totalPnl)}
-                    <span className="tv-chart-headline-delta">
-                      勝率 {dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"} ·{" "}
-                      {dashboard.trades.length} trades
-                    </span>
-                  </span>
-                </div>
-              </div>
-
-              {pnlSeries.length > 0 ? (
-                <PnlChart data={pnlSeries} positive={pnlPositive} />
-              ) : (
-                <div className="tv-chart-empty tv-chart-empty-compact">
-                  確定取引が記録され次第、ここに累積損益が描画されます
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="tv-panel" aria-label="直近の確定取引">
-            <PanelHeader
-              title={`直近の確定取引 / Recent Fills${selectedAccountName ? ` (${selectedAccountName})` : ""}`}
-              meta={`${dashboard.trades.length}`}
-            />
-            <div className="tv-panel-body scroll-x">
-              {dashboard.trades.length === 0 ? (
-                <EmptyState text="確定済みのペーパー取引はまだありません" />
-              ) : (
-                <table className="tv-table">
-                  <thead>
-                    <tr>
-                      <th>通貨ペア</th>
-                      <th>売買</th>
-                      <th className="num">損益 (JPY)</th>
-                      <th className="num">決済日時</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dashboard.trades.map((trade) => {
-                      const pnl = Number(trade.pnlJpy);
-                      const sideClass = trade.side.toLowerCase();
+                    <Link
+                      href="/"
+                      scroll={false}
+                      className={`tv-watchlist-row tv-watchlist-row-link ${
+                        isAccountView ? "" : "active"
+                      }`}
+                    >
+                      <div className="tv-watchlist-name">
+                        <span className="tv-watchlist-symbol">全口座 (集計)</span>
+                        <span className="tv-watchlist-sub">
+                          <span className="tv-tag">ALL</span>
+                          <span>{dashboard.accounts.length} accounts</span>
+                        </span>
+                      </div>
+                      <div className="tv-watchlist-balance">
+                        {formatJpy(totalBalance)}
+                        <small>JPY</small>
+                      </div>
+                    </Link>
+                    {dashboard.accounts.map((account) => {
+                      const isSelected = selectedAccountName === account.name;
                       return (
-                        <tr key={`${trade.symbol}-${trade.closedAt}`}>
-                          <td>
-                            <span className="tv-symbol">{formatSymbol(trade.symbol)}</span>
-                          </td>
-                          <td>
-                            <span className={`tv-side ${sideClass}`}>
-                              {translateSide(trade.side)}
+                        <Link
+                          href={`/?account=${encodeURIComponent(account.name)}`}
+                          scroll={false}
+                          key={account.name}
+                          className={`tv-watchlist-row tv-watchlist-row-link ${
+                            isSelected ? "active" : ""
+                          }`}
+                        >
+                          <div className="tv-watchlist-name">
+                            <span className="tv-watchlist-symbol">{account.name}</span>
+                            <span className="tv-watchlist-sub">
+                              <span className={`tv-tag ${normalizeStatus(account.status)}`}>
+                                {translateStatus(account.status)}
+                              </span>
+                              <span>{formatDateTime(account.updatedAt)}</span>
                             </span>
-                          </td>
-                          <td className="num">
-                            <span className={`tv-pnl ${pnl >= 0 ? "profit" : "loss"}`}>
-                              {formatJpySigned(pnl)}
-                            </span>
-                          </td>
-                          <td className="num">
-                            <span className="tv-time">{formatDateTime(trade.closedAt)}</span>
-                          </td>
-                        </tr>
+                          </div>
+                          <div className="tv-watchlist-balance">
+                            {formatJpy(Number(account.balanceJpy))}
+                            <small>JPY</small>
+                          </div>
+                        </Link>
                       );
                     })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </section>
+                  </>
+                )}
+              </div>
+            </section>
+          </div>
 
-          <section className="tv-panel" aria-label="AI日次レビュー">
-            <PanelHeader
-              title="AI日次レビュー / Daily Review"
-              meta={latestReview ? formatDate(latestReview.reviewDate) : "—"}
-            />
-            <div className="tv-panel-body">
-              {dashboard.dailyReviews.length === 0 ? (
-                <EmptyState text="AI日次レビューはまだ記録されていません" />
-              ) : (
-                <div className="tv-review-stack">
-                  {dashboard.dailyReviews.map((review) => (
-                    <article
-                      className="tv-review-card"
-                      key={`${review.reviewDate}-${review.createdAt}`}
+          <div className="tv-col tv-col-center">
+            <section
+              className="tv-panel tv-chart-panel tv-chart-panel-price"
+              aria-label="価格チャート"
+            >
+              <PanelHeader
+                title={`${formatSymbol(recentCandles.symbol)} · ${recentCandles.timeframe.toUpperCase()} · ${recentCandles.priceType.toUpperCase()}`}
+                meta={`${candleSeries.length} bars`}
+              />
+              <div className="tv-panel-body">
+                <div className="tv-chart-summary">
+                  <div className="tv-chart-headline">
+                    <span className="tv-chart-headline-label">終値 / Last</span>
+                    <span className={`tv-chart-headline-value ${candleUp ? "profit" : "loss"}`}>
+                      {lastCandle ? lastCandle.close.toFixed(3) : "—"}
+                      {lastCandle && firstCandle ? (
+                        <span className="tv-chart-headline-delta">
+                          {candleUp ? "▲" : "▼"} {Math.abs(candleChange).toFixed(3)} (
+                          {candleChangePct >= 0 ? "+" : "−"}
+                          {Math.abs(candleChangePct).toFixed(2)}%)
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                  <div className="tv-chart-stats">
+                    <div className="tv-chart-stat">
+                      <span className="tv-chart-stat-label">高値 / High</span>
+                      <span className="tv-chart-stat-value">
+                        {lastCandle ? lastCandle.high.toFixed(3) : "—"}
+                      </span>
+                    </div>
+                    <div className="tv-chart-stat">
+                      <span className="tv-chart-stat-label">安値 / Low</span>
+                      <span className="tv-chart-stat-value">
+                        {lastCandle ? lastCandle.low.toFixed(3) : "—"}
+                      </span>
+                    </div>
+                    <div className="tv-chart-stat">
+                      <span className="tv-chart-stat-label">本数 / Bars</span>
+                      <span className="tv-chart-stat-value">
+                        {candleSeries.length.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {candleSeries.length > 0 ? (
+                  <CandlestickChart
+                    data={candleSeries}
+                    query={{
+                      symbol: recentCandles.symbol,
+                      timeframe: recentCandles.timeframe,
+                      priceType: recentCandles.priceType,
+                    }}
+                    initialLimit={1000}
+                  />
+                ) : (
+                  <div className="tv-chart-empty">
+                    USD/JPYのMIDキャンドルが取得できていません(worker未起動 / データ未蓄積)
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section
+              className="tv-panel tv-chart-panel tv-chart-panel-compact"
+              aria-label="累積損益"
+            >
+              <PanelHeader
+                title={`累積損益 / Cumulative PnL${selectedAccountName ? ` (${selectedAccountName})` : ""}`}
+                meta={dashboard.trades.length > 0 ? `${dashboard.trades.length} fills` : "0 fills"}
+              />
+              <div className="tv-panel-body">
+                <div className="tv-chart-summary tv-chart-summary-compact">
+                  <div className="tv-chart-headline">
+                    <span className="tv-chart-headline-label">確定損益 / Realized</span>
+                    <span
+                      className={`tv-chart-headline-value tv-chart-headline-value-sm ${pnlPositive ? "profit" : "loss"}`}
                     >
-                      <header className="tv-review-head">
-                        <div className="tv-review-head-left">
-                          <span className="tv-review-date">{formatDate(review.reviewDate)}</span>
-                          <span className={`tv-tag ${normalizeStatus(review.status)}`}>
-                            {translateStatus(review.status)}
+                      {formatJpySigned(totalPnl)}
+                      <span className="tv-chart-headline-delta">
+                        勝率 {dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"} ·{" "}
+                        {dashboard.trades.length} trades
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                {pnlSeries.length > 0 ? (
+                  <PnlChart data={pnlSeries} positive={pnlPositive} />
+                ) : (
+                  <div className="tv-chart-empty tv-chart-empty-compact">
+                    確定取引が記録され次第、ここに累積損益が描画されます
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="tv-panel" aria-label="直近の確定取引">
+              <PanelHeader
+                title={`直近の確定取引 / Recent Fills${selectedAccountName ? ` (${selectedAccountName})` : ""}`}
+                meta={`${dashboard.trades.length}`}
+              />
+              <div className="tv-panel-body scroll-x">
+                {dashboard.trades.length === 0 ? (
+                  <EmptyState text="確定済みのペーパー取引はまだありません" />
+                ) : (
+                  <table className="tv-table">
+                    <thead>
+                      <tr>
+                        <th>通貨ペア</th>
+                        <th>売買</th>
+                        <th className="num">損益 (JPY)</th>
+                        <th className="num">決済日時</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dashboard.trades.map((trade) => {
+                        const pnl = Number(trade.pnlJpy);
+                        const sideClass = trade.side.toLowerCase();
+                        return (
+                          <tr key={`${trade.symbol}-${trade.closedAt}`}>
+                            <td>
+                              <span className="tv-symbol">{formatSymbol(trade.symbol)}</span>
+                            </td>
+                            <td>
+                              <span className={`tv-side ${sideClass}`}>
+                                {translateSide(trade.side)}
+                              </span>
+                            </td>
+                            <td className="num">
+                              <span className={`tv-pnl ${pnl >= 0 ? "profit" : "loss"}`}>
+                                {formatJpySigned(pnl)}
+                              </span>
+                            </td>
+                            <td className="num">
+                              <span className="tv-time">{formatDateTime(trade.closedAt)}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </section>
+
+            <section className="tv-panel" aria-label="AI日次レビュー">
+              <PanelHeader
+                title="AI日次レビュー / Daily Review"
+                meta={latestReview ? formatDate(latestReview.reviewDate) : "—"}
+              />
+              <div className="tv-panel-body">
+                {dashboard.dailyReviews.length === 0 ? (
+                  <EmptyState text="AI日次レビューはまだ記録されていません" />
+                ) : (
+                  <div className="tv-review-stack">
+                    {dashboard.dailyReviews.map((review) => (
+                      <article
+                        className="tv-review-card"
+                        key={`${review.reviewDate}-${review.createdAt}`}
+                      >
+                        <header className="tv-review-head">
+                          <div className="tv-review-head-left">
+                            <span className="tv-review-date">{formatDate(review.reviewDate)}</span>
+                            <span className={`tv-tag ${normalizeStatus(review.status)}`}>
+                              {translateStatus(review.status)}
+                            </span>
+                          </div>
+                          <span className="tv-review-time">{formatDateTime(review.createdAt)}</span>
+                        </header>
+                        <p className="tv-review-summary">
+                          {review.summary ?? "レビューは却下、または要約が返されませんでした。"}
+                        </p>
+                        <div className="tv-review-columns">
+                          <ReviewList
+                            title="採用候補"
+                            items={formatRecommendationItems(review.baselinePromotionCandidates)}
+                          />
+                          <ReviewList
+                            title="停止候補"
+                            items={formatRecommendationItems(review.candidateRetirementCandidates)}
+                          />
+                          <ReviewList title="警告" items={formatWarningItems(review.warnings)} />
+                          <ReviewList
+                            title="次の対応"
+                            items={formatStringItems(review.nextActions)}
+                          />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+
+          <div className="tv-col tv-col-right">
+            {dashboard.accountDetail ? (
+              <>
+                <AccountStrategyPanel detail={dashboard.accountDetail} />
+                <PositionsPanel detail={dashboard.accountDetail} />
+              </>
+            ) : null}
+            <section className="tv-panel" aria-label="候補戦略">
+              <PanelHeader title="候補戦略 / Candidates" meta={`${dashboard.candidates.length}`} />
+              <div className="tv-panel-body">
+                {dashboard.candidates.length === 0 ? (
+                  <EmptyState text="AI候補戦略はまだ承認されていません" />
+                ) : (
+                  dashboard.candidates.map((candidate) => {
+                    const status = candidate.strategyRunStatus ?? candidate.status;
+                    return (
+                      <article
+                        className="tv-strategy-row tv-strategy-row-readonly"
+                        key={candidate.id}
+                      >
+                        <div className="tv-strategy-meta">
+                          <span className="tv-strategy-name">
+                            {candidate.candidateStrategyName ?? candidate.id}
+                          </span>
+                          <span className="tv-strategy-source">
+                            ← {candidate.sourceStrategyName}
+                          </span>
+                          <span className="tv-strategy-tags">
+                            <span className="tv-tag">{candidate.timeframe}</span>
+                            <span className={`tv-tag ${normalizeStatus(status)}`}>
+                              {translateStatus(status)}
+                            </span>
                           </span>
                         </div>
-                        <span className="tv-review-time">{formatDateTime(review.createdAt)}</span>
-                      </header>
-                      <p className="tv-review-summary">
-                        {review.summary ?? "レビューは却下、または要約が返されませんでした。"}
-                      </p>
-                      <div className="tv-review-columns">
-                        <ReviewList
-                          title="採用候補"
-                          items={formatRecommendationItems(review.baselinePromotionCandidates)}
-                        />
-                        <ReviewList
-                          title="停止候補"
-                          items={formatRecommendationItems(review.candidateRetirementCandidates)}
-                        />
-                        <ReviewList title="警告" items={formatWarningItems(review.warnings)} />
-                        <ReviewList
-                          title="次の対応"
-                          items={formatStringItems(review.nextActions)}
-                        />
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
-
-        <div className="tv-col tv-col-right">
-          {dashboard.accountDetail ? (
-            <>
-              <AccountStrategyPanel detail={dashboard.accountDetail} />
-              <PositionsPanel detail={dashboard.accountDetail} />
-            </>
-          ) : null}
-          <section className="tv-panel" aria-label="候補戦略">
-            <PanelHeader title="候補戦略 / Candidates" meta={`${dashboard.candidates.length}`} />
-            <div className="tv-panel-body">
-              {dashboard.candidates.length === 0 ? (
-                <EmptyState text="AI候補戦略はまだ承認されていません" />
-              ) : (
-                dashboard.candidates.map((candidate) => {
-                  const status = candidate.strategyRunStatus ?? candidate.status;
-                  return (
-                    <article
-                      className="tv-strategy-row tv-strategy-row-readonly"
-                      key={candidate.id}
-                    >
-                      <div className="tv-strategy-meta">
-                        <span className="tv-strategy-name">
-                          {candidate.candidateStrategyName ?? candidate.id}
-                        </span>
-                        <span className="tv-strategy-source">← {candidate.sourceStrategyName}</span>
-                        <span className="tv-strategy-tags">
-                          <span className="tv-tag">{candidate.timeframe}</span>
-                          <span className={`tv-tag ${normalizeStatus(status)}`}>
-                            {translateStatus(status)}
+                        <div className="tv-strategy-status">
+                          <span className="tv-strategy-status-label">自動審査</span>
+                          <span className="tv-strategy-status-value">
+                            {describeAutoStatus(status)}
                           </span>
-                        </span>
-                      </div>
-                      <div className="tv-strategy-status">
-                        <span className="tv-strategy-status-label">自動審査</span>
-                        <span className="tv-strategy-status-value">
-                          {describeAutoStatus(status)}
-                        </span>
-                      </div>
-                    </article>
-                  );
-                })
-              )}
-            </div>
-          </section>
+                        </div>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+          </div>
         </div>
-      </div>
 
-      <StatusBar
-        healthOk={health.ok}
-        healthService={health.service}
-        balance={totalBalance}
-        pnl={totalPnl}
-        accounts={dashboard.accounts.length}
-        candidates={dashboard.candidates.length}
-      />
-    </main>
+        <StatusBar
+          healthOk={health.ok}
+          healthService={health.service}
+          balance={totalBalance}
+          pnl={totalPnl}
+          accounts={dashboard.accounts.length}
+          candidates={dashboard.candidates.length}
+        />
+      </main>
+    </>
   );
 }
 

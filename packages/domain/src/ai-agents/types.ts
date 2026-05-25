@@ -1,5 +1,6 @@
-import type { RejectReason } from "../ai-tuning/types.js";
-import type { StrategyDefinition } from "../strategies/types.js";
+import type { RejectReason } from "../ai-tuning/types";
+import type { StrategyDefinition } from "../strategies/types";
+import type { CharacterId } from "./characters";
 
 export const AGENT_RESEARCH_TOOL_NAMES = [
   "read_bars",
@@ -74,6 +75,7 @@ export type AgentDefinition = {
   costBudgetPerRunUsd: number;
   pausedReason?: string;
   sharedMemoryEnabled: boolean;
+  characterId: CharacterId | null;
 };
 
 export type AgentRunRequest = {

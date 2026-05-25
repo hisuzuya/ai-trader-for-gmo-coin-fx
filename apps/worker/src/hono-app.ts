@@ -1,4 +1,5 @@
 import { env } from "@ai-trade/config";
+import { type CharacterId, isCharacterId } from "@ai-trade/domain/ai-agents";
 import { Hono } from "hono";
 
 import type { WorkerRuntime } from "./runtime.js";
@@ -28,6 +29,56 @@ export function createWorkerApp(runtime: WorkerRuntime) {
       );
     }
   });
+  app.get("/agents/proposals", async (c) => {
+    const agentId = c.req.query("agentId");
+    const statusRaw = c.req.query("status");
+    const status = statusRaw === "accepted" || statusRaw === "rejected" ? statusRaw : undefined;
+    const limitRaw = c.req.query("limit");
+    const limit = limitRaw ? Number(limitRaw) : undefined;
+
+    try {
+      return c.json({
+        ok: true,
+        proposals: await runtime.listAgentProposals({ agentId, status, limit }),
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Proposal listing failed.",
+        },
+        500,
+      );
+    }
+  });
+  app.get("/agents/runs", async (c) => {
+    const agentId = c.req.query("agentId");
+    const statusRaw = c.req.query("status");
+    const status =
+      statusRaw === "succeeded" ||
+      statusRaw === "failed" ||
+      statusRaw === "timeout" ||
+      statusRaw === "rejected_output"
+        ? statusRaw
+        : undefined;
+    const limitRaw = c.req.query("limit");
+    const limit = limitRaw ? Number(limitRaw) : undefined;
+
+    try {
+      return c.json({
+        ok: true,
+        runs: await runtime.listAgentRuns({ agentId, status, limit }),
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Run listing failed.",
+        },
+        500,
+      );
+    }
+  });
   app.get("/agents/:id", async (c) => {
     try {
       const agent = await runtime.getAgentDetail(c.req.param("id"));
@@ -45,6 +96,76 @@ export function createWorkerApp(runtime: WorkerRuntime) {
         {
           ok: false,
           error: error instanceof Error ? error.message : "Agent detail lookup failed.",
+        },
+        500,
+      );
+    }
+  });
+  app.post("/agents", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
+    const body = await c.req.json().catch(() => null);
+
+    if (!isCreateAgentBody(body)) {
+      return c.json({ ok: false, error: "Invalid create-agent body." }, 400);
+    }
+
+    try {
+      const result = await runtime.createAgent({
+        name: body.name,
+        persona: body.persona,
+        systemPrompt: body.systemPrompt,
+        allowedTools: body.allowedTools,
+        runIntervalSec: body.runIntervalSec,
+        model: body.model,
+        characterId: body.characterId ?? null,
+        sharedMemoryEnabled: body.sharedMemoryEnabled,
+        note: body.note,
+      });
+
+      return c.json({ ok: true, ...result });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Agent creation failed.",
+        },
+        500,
+      );
+    }
+  });
+  app.put("/agents/:id", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
+    const body = await c.req.json().catch(() => null);
+
+    if (!isUpdateAgentBody(body)) {
+      return c.json({ ok: false, error: "Invalid update-agent body." }, 400);
+    }
+
+    try {
+      const result = await runtime.updateAgentSettings({
+        agentId: c.req.param("id"),
+        name: body.name,
+        persona: body.persona,
+        characterId: body.characterId === undefined ? undefined : (body.characterId ?? null),
+        status: body.status,
+        runIntervalSec: body.runIntervalSec,
+        model: body.model,
+        sharedMemoryEnabled: body.sharedMemoryEnabled,
+        pausedReason: body.pausedReason,
+      });
+
+      return c.json({ ok: result.updated, ...result }, result.updated ? 200 : 404);
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Agent update failed.",
         },
         500,
       );
@@ -372,6 +493,70 @@ function isAgentVersionBody(
     body.allowedTools.every((tool) => typeof tool === "string") &&
     (!("note" in body) || body.note === undefined || typeof body.note === "string")
   );
+}
+
+type CreateAgentBody = {
+  name: string;
+  persona: string;
+  systemPrompt: string;
+  allowedTools: string[];
+  runIntervalSec: number;
+  model: string;
+  characterId?: CharacterId | null;
+  sharedMemoryEnabled?: boolean;
+  note?: string;
+};
+
+function isCreateAgentBody(body: unknown): body is CreateAgentBody {
+  if (typeof body !== "object" || body === null) return false;
+  const b = body as Record<string, unknown>;
+  if (typeof b.name !== "string" || b.name.trim().length === 0) return false;
+  if (typeof b.persona !== "string" || b.persona.trim().length === 0) return false;
+  if (typeof b.systemPrompt !== "string" || b.systemPrompt.trim().length === 0) return false;
+  if (!Array.isArray(b.allowedTools) || !b.allowedTools.every((t) => typeof t === "string")) {
+    return false;
+  }
+  if (typeof b.runIntervalSec !== "number" || !Number.isFinite(b.runIntervalSec)) return false;
+  if (typeof b.model !== "string" || b.model.trim().length === 0) return false;
+  if (b.characterId !== undefined && b.characterId !== null) {
+    if (typeof b.characterId !== "string" || !isCharacterId(b.characterId)) return false;
+  }
+  return true;
+}
+
+type UpdateAgentBody = {
+  name?: string;
+  persona?: string;
+  characterId?: CharacterId | null;
+  status?: "active" | "paused";
+  runIntervalSec?: number;
+  model?: string;
+  sharedMemoryEnabled?: boolean;
+  pausedReason?: string | null;
+};
+
+function isUpdateAgentBody(body: unknown): body is UpdateAgentBody {
+  if (typeof body !== "object" || body === null) return false;
+  const b = body as Record<string, unknown>;
+  if (b.name !== undefined && typeof b.name !== "string") return false;
+  if (b.persona !== undefined && typeof b.persona !== "string") return false;
+  if (b.characterId !== undefined && b.characterId !== null) {
+    if (typeof b.characterId !== "string" || !isCharacterId(b.characterId)) return false;
+  }
+  if (b.status !== undefined && b.status !== "active" && b.status !== "paused") return false;
+  if (b.runIntervalSec !== undefined && typeof b.runIntervalSec !== "number") return false;
+  if (b.model !== undefined && typeof b.model !== "string") return false;
+  if (b.sharedMemoryEnabled !== undefined && typeof b.sharedMemoryEnabled !== "boolean") {
+    return false;
+  }
+  if (
+    b.pausedReason !== undefined &&
+    b.pausedReason !== null &&
+    typeof b.pausedReason !== "string"
+  ) {
+    return false;
+  }
+  return true;
 }
 
 const DEFAULT_CANDLES_SYMBOL = "USD_JPY";

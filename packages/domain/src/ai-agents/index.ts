@@ -1,4 +1,12 @@
-export { validateAgentRunOutput } from "./server/validator.js";
+export type { AgentCharacter, CharacterFocus, CharacterId } from "./characters";
+export {
+  AGENT_CHARACTERS,
+  CHARACTER_BY_ID,
+  CHARACTER_IDS,
+  getCharacter,
+  isCharacterId,
+} from "./characters";
+export { validateAgentRunOutput } from "./server/validator";
 export type {
   AgentDefinition,
   AgentMemoryWrite,
@@ -11,5 +19,5 @@ export type {
   AgentStrategyProposal,
   AgentToolCallLog,
   CandidateReview,
-} from "./types.js";
-export { AGENT_RESEARCH_TOOL_NAMES } from "./types.js";
+} from "./types";
+export { AGENT_RESEARCH_TOOL_NAMES } from "./types";
