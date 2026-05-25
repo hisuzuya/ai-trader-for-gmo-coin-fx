@@ -19,6 +19,14 @@ export const candleSource = pgEnum("candle_source", ["websocket", "rest_klines",
 
 export const jobRunStatus = pgEnum("job_run_status", ["running", "succeeded", "failed", "skipped"]);
 
+export const jobControlStatus = pgEnum("job_control_status", [
+  "queued",
+  "running",
+  "succeeded",
+  "failed",
+  "skipped",
+]);
+
 export const strategyRunStatus = pgEnum("strategy_run_status", [
   "proposed",
   "validated",
@@ -130,17 +138,21 @@ export const features = pgTable(
     id: uuid("id").defaultRandom().notNull(),
     symbol: text("symbol").notNull(),
     timeframe: text("timeframe").notNull(),
+    priceType: candlePriceType("price_type").notNull().default("mid"),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
     featureSetVersion: text("feature_set_version").notNull().default("fx-core-v1"),
+    inputSourceVersion: text("input_source_version").notNull().default("phase0"),
     values: jsonb("values").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
   (table) => [
-    uniqueIndex("features_symbol_timeframe_opened_at_version_idx").on(
+    uniqueIndex("features_symbol_timeframe_price_type_opened_at_versions_idx").on(
       table.symbol,
       table.timeframe,
+      table.priceType,
       table.openedAt,
       table.featureSetVersion,
+      table.inputSourceVersion,
     ),
   ],
 );
@@ -154,6 +166,32 @@ export const jobRuns = pgTable("job_runs", {
   errorSummary: text("error_summary"),
   metadata: jsonb("metadata_json"),
 });
+
+export const jobControl = pgTable(
+  "job_control",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    jobName: text("job_name").notNull(),
+    targetKey: text("target_key").notNull(),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+    status: jobControlStatus("status").notNull().default("queued"),
+    lockedBy: text("locked_by"),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    attempt: numeric("attempt", { precision: 10, scale: 0 }).notNull().default("0"),
+    maxAttempts: numeric("max_attempts", { precision: 10, scale: 0 }).notNull().default("3"),
+    checkpoint: jsonb("checkpoint_json"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [
+    uniqueIndex("job_control_job_target_scheduled_for_idx").on(
+      table.jobName,
+      table.targetKey,
+      table.scheduledFor,
+    ),
+    index("job_control_status_locked_until_idx").on(table.status, table.lockedUntil),
+  ],
+);
 
 export const aiAgents = pgTable(
   "ai_agents",

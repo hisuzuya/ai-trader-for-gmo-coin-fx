@@ -157,8 +157,8 @@ services:
   timescaledb:
     - persistent volume
 
-  cloudflared:
-    - tunnel to next-web
+  host-managed tunnel / reverse proxy:
+    - route dashboard hostname to next-web
 ```
 
 ### Container Layout
@@ -200,16 +200,27 @@ ai-runner:
   mounts:
     - claude config read-only
 
+mcp-agent-research:
+  build:
+    target: mcp-agent-research
+  command: node apps/mcp-agent-research/dist/main.cjs
+  internal_port: 8789
+  exposed_to_tunnel: false
+  database:
+    - read-only session settings
+
 timescaledb:
   image: timescale/timescaledb:2.17.2-pg16
   exposed_to_host: false
   volume:
     - timescaledb-data
 
-cloudflared:
-  image: cloudflare/cloudflared
-  route:
-    - <dashboard-hostname> -> http://next-web:3000
+dashboard ingress:
+  current:
+    - compose binds next-web to 127.0.0.1:3000 by default
+    - host-managed tunnel or reverse proxy forwards the dashboard hostname
+  future:
+    - add a dedicated cloudflared service if tunnel lifecycle should be owned by compose
 ```
 
 local開発では`cloudflared`は必須にしない。`next-web`はlocalhostで確認し、workerとDBはDocker Composeで起動する。
@@ -224,11 +235,14 @@ NODE_ENV
 APP_BASE_URL
 WORKER_INTERNAL_URL
 AI_RUNNER_INTERNAL_URL
+MCP_AGENT_RESEARCH_INTERNAL_URL
+MCP_AGENT_RESEARCH_PORT
 GMO_FX_PUBLIC_REST_BASE_URL
-GMO_FX_PUBLIC_WS_URL
+GMO_FX_PUBLIC_WEBSOCKET_URL
 ENABLED_SYMBOLS
 AI_DAILY_REVIEW_ENABLED
 AI_TUNING_ENABLED
+WORKER_INTERNAL_TOKEN
 ```
 
 MVP envにはlive trading用secretや`LIVE_TRADING_ENABLED`を置かない。将来live tradingを実装する場合も、default falseのfeature flagだけで有効化できる形にはせず、別Compose profile、別secret mount、明示的な人間承認flowを必須にする。

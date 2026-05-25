@@ -1,13 +1,15 @@
 # Roadmap
 
-## 次に実装すること
+## 実装状況
 
-おすすめの初期実装順:
+初期MVPの骨格、market data、paper trading、AI candidate tuning、daily review、AI Agentの最小実行経路は実装済み。今後はProduction Paper Runの運用安定化と、Agent Pipelineを既存hourly tuner / daily reviewerへ段階的に統合する。
+
+完了済みの初期実装:
 
 ```text
-1. `apps/web`、`apps/worker`、`apps/ai-runner`、`packages/db`、`packages/domain`のpnpm workspace骨格を作る。
+1. `apps/web`、`apps/worker`、`apps/ai-runner`、`apps/mcp-agent-research`、`packages/db`、`packages/domain`のpnpm workspace骨格を作る。
 2. Next.js + tRPC + Drizzle + TimescaleDBの最小構成を作る。
-3. docker/compose.development.ymlでnext-web / worker / ai-runner / timescaledbを起動する。
+3. docker/compose.development.ymlでnext-web / worker / ai-runner / mcp-agent-research / timescaledbを起動する。
 4. Drizzle schemaとTimescaleDB migrationを`packages/db`に作る。
 5. GMO public REST clientを`packages/domain`に作り、/status /ticker /symbols /klinesを取得する。
 6. historical importerでUSD_JPY 1min BID/ASK KLineをbackfillする。
@@ -18,9 +20,19 @@
 11. ai-runnerのClaudeCliProviderとworker側AiProvider clientを実装する。
 12. hourly tuningとcandidate並走を実装する。
 13. dashboardでsystem status / paper accounts / strategy comparison / daily reviewを表示する。
+14. Research + Evaluation Agent、read-only research tool API、agent設定UI、agent memoryを実装する。
 ```
 
 初期実装ではlive trading、GMO Private API、実注文、保護注文、live用secret/env、live用dashboard操作は実装しない。
+
+次に改善すること:
+
+```text
+1. job_controlをscheduler実行制御に接続し、stale lock retryとcheckpoint replayを実運用に使う。
+2. AI Agent proposal / candidate reviewをStrategyEvaluationPipelineへ段階的に統合する。
+3. backup / restore rehearsalを自動化し、Phase 5の7日以上連続稼働条件を検証する。
+4. dashboardでAgent Run、tool call、memory write intent、candidate review適用状態を比較しやすくする。
+```
 
 ## MVP Phases
 
@@ -35,7 +47,7 @@ done:
   - migrationが適用できる
   - dashboardにSystem Statusの空表示が出る
   - import boundary checkで`packages/domain`がDB/env/server/appに依存していないことを確認できる
-  - `apps/web`、`apps/worker`、`apps/ai-runner`が互いを直接importしていないことを確認できる
+  - `apps/web`、`apps/worker`、`apps/ai-runner`、`apps/mcp-agent-research`が互いを直接importしていないことを確認できる
 ```
 
 ### Phase 1: Market Data

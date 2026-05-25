@@ -18,8 +18,8 @@ Live tradingは将来スコープとして設計には含めるが、MVP build�
 
 - 言語はTypeScript。
 - WebアプリはNext.js + tRPC。
-- 実行単位は`apps/web`、`apps/worker`、`apps/ai-runner`で分離する。
-- Web UIとtRPCは`apps/web`、Honoとschedulerは`apps/worker`、Claude CLI実行は`apps/ai-runner`に置く。
+- 実行単位は`apps/web`、`apps/worker`、`apps/ai-runner`、`apps/mcp-agent-research`で分離する。
+- Web UIとtRPCは`apps/web`、Honoとschedulerは`apps/worker`、Claude CLI実行とAI agent tool loopは`apps/ai-runner`、read-only research toolsは`apps/mcp-agent-research`に置く。
 - Drizzle schema / DB client / migrationsは`packages/db`で共有する。
 - Strategy DSL、market-data正規化、paper execution、risk gateなどの純粋ドメインロジックは`packages/domain`で共有する。
 - `packages/domain`はDB、HTTP server、`apps/*`に依存しない。
@@ -31,6 +31,7 @@ Live tradingは将来スコープとして設計には含めるが、MVP build�
 - Next.jsはstandalone buildをDocker serviceとしてVM上で動かす。
 - Claude CLIはworkerではなく`ai-runner` container内で実行し、workerから内部APIで呼び出す。
 - `ai-runner`はDB接続、repository write mount、GMO Private API secretを持たない。
+- `mcp-agent-research`はDB read-only接続だけを持ち、DB write、paper account更新、candidate投入、risk decisionは持たない。
 - AI agentはpaper orderを直接出さず、Strategy Definition候補、候補レビュー、観察、memory write intentだけを出力する。
 
 ## Context And Decisions
