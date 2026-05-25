@@ -114,6 +114,9 @@ jobs:
       group: production-deploy
       cancel-in-progress: false
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Install SSH key
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -147,4 +150,5 @@ jobs:
             -p "$DEPLOY_PORT" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
-            "$DEPLOY_USER@$DEPLOY_HOST"
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            < deploy/production-deploy.sh
