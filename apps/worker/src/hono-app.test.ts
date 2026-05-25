@@ -328,6 +328,73 @@ describe("worker Hono app", () => {
     expect(response.status).toBe(400);
     expect(runtime.recordPaperDecision).not.toHaveBeenCalled();
   });
+
+  it("returns recent candles with default query parameters", async () => {
+    const runtime = {
+      recentCandles: vi.fn().mockResolvedValue({
+        symbol: "USD_JPY",
+        timeframe: "1m",
+        priceType: "mid",
+        candles: [
+          {
+            openedAt: "2026-05-24T00:00:00.000Z",
+            open: 156.1,
+            high: 156.2,
+            low: 156.09,
+            close: 156.19,
+          },
+        ],
+      }),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request("/candles");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(runtime.recentCandles).toHaveBeenCalledWith({
+      symbol: "USD_JPY",
+      timeframe: "1m",
+      priceType: "mid",
+      limit: 200,
+    });
+    expect(body).toMatchObject({
+      ok: true,
+      symbol: "USD_JPY",
+      timeframe: "1m",
+      priceType: "mid",
+      candles: [
+        {
+          openedAt: "2026-05-24T00:00:00.000Z",
+          open: 156.1,
+          high: 156.2,
+          low: 156.09,
+          close: 156.19,
+        },
+      ],
+    });
+  });
+
+  it("rejects candles requests with invalid timeframe", async () => {
+    const runtime = {
+      recentCandles: vi.fn(),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request("/candles?timeframe=2m");
+
+    expect(response.status).toBe(400);
+    expect(runtime.recentCandles).not.toHaveBeenCalled();
+  });
+
+  it("clamps candles limit to the allowed range", async () => {
+    const runtime = {
+      recentCandles: vi.fn(),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request("/candles?limit=0");
+
+    expect(response.status).toBe(400);
+    expect(runtime.recentCandles).not.toHaveBeenCalled();
+  });
 });
 
 type JobRunRecord = {

@@ -27,6 +27,28 @@ export function createWorkerApp(runtime: WorkerRuntime) {
       );
     }
   });
+  app.get("/candles", async (c) => {
+    const query = parseCandlesQuery(c.req.query());
+
+    if (!query.ok) {
+      return c.json({ ok: false, error: query.error }, 400);
+    }
+
+    try {
+      return c.json({
+        ok: true,
+        ...(await runtime.recentCandles(query.value)),
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Candle lookup failed.",
+        },
+        500,
+      );
+    }
+  });
   app.get("/metrics", (c) =>
     c.json({
       format: "json",
@@ -140,6 +162,72 @@ function isHistoricalImportBody(body: unknown): body is { date: string } {
     typeof body.date === "string" &&
     /^\d{8}$/.test(body.date)
   );
+}
+
+const DEFAULT_CANDLES_SYMBOL = "USD_JPY";
+const DEFAULT_CANDLES_TIMEFRAME = "1m";
+const DEFAULT_CANDLES_PRICE_TYPE = "mid" as const;
+const DEFAULT_CANDLES_LIMIT = 200;
+const MAX_CANDLES_LIMIT = 1000;
+const ALLOWED_CANDLE_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
+const ALLOWED_CANDLE_PRICE_TYPES = ["bid", "ask", "mid"] as const;
+
+type CandlesQuery = {
+  symbol: string;
+  timeframe: (typeof ALLOWED_CANDLE_TIMEFRAMES)[number];
+  priceType: (typeof ALLOWED_CANDLE_PRICE_TYPES)[number];
+  limit: number;
+};
+
+function parseCandlesQuery(
+  raw: Record<string, string>,
+): { ok: true; value: CandlesQuery } | { ok: false; error: string } {
+  const symbol = (raw.symbol ?? DEFAULT_CANDLES_SYMBOL).trim();
+
+  if (!/^[A-Z]{3}_[A-Z]{3}$/.test(symbol)) {
+    return { ok: false, error: 'symbol must match "AAA_BBB" format.' };
+  }
+
+  const timeframeRaw = (raw.timeframe ?? DEFAULT_CANDLES_TIMEFRAME).trim().toLowerCase();
+
+  if (!isAllowedTimeframe(timeframeRaw)) {
+    return {
+      ok: false,
+      error: `timeframe must be one of ${ALLOWED_CANDLE_TIMEFRAMES.join(", ")}.`,
+    };
+  }
+
+  const priceTypeRaw = (raw.priceType ?? DEFAULT_CANDLES_PRICE_TYPE).trim().toLowerCase();
+
+  if (!isAllowedPriceType(priceTypeRaw)) {
+    return {
+      ok: false,
+      error: `priceType must be one of ${ALLOWED_CANDLE_PRICE_TYPES.join(", ")}.`,
+    };
+  }
+
+  const limitRaw = raw.limit ?? String(DEFAULT_CANDLES_LIMIT);
+  const limit = Number(limitRaw);
+
+  if (!Number.isInteger(limit) || limit <= 0 || limit > MAX_CANDLES_LIMIT) {
+    return {
+      ok: false,
+      error: `limit must be an integer between 1 and ${MAX_CANDLES_LIMIT}.`,
+    };
+  }
+
+  return {
+    ok: true,
+    value: { symbol, timeframe: timeframeRaw, priceType: priceTypeRaw, limit },
+  };
+}
+
+function isAllowedTimeframe(value: string): value is (typeof ALLOWED_CANDLE_TIMEFRAMES)[number] {
+  return (ALLOWED_CANDLE_TIMEFRAMES as readonly string[]).includes(value);
+}
+
+function isAllowedPriceType(value: string): value is (typeof ALLOWED_CANDLE_PRICE_TYPES)[number] {
+  return (ALLOWED_CANDLE_PRICE_TYPES as readonly string[]).includes(value);
 }
 
 function isPaperDecisionBody(

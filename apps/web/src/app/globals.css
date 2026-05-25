@@ -444,7 +444,7 @@ ul {
 }
 
 .tv-col-center {
-  grid-template-rows: minmax(340px, 1fr) minmax(280px, auto) auto;
+  grid-template-rows: minmax(380px, 1.4fr) minmax(160px, auto) minmax(220px, auto) auto;
 }
 
 /* ============ Panel ============ */
@@ -767,12 +767,48 @@ ul {
   min-height: 220px;
 }
 
+.tv-chart-container-tall {
+  height: 360px;
+  min-height: 280px;
+}
+
+.tv-chart-panel-price .tv-panel-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tv-chart-panel-price .tv-chart-container-tall {
+  flex: 1;
+  height: auto;
+  min-height: 260px;
+}
+
+.tv-chart-panel-compact .tv-chart-container {
+  height: 96px;
+  min-height: 80px;
+}
+
+.tv-chart-summary-compact {
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+.tv-chart-headline-value-sm {
+  font-size: 16px;
+}
+
 .tv-chart-empty {
   display: grid;
   place-items: center;
   height: 280px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.tv-chart-empty-compact {
+  height: 96px;
+  font-size: 11px;
 }
 
 /* ============ Trades table ============ */
