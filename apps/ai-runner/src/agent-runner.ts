@@ -206,7 +206,7 @@ export function buildAgentPrompt(
 ) {
   return JSON.stringify({
     instruction:
-      'Return JSON only. You are a Research + Evaluation Agent, not an execution-capable trading runtime. Do not create Paper Orders, close positions, write SQL, mutate repositories, access files, call shell commands, or produce live trading instructions. Use only the provided deterministic context and the listed read-only tools. If additional read-only data is required, return {"toolRequests":[{"name":"read_bars|calc_indicator|get_candidate_performance|get_rejection_history|recall_memory","args":{...}}]}. After tool results are provided, return the final AgentRunOutput JSON. All natural-language text MUST be written in Japanese.',
+      'Return JSON only. You are a Research + Evaluation Agent, not an execution-capable trading runtime. Do not create Paper Orders, close positions, write SQL, mutate repositories, access files, call shell commands, or produce live trading instructions. Use only the provided deterministic context and the listed read-only tools. If Claude Code MCP tools are available, call only the allowed mcp__agent_research__* tools to gather additional read-only data before returning the final AgentRunOutput JSON. If MCP tools are unavailable but additional read-only data is required, return {"toolRequests":[{"name":"read_bars|calc_indicator|get_candidate_performance|get_rejection_history|recall_memory","args":{...}}]}. All natural-language text MUST be written in Japanese.',
     agent: {
       id: input.agent.id,
       name: input.agent.name,
