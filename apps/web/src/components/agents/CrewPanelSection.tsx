@@ -44,7 +44,7 @@ export async function CrewPanelSection() {
           <h1>エージェント・クルー</h1>
         </div>
         <div className="page-actions">
-          <Link href="/agents/new" className="btn-primary">
+          <Link href="/agents#picker" className="btn-primary">
             ＋ New Agent
           </Link>
           <Link href="/agents" className="btn-secondary">

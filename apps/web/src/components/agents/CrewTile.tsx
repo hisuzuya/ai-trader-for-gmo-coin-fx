@@ -21,7 +21,7 @@ export function CrewTile({
   character: AgentCharacter;
   agent: CrewAgentSummary | null;
 }) {
-  const href = agent ? `/agents/${agent.id}` : `/agents/new?character=${character.id}`;
+  const href = agent ? `/agents/${agent.id}` : `/agents?character=${character.id}#picker`;
   const runTotal = (agent?.succeededRunCount ?? 0) + (agent?.failedRunCount ?? 0);
 
   return (

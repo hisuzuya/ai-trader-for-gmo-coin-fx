@@ -1,6 +1,6 @@
-import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import Link from "next/link";
-
+import { CharacterPickerModal } from "@/components/agents/CharacterPickerModal";
 import { type CrewAgentSummary, CrewTile } from "@/components/agents/CrewTile";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +54,9 @@ type PageProps = {
 export default async function AgentsPage({ searchParams }: PageProps) {
   const query = await searchParams;
   const filter = typeof query.filter === "string" ? query.filter : "all";
+  const characterParam = typeof query.character === "string" ? query.character : null;
+  const errorParam = typeof query.error === "string" ? query.error : null;
+  const warningParam = typeof query.warning === "string" ? query.warning : null;
   const agents = await getAgents();
 
   const filtered =
@@ -64,6 +67,7 @@ export default async function AgentsPage({ searchParams }: PageProps) {
         : agents;
 
   const unassignedAgents = filtered.filter((agent) => !getCharacter(agent.characterId));
+  const assignedAgents = filtered.filter((agent) => getCharacter(agent.characterId));
 
   return (
     <section className="page-shell">
@@ -91,17 +95,27 @@ export default async function AgentsPage({ searchParams }: PageProps) {
           >
             Paused
           </Link>
-          <Link href="/agents/new" className="btn-primary">
+          <a href="#picker" className="btn-primary">
             ＋ New Agent
-          </Link>
+          </a>
         </div>
       </header>
 
-      <div className="crew-grid">
-        {AGENT_CHARACTERS.map((character) => {
-          const agent = filtered.find((a) => a.characterId === character.id) ?? null;
-          const summary: CrewAgentSummary | null = agent
-            ? {
+      {/* 上段: 既存のエージェント */}
+      <section className="panel">
+        <div className="panel-title">
+          <h2>編成済みエージェント ({assignedAgents.length})</h2>
+        </div>
+        {assignedAgents.length === 0 ? (
+          <p style={{ color: "var(--muted)" }}>
+            まだエージェントがいません。下のキャラクターから 1 体選んで編成してください。
+          </p>
+        ) : (
+          <div className="crew-grid">
+            {assignedAgents.map((agent) => {
+              const character = getCharacter(agent.characterId);
+              if (!character) return null;
+              const summary: CrewAgentSummary = {
                 id: agent.id,
                 name: agent.name,
                 status: agent.status,
@@ -111,12 +125,14 @@ export default async function AgentsPage({ searchParams }: PageProps) {
                 succeededRunCount: agent.succeededRunCount,
                 failedRunCount: agent.failedRunCount,
                 latestRunStatus: agent.latestRun?.status ?? null,
-              }
-            : null;
-          return <CrewTile key={character.id} character={character} agent={summary} />;
-        })}
-      </div>
+              };
+              return <CrewTile key={agent.id} character={character} agent={summary} />;
+            })}
+          </div>
+        )}
+      </section>
 
+      {/* キャラ未設定のエージェント (旧データ向け) */}
       {unassignedAgents.length > 0 ? (
         <section className="panel">
           <div className="panel-title">
@@ -146,6 +162,14 @@ export default async function AgentsPage({ searchParams }: PageProps) {
           </div>
         </section>
       ) : null}
+
+      {/* 下段: キャラクターピッカー (モーダル起動) */}
+      <div id="picker" />
+      <CharacterPickerModal
+        initialCharacterId={characterParam}
+        initialError={errorParam}
+        initialWarning={warningParam}
+      />
     </section>
   );
 }

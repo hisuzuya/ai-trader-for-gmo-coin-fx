@@ -122,19 +122,19 @@ export async function createAgent(formData: FormData) {
     .filter((tool) => (AGENT_RESEARCH_TOOL_NAMES as readonly string[]).includes(tool));
 
   if (!isCharacterId(characterIdRaw)) {
-    redirect("/agents/new?error=invalid_character");
+    redirect("/agents?error=invalid_character#picker");
   }
 
   if (name.length === 0 || systemPrompt.length === 0 || model.length === 0) {
-    redirect(`/agents/new?character=${characterIdRaw}&error=missing_fields`);
+    redirect(`/agents?character=${characterIdRaw}&error=missing_fields#picker`);
   }
 
   if (!Number.isFinite(runIntervalRaw) || runIntervalRaw < 60) {
-    redirect(`/agents/new?character=${characterIdRaw}&error=invalid_interval`);
+    redirect(`/agents?character=${characterIdRaw}&error=invalid_interval#picker`);
   }
 
   if (SECRET_LIKE_PATTERN.test(systemPrompt)) {
-    redirect(`/agents/new?character=${characterIdRaw}&warning=secret_like`);
+    redirect(`/agents?character=${characterIdRaw}&warning=secret_like#picker`);
   }
 
   const response = await fetch(
@@ -157,12 +157,12 @@ export async function createAgent(formData: FormData) {
   );
 
   if (!response.ok) {
-    redirect(`/agents/new?character=${characterIdRaw}&error=create_failed`);
+    redirect(`/agents?character=${characterIdRaw}&error=create_failed#picker`);
   }
 
   const body = (await response.json()) as { id?: string };
   if (!body.id) {
-    redirect(`/agents/new?character=${characterIdRaw}&error=create_failed`);
+    redirect(`/agents?character=${characterIdRaw}&error=create_failed#picker`);
   }
 
   redirect(`/agents/${body.id}?created=1`);
