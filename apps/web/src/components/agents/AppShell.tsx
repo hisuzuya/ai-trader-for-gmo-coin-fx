@@ -12,8 +12,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", match: (p) => p === "/" },
   { href: "/agents", label: "Agents", match: (p) => p.startsWith("/agents") },
-  { href: "/proposals", label: "Proposals", match: (p) => p.startsWith("/proposals") },
-  { href: "/runs", label: "Runs", match: (p) => p.startsWith("/runs") },
+  { href: "/activity", label: "Activity", match: (p) => p.startsWith("/activity") },
   { href: "/market", label: "Market", match: (p) => p.startsWith("/market") },
 ];
 
