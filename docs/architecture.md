@@ -10,6 +10,7 @@ Live tradingは将来スコープとして設計には含めるが、MVP build�
 - [Data Architecture](./architecture/data.md): market data、candle schema、feature schema、TimescaleDB policy。
 - [Trading Design](./architecture/trading.md): Strategy DSL、trade gates、paper execution、paper account。
 - [AI Tuning](./architecture/ai-tuning.md): AI Runner、Claude CLI実行、tuning cadence、candidate採用。
+- [AI Agents](./architecture/ai-agents.md): MCPベースのAI agent、indicators / memory / trading MCP server、web UIでのprompt編集。
 - [Operations](./architecture/operations.md): live trading future scope、dashboard、testing、deployment、backup、secrets。
 - [Roadmap](./architecture/roadmap.md): 未決事項、初期実装順、MVP phases。
 
@@ -36,3 +37,4 @@ Live tradingは将来スコープとして設計には含めるが、MVP build�
 - Domain glossary: [CONTEXT.md](../CONTEXT.md)
 - ADR: [0001 Claude CLIはAI Runnerで隔離実行する](./adr/0001-run-claude-cli-in-ai-runner.md)
 - ADR: [0002 appsとpackagesの境界を固定する](./adr/0002-use-app-and-package-boundaries.md)
+- ADR: [0003 AI agentをMCPベースで導入する](./adr/0003-introduce-mcp-based-ai-agents.md)
