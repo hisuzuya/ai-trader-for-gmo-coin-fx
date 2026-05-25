@@ -103,6 +103,18 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
         timeout: timeoutMs,
         maxBuffer: 1024 * 1024,
       });
+      const emptyOutputError = toEmptyOutputError(stdout, stderr);
+
+      if (emptyOutputError) {
+        return {
+          ok: false,
+          provider: "claude_cli",
+          error: emptyOutputError,
+          startedAt: startedAt.toISOString(),
+          finishedAt: new Date().toISOString(),
+          timeoutMs,
+        };
+      }
 
       return {
         ok: true,
@@ -343,4 +355,15 @@ function hashPrompt(prompt: string): string {
 function summarizeStderr(stderr: string): string | undefined {
   const trimmed = stderr.trim();
   return trimmed.length === 0 ? undefined : trimmed.slice(0, 2000);
+}
+
+function toEmptyOutputError(stdout: string, stderr: string): string | null {
+  if (stdout.trim().length > 0) {
+    return null;
+  }
+
+  const stderrSummary = summarizeStderr(stderr);
+  return stderrSummary
+    ? `Claude CLI returned empty stdout. stderr: ${stderrSummary}`
+    : "Claude CLI returned empty stdout.";
 }
