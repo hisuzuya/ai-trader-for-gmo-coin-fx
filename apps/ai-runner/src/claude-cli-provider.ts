@@ -304,14 +304,14 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
 function buildStrategyProposalPrompt(input: StrategyProposalInput): string {
   return JSON.stringify({
     instruction:
-      "Return JSON only. Propose one safe USD/JPY paper-trading candidate by modifying allowed StrategyDefinition parameters. Do not include code, shell commands, secrets, or live trading instructions.",
+      "Return JSON only. Propose one safe USD/JPY paper-trading candidate by modifying allowed StrategyDefinition parameters. Do not include code, shell commands, secrets, or live trading instructions. All natural-language text fields (rationale) MUST be written in 日本語 (Japanese).",
     baseline: input.baseline,
     recentPerformance: input.recentPerformance,
     rejectedCandidateSummaries: input.rejectedCandidateSummaries,
     explorationPolicy: input.explorationPolicy,
     outputSchema: {
       proposal_id: "string optional",
-      rationale: "string",
+      rationale: "string (日本語で記述すること / write in Japanese)",
       strategy: "StrategyDefinition",
     },
   });
@@ -320,17 +320,18 @@ function buildStrategyProposalPrompt(input: StrategyProposalInput): string {
 function buildDailyReviewPrompt(input: DailyReviewInput): string {
   return JSON.stringify({
     instruction:
-      "Return JSON only. Produce a daily paper-trading operations review. Do not include shell commands, secrets, live trading instructions, or any recommendation that changes baseline automatically.",
+      "Return JSON only. Produce a daily paper-trading operations review. Do not include shell commands, secrets, live trading instructions, or any recommendation that changes baseline automatically. All natural-language text values (summary, reason, message, next_actions) MUST be written in 日本語 (Japanese). Keep identifiers such as strategy names, status codes, and warning codes in their original form (ASCII).",
     input,
     outputSchema: {
       review_date: "YYYY-MM-DD",
-      summary: "string",
+      summary: "string (日本語で記述すること / write in Japanese)",
       baseline_promotion_candidates:
-        "array of { strategyName, reason, confidence: low|medium|high }",
+        "array of { strategyName, reason (日本語), confidence: low|medium|high }",
       candidate_retirement_candidates:
-        "array of { strategyName, reason, confidence: low|medium|high }",
-      warnings: "array of { severity: info|warning|critical, code, message }",
-      next_actions: "array of strings for human review",
+        "array of { strategyName, reason (日本語), confidence: low|medium|high }",
+      warnings:
+        "array of { severity: info|warning|critical, code (ASCII identifier), message (日本語) }",
+      next_actions: "array of strings (日本語で記述すること / write in Japanese) for human review",
     },
   });
 }
