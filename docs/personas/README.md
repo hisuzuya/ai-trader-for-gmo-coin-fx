@@ -32,6 +32,13 @@ AI Trade の Research + Evaluation Agent に与えるキャラクター/ペル�
 - [ラグナ (ragna)](./ragna.md)
 - [クロエ (chloe)](./chloe.md)
 
+## ビジュアル
+
+| | | |
+|---|---|---|
+| [![セレス](./images/ceres.png)](./ceres.md)<br>セレス | [![ユラ](./images/yura.png)](./yura.md)<br>ユラ | [![ノア](./images/noah.png)](./noah.md)<br>ノア |
+| [![アイリス](./images/iris.png)](./iris.md)<br>アイリス | [![ラグナ](./images/ragna.png)](./ragna.md)<br>ラグナ | [![クロエ](./images/chloe.png)](./chloe.md)<br>クロエ |
+
 共通制約:
 
 - [Guardrails (共通ガードレール)](./guardrails.md)
