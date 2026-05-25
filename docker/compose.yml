@@ -121,6 +121,7 @@ services:
     environment:
       AI_RUNNER_PORT: "8788"
       CLAUDE_CONFIG_DIR: /home/node/.claude
+      MCP_AGENT_RESEARCH_INTERNAL_URL: http://mcp-agent-research:8789
     volumes:
       - ../secrets/claude:/home/node/.claude:ro
     healthcheck:
@@ -128,6 +129,36 @@ services:
         [
           "CMD-SHELL",
           "node -e \"fetch('http://127.0.0.1:8788/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  mcp-agent-research:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: mcp-agent-research
+    restart: unless-stopped
+    env_file:
+      - path: ../.env.production
+        required: false
+    environment:
+      DATABASE_URL: postgresql://${AI_TRADE_POSTGRES_USER:-ai_trade}:${AI_TRADE_POSTGRES_PASSWORD:-ai_trade}@timescaledb:5432/${AI_TRADE_POSTGRES_DB:-ai_trade}
+      MCP_AGENT_RESEARCH_PORT: "8789"
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:8789/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\"",
         ]
       interval: 10s
       timeout: 5s

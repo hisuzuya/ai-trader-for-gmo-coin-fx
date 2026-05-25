@@ -98,6 +98,7 @@ Services:
 - Worker readiness: http://localhost:8787/ready
 - Worker status: http://localhost:8787/status
 - AI runner health: http://localhost:8788/health
+- MCP agent research health: http://localhost:8789/health
 - TimescaleDB: `postgresql://ai_trade:ai_trade@localhost:5432/ai_trade`
 
 Apply Drizzle migrations after TimescaleDB is running:
@@ -116,8 +117,8 @@ dependencies at container startup:
 docker compose -f docker/compose.yml up -d --build
 ```
 
-Production defaults bind only the dashboard to `127.0.0.1:3000`; `worker`,
-`ai-runner`, and `timescaledb` stay on the Docker network. Override
+Production defaults bind the dashboard to `127.0.0.1:3000` and internal worker
+services to localhost-only ports; `timescaledb` stays on the Docker network. Override
 `AI_TRADE_POSTGRES_DB`, `AI_TRADE_POSTGRES_USER`, and
 `AI_TRADE_POSTGRES_PASSWORD` through Compose's project environment, for example
 with a root `.env` file or exported shell variables, when defaults are not

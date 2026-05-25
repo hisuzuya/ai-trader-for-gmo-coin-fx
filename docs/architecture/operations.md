@@ -138,6 +138,10 @@ services:
     - Hono internal API
     - Claude CLI
 
+  mcp-agent-research:
+    - read-only research tool API
+    - no write SQL, mutation repository, or paper execution API
+
   timescaledb:
     - persistent volume
 

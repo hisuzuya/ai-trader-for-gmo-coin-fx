@@ -5,6 +5,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@ai-trade/config": fileURLToPath(new URL("../config/src/index.ts", import.meta.url)),
+      "@ai-trade/domain/ai-agents": fileURLToPath(
+        new URL("../domain/src/ai-agents/index.ts", import.meta.url),
+      ),
       "@ai-trade/domain/market-data": fileURLToPath(
         new URL("../domain/src/market-data/index.ts", import.meta.url),
       ),

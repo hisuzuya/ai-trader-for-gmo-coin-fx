@@ -1,0 +1,1 @@
+ALTER TABLE "ai_agent_runs" ADD CONSTRAINT "ai_agent_runs_agent_version_fk" FOREIGN KEY ("agent_id","agent_version") REFERENCES "public"."ai_agent_versions"("agent_id","version") ON DELETE no action ON UPDATE no action;

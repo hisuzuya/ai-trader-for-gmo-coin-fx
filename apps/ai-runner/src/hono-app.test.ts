@@ -7,6 +7,7 @@ import type {
 import { BASELINE_STRATEGIES } from "@ai-trade/domain/strategies";
 import { describe, expect, it, vi } from "vitest";
 
+import { AiAgentRunner } from "./agent-runner.js";
 import { createAiRunnerApp } from "./hono-app.js";
 
 describe("ai-runner Hono app", () => {
@@ -143,6 +144,81 @@ describe("ai-runner Hono app", () => {
     expect(body.review.summary).toBe("Paper trading is stable.");
     expect(provider.generateDailyReview).toHaveBeenCalledWith(input);
   });
+
+  it("runs an agent through the internal agent runner endpoint", async () => {
+    const provider = fakeProvider();
+    const agentRunner = {
+      run: vi.fn().mockResolvedValue({
+        ok: true,
+        status: "succeeded",
+        outputSummary: {
+          observations: 1,
+          strategyProposals: 0,
+          candidateReviews: 0,
+          memoryWrites: 0,
+        },
+        toolCalls: [],
+        startedAt: "2026-05-25T00:00:00.000Z",
+        finishedAt: "2026-05-25T00:00:01.000Z",
+      }),
+    };
+    const input = agentRunInput();
+
+    const response = await createAiRunnerApp(provider, agentRunner).request("/agent-runs", {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.outputSummary.observations).toBe(1);
+    expect(agentRunner.run).toHaveBeenCalledWith(input);
+  });
+
+  it("executes read-only tool requests and redacts tool call summaries", async () => {
+    const provider = fakeProvider();
+    provider.invoke
+      .mockResolvedValueOnce({
+        ok: true,
+        provider: "claude_cli",
+        stdout:
+          '{"toolRequests":[{"name":"recall_memory","args":{"agentId":"agent-1","query":"API_TOKEN=secret-value"}}]}',
+        startedAt: "2026-05-24T00:00:00.000Z",
+        finishedAt: "2026-05-24T00:00:01.000Z",
+        timeoutMs: 30000,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        provider: "claude_cli",
+        stdout:
+          '{"observations":[],"strategyProposals":[],"candidateReviews":[],"memoryWrites":[]}',
+        startedAt: "2026-05-24T00:00:02.000Z",
+        finishedAt: "2026-05-24T00:00:03.000Z",
+        timeoutMs: 30000,
+      });
+    const runner = new AiAgentRunner(provider, {
+      call: vi.fn().mockResolvedValue({ result: "PASSWORD=hidden-value" }),
+    });
+
+    const response = await runner.run({
+      ...agentRunInput(),
+      agent: {
+        ...agentRunInput().agent,
+        id: "agent-1",
+        allowedTools: ["recall_memory"],
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.toolCalls).toEqual([
+      {
+        name: "recall_memory",
+        argsSummary: { agentId: "agent-1", query: "[REDACTED]" },
+        resultSummary: { result: "[REDACTED]" },
+      },
+    ]);
+  });
 });
 
 function fakeProvider(
@@ -224,5 +300,24 @@ function dailyReviewInput(): DailyReviewInput {
       backupStatus: "unknown",
       restoreRehearsalStatus: "unknown",
     },
+  };
+}
+
+function agentRunInput() {
+  return {
+    agent: {
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "Research Agent 01",
+      persona: "USD/JPY paper strategy researcher",
+      systemPrompt: "Observe only.",
+      allowedTools: ["read_bars", "recall_memory"],
+      status: "active" as const,
+      currentVersion: 1,
+      runIntervalSec: 3600,
+      model: "claude-sonnet-4-5",
+    },
+    contextSummary: "No active candidates.",
+    version: 1,
+    maxToolHops: 3,
   };
 }

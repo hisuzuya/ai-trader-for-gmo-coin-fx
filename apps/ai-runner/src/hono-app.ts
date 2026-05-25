@@ -1,6 +1,8 @@
+import type { AgentRunRequest } from "@ai-trade/domain/ai-agents";
 import type { DailyReviewInput, StrategyProposalInput } from "@ai-trade/domain/ai-tuning";
 import { Hono } from "hono";
 
+import { type AgentRunner, AiAgentRunner } from "./agent-runner.js";
 import {
   type AiRunnerProviderState,
   ClaudeCliProvider,
@@ -15,7 +17,10 @@ export type AiRunnerHealth = {
   provider: AiRunnerProviderState;
 };
 
-export function createAiRunnerApp(provider: StrategyProposalProvider = new ClaudeCliProvider()) {
+export function createAiRunnerApp(
+  provider: StrategyProposalProvider = new ClaudeCliProvider(),
+  agentRunner: AgentRunner = new AiAgentRunner(provider),
+) {
   const app = new Hono();
 
   app.get("/health", async (c) =>
@@ -96,7 +101,47 @@ export function createAiRunnerApp(provider: StrategyProposalProvider = new Claud
     });
   });
 
+  app.post("/agent-runs", async (c) => {
+    const body = await c.req.json().catch(() => null);
+
+    if (!isAgentRunRequest(body)) {
+      return c.json(
+        {
+          ok: false,
+          error:
+            "Request body must include agent, contextSummary, and version. Agent definition is supplied by worker.",
+        },
+        400,
+      );
+    }
+
+    const response = await agentRunner.run(body);
+    return c.json(response, response.ok ? 200 : 503);
+  });
+
   return app;
+}
+
+function isAgentRunRequest(input: unknown): input is AgentRunRequest {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "agent" in input &&
+    "contextSummary" in input &&
+    "version" in input &&
+    typeof input.contextSummary === "string" &&
+    typeof input.version === "number" &&
+    typeof input.agent === "object" &&
+    input.agent !== null &&
+    "id" in input.agent &&
+    "name" in input.agent &&
+    "systemPrompt" in input.agent &&
+    "allowedTools" in input.agent &&
+    typeof input.agent.id === "string" &&
+    typeof input.agent.name === "string" &&
+    typeof input.agent.systemPrompt === "string" &&
+    Array.isArray(input.agent.allowedTools)
+  );
 }
 
 function isStrategyProposalInput(input: unknown): input is StrategyProposalInput {

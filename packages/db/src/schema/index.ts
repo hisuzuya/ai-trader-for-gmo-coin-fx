@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  foreignKey,
   index,
   jsonb,
   numeric,
@@ -54,6 +55,46 @@ export const aiDailyReviewStatus = pgEnum("ai_daily_review_status", [
   "accepted",
   "rejected",
   "failed",
+]);
+
+export const aiAgentStatus = pgEnum("ai_agent_status", ["active", "paused"]);
+
+export const aiAgentRunStatus = pgEnum("ai_agent_run_status", [
+  "succeeded",
+  "failed",
+  "timeout",
+  "rejected_output",
+]);
+
+export const aiAgentMemoryType = pgEnum("ai_agent_memory_type", [
+  "market_observation",
+  "strategy_hypothesis",
+  "proposal_review",
+  "rejection_learning",
+]);
+
+export const aiAgentObservationKind = pgEnum("ai_agent_observation_kind", [
+  "market",
+  "candidate_performance",
+  "risk",
+  "operations",
+]);
+
+export const aiAgentProposalValidationStatus = pgEnum("ai_agent_proposal_validation_status", [
+  "accepted",
+  "rejected",
+]);
+
+export const aiAgentCandidateRecommendation = pgEnum("ai_agent_candidate_recommendation", [
+  "continue",
+  "retire",
+  "promote",
+]);
+
+export const aiAgentCandidateConfidence = pgEnum("ai_agent_candidate_confidence", [
+  "low",
+  "medium",
+  "high",
 ]);
 
 export const candles = pgTable(
@@ -114,6 +155,149 @@ export const jobRuns = pgTable("job_runs", {
   metadata: jsonb("metadata_json"),
 });
 
+export const aiAgents = pgTable(
+  "ai_agents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    persona: text("persona").notNull(),
+    systemPrompt: text("system_prompt").notNull(),
+    allowedTools: jsonb("allowed_tools_json").notNull(),
+    status: aiAgentStatus("status").notNull().default("active"),
+    currentVersion: numeric("current_version", { precision: 10, scale: 0 }).notNull().default("1"),
+    runIntervalSec: numeric("run_interval_sec", { precision: 10, scale: 0 }).notNull(),
+    model: text("model").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [uniqueIndex("ai_agents_name_idx").on(table.name)],
+);
+
+export const aiAgentVersions = pgTable(
+  "ai_agent_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => aiAgents.id),
+    version: numeric("version", { precision: 10, scale: 0 }).notNull(),
+    systemPrompt: text("system_prompt").notNull(),
+    allowedTools: jsonb("allowed_tools_json").notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [uniqueIndex("ai_agent_versions_agent_version_idx").on(table.agentId, table.version)],
+);
+
+export const aiAgentRuns = pgTable(
+  "ai_agent_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => aiAgents.id),
+    agentVersion: numeric("agent_version", { precision: 10, scale: 0 }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().default(sql`now()`),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    status: aiAgentRunStatus("status").notNull(),
+    inputSummary: jsonb("input_summary_json"),
+    outputSummary: jsonb("output_summary_json"),
+    toolCalls: jsonb("tool_calls_json"),
+    tokenUsage: jsonb("token_usage_json"),
+    error: text("error"),
+  },
+  (table) => [
+    index("ai_agent_runs_agent_started_at_idx").on(table.agentId, table.startedAt),
+    foreignKey({
+      columns: [table.agentId, table.agentVersion],
+      foreignColumns: [aiAgentVersions.agentId, aiAgentVersions.version],
+      name: "ai_agent_runs_agent_version_fk",
+    }),
+  ],
+);
+
+export const aiAgentMemories = pgTable(
+  "ai_agent_memories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => aiAgents.id),
+    type: aiAgentMemoryType("type").notNull(),
+    content: text("content").notNull(),
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+    sourceRefs: jsonb("source_refs_json"),
+    searchVector: text("search_vector"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [
+    index("ai_agent_memories_agent_idx").on(table.agentId),
+    index("ai_agent_memories_agent_type_idx").on(table.agentId, table.type),
+    index("ai_agent_memories_tags_idx").using("gin", table.tags),
+  ],
+);
+
+export const aiAgentObservations = pgTable("ai_agent_observations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  runId: uuid("run_id")
+    .notNull()
+    .references(() => aiAgentRuns.id),
+  agentId: uuid("agent_id")
+    .notNull()
+    .references(() => aiAgents.id),
+  kind: aiAgentObservationKind("kind").notNull(),
+  summary: text("summary").notNull(),
+  evidence: jsonb("evidence_json").notNull(),
+  tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+export const aiAgentStrategyProposals = pgTable(
+  "ai_agent_strategy_proposals",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => aiAgentRuns.id),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => aiAgents.id),
+    strategyName: text("strategy_name").notNull(),
+    proposalJson: jsonb("proposal_json").notNull(),
+    validationStatus: aiAgentProposalValidationStatus("validation_status").notNull(),
+    rejectionReasons: jsonb("rejection_reasons_json"),
+    insertedStrategyRunId: uuid("inserted_strategy_run_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [
+    index("ai_agent_strategy_proposals_agent_created_at_idx").on(table.agentId, table.createdAt),
+    index("ai_agent_strategy_proposals_validation_idx").on(table.validationStatus),
+  ],
+);
+
+export const aiAgentCandidateReviews = pgTable(
+  "ai_agent_candidate_reviews",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => aiAgentRuns.id),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => aiAgents.id),
+    strategyName: text("strategy_name").notNull(),
+    recommendation: aiAgentCandidateRecommendation("recommendation").notNull(),
+    confidence: aiAgentCandidateConfidence("confidence").notNull(),
+    reason: text("reason").notNull(),
+    evidence: jsonb("evidence_json").notNull(),
+    applied: boolean("applied").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [
+    index("ai_agent_candidate_reviews_agent_created_at_idx").on(table.agentId, table.createdAt),
+  ],
+);
+
 export const strategyRuns = pgTable("strategy_runs", {
   id: uuid("id").defaultRandom().primaryKey(),
   strategyName: text("strategy_name").notNull(),
@@ -121,6 +305,8 @@ export const strategyRuns = pgTable("strategy_runs", {
   timeframe: text("timeframe").notNull(),
   status: strategyRunStatus("status").notNull(),
   strategyDefinition: jsonb("strategy_definition_json").notNull(),
+  sourceAgentId: uuid("source_agent_id").references(() => aiAgents.id),
+  sourceProposalId: uuid("source_proposal_id").references(() => aiAgentStrategyProposals.id),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().default(sql`now()`),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
   metadata: jsonb("metadata_json"),

@@ -1,5 +1,14 @@
 export { checkDbConnection, db, pgPool } from "./client.js";
 export {
+  type AgentRunRecordInput,
+  type AgentVersionInput,
+  AiAgentRepository,
+  RESEARCH_AGENT_SEED_ID,
+  summarizeAgentOutput,
+  toAgentRunInsertRow,
+  toResearchAgentSeedRow,
+} from "./repositories/ai-agent-repository.js";
+export {
   type AiDailyReviewRecordInput,
   AiDailyReviewRepository,
   toAiDailyReviewInsertRow,

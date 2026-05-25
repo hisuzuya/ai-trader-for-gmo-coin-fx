@@ -16,6 +16,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
 COPY apps/ai-runner/package.json apps/ai-runner/package.json
+COPY apps/mcp-agent-research/package.json apps/mcp-agent-research/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/domain/package.json packages/domain/package.json
@@ -87,3 +88,17 @@ USER node
 EXPOSE 8788
 
 CMD ["node", "apps/ai-runner/dist/main.cjs"]
+
+FROM node:24-bookworm-slim AS mcp-agent-research
+
+ENV NODE_ENV=production
+ENV MCP_AGENT_RESEARCH_PORT=8789
+
+WORKDIR /app
+
+COPY --from=builder --chown=node:node /app/apps/mcp-agent-research/dist/main.cjs ./apps/mcp-agent-research/dist/main.cjs
+
+USER node
+EXPOSE 8789
+
+CMD ["node", "apps/mcp-agent-research/dist/main.cjs"]

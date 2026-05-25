@@ -36,7 +36,19 @@ services:
       - ..:/app
       - ai-runner-node-modules:/app/node_modules
 
+  mcp-agent-research:
+    image: node:24-bookworm-slim
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @ai-trade/mcp-agent-research start"
+    ports:
+      - "8789:8789"
+    volumes:
+      - ..:/app
+      - mcp-agent-research-node-modules:/app/node_modules
+
 volumes:
   next-web-node-modules:
   worker-node-modules:
   ai-runner-node-modules:
+  mcp-agent-research-node-modules:
