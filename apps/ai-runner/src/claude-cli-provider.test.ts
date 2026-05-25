@@ -44,7 +44,8 @@ describe("ClaudeCliProvider", () => {
         enabled: true,
         executable,
         mcpEnabled: true,
-        mcpAgentResearchUrl: "http://mcp-agent-research:8789",
+        mcpAgentResearchCommand: "/usr/local/bin/node",
+        mcpAgentResearchArgs: ["/app/apps/mcp-agent-research/dist/mcp-stdio.cjs"],
       });
       const result = await provider.invoke({ prompt: "Return JSON only." });
 
@@ -63,8 +64,9 @@ describe("ClaudeCliProvider", () => {
 
       const config = JSON.parse(args[args.indexOf("--mcp-config") + 1]);
       expect(config.mcpServers.agent_research).toEqual({
-        type: "http",
-        url: "http://mcp-agent-research:8789/mcp",
+        type: "stdio",
+        command: "/usr/local/bin/node",
+        args: ["/app/apps/mcp-agent-research/dist/mcp-stdio.cjs"],
       });
     } finally {
       await rm(dir, { force: true, recursive: true });

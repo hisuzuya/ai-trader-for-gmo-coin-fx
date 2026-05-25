@@ -84,6 +84,8 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
   && chown -R node:node /home/node/.claude
 
 COPY --from=builder --chown=node:node /app/apps/ai-runner/dist/main.cjs ./apps/ai-runner/dist/main.cjs
+COPY --from=builder --chown=node:node /app/apps/mcp-agent-research/dist/mcp-stdio.cjs ./apps/mcp-agent-research/dist/mcp-stdio.cjs
+COPY --from=builder --chown=node:node /app/apps/mcp-agent-research/dist/mcp-stdio-smoke.cjs ./apps/mcp-agent-research/dist/mcp-stdio-smoke.cjs
 
 USER node
 EXPOSE 8788
@@ -98,6 +100,7 @@ ENV MCP_AGENT_RESEARCH_PORT=8789
 WORKDIR /app
 
 COPY --from=builder --chown=node:node /app/apps/mcp-agent-research/dist/main.cjs ./apps/mcp-agent-research/dist/main.cjs
+COPY --from=builder --chown=node:node /app/apps/mcp-agent-research/dist/mcp-stdio.cjs ./apps/mcp-agent-research/dist/mcp-stdio.cjs
 
 USER node
 EXPOSE 8789

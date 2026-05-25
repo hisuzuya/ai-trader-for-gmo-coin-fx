@@ -58,7 +58,8 @@ export type ClaudeCliProviderOptions = {
   executable?: string;
   timeoutMs?: number;
   mcpEnabled?: boolean;
-  mcpAgentResearchUrl?: string;
+  mcpAgentResearchCommand?: string;
+  mcpAgentResearchArgs?: string[];
 };
 
 export class ClaudeCliProvider implements StrategyProposalProvider {
@@ -66,17 +67,22 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
   private readonly executable: string;
   private readonly timeoutMs: number;
   private readonly mcpEnabled: boolean;
-  private readonly mcpAgentResearchUrl: string;
+  private readonly mcpAgentResearchCommand: string;
+  private readonly mcpAgentResearchArgs: string[];
 
   constructor(options: ClaudeCliProviderOptions = {}) {
     this.enabled = options.enabled ?? process.env.CLAUDE_CLI_ENABLED === "1";
     this.executable = options.executable ?? process.env.CLAUDE_CLI_PATH ?? "claude";
     this.timeoutMs = options.timeoutMs ?? 120_000;
     this.mcpEnabled = options.mcpEnabled ?? process.env.CLAUDE_MCP_ENABLED === "1";
-    this.mcpAgentResearchUrl =
-      options.mcpAgentResearchUrl ??
-      process.env.MCP_AGENT_RESEARCH_INTERNAL_URL ??
-      "http://localhost:8789";
+    this.mcpAgentResearchCommand =
+      options.mcpAgentResearchCommand ??
+      process.env.CLAUDE_MCP_AGENT_RESEARCH_COMMAND ??
+      "/usr/local/bin/node";
+    this.mcpAgentResearchArgs = options.mcpAgentResearchArgs ??
+      parseMcpArgs(process.env.CLAUDE_MCP_AGENT_RESEARCH_ARGS) ?? [
+        "/app/apps/mcp-agent-research/dist/mcp-stdio.cjs",
+      ];
   }
 
   async health(): Promise<AiRunnerProviderState> {
@@ -333,8 +339,9 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
     const mcpConfig = {
       mcpServers: {
         agent_research: {
-          type: "http",
-          url: new URL("/mcp", ensureTrailingSlash(this.mcpAgentResearchUrl)).toString(),
+          type: "stdio",
+          command: this.mcpAgentResearchCommand,
+          args: this.mcpAgentResearchArgs,
         },
       },
     };
@@ -359,6 +366,21 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
       prompt,
     ];
   }
+}
+
+function parseMcpArgs(value: string | undefined): string[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
+      return parsed;
+    }
+  } catch {
+    // Fall back to whitespace splitting for simple operational overrides.
+  }
+  return value.split(/\s+/).filter(Boolean);
 }
 
 function buildStrategyProposalPrompt(input: StrategyProposalInput): string {
@@ -414,8 +436,4 @@ function toEmptyOutputError(stdout: string, stderr: string): string | null {
   return stderrSummary
     ? `Claude CLI returned empty stdout. stderr: ${stderrSummary}`
     : "Claude CLI returned empty stdout.";
-}
-
-function ensureTrailingSlash(url: string): string {
-  return url.endsWith("/") ? url : `${url}/`;
 }
