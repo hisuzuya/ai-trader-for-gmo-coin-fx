@@ -1,5 +1,6 @@
 import type { UTCTimestamp } from "lightweight-charts";
 import { revalidatePath } from "next/cache";
+import { type CandlePoint, CandlestickChart } from "@/components/CandlestickChart";
 import { PnlChart, type PnlPoint } from "@/components/PnlChart";
 import { appRouter } from "@/server/trpc/root";
 
@@ -71,6 +72,43 @@ async function getDashboardSummary(): Promise<DashboardSummary> {
   );
 }
 
+type RecentCandlesResponse = {
+  symbol: string;
+  timeframe: string;
+  priceType: string;
+  candles: {
+    openedAt: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+  }[];
+};
+
+async function getRecentCandles(): Promise<RecentCandlesResponse> {
+  const baseUrl = process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787";
+  const url = new URL("/candles", baseUrl);
+  url.searchParams.set("symbol", "USD_JPY");
+  url.searchParams.set("timeframe", "1m");
+  url.searchParams.set("priceType", "mid");
+  url.searchParams.set("limit", "200");
+
+  const response = await fetch(url, { cache: "no-store" }).catch(() => null);
+
+  if (!response?.ok) {
+    return { symbol: "USD_JPY", timeframe: "1m", priceType: "mid", candles: [] };
+  }
+
+  const body = (await response.json()) as Partial<RecentCandlesResponse> & { ok?: boolean };
+
+  return {
+    symbol: body.symbol ?? "USD_JPY",
+    timeframe: body.timeframe ?? "1m",
+    priceType: body.priceType ?? "mid",
+    candles: Array.isArray(body.candles) ? body.candles : [],
+  };
+}
+
 async function recordPaperDecision(formData: FormData) {
   "use server";
 
@@ -97,8 +135,11 @@ async function recordPaperDecision(formData: FormData) {
 }
 
 export default async function DashboardPage() {
-  const health = await getHealth();
-  const dashboard = await getDashboardSummary();
+  const [health, dashboard, recentCandles] = await Promise.all([
+    getHealth(),
+    getDashboardSummary(),
+    getRecentCandles(),
+  ]);
   const totalBalance = dashboard.accounts.reduce(
     (sum, account) => sum + Number(account.balanceJpy),
     0,
@@ -112,6 +153,15 @@ export default async function DashboardPage() {
   const latestReview = dashboard.dailyReviews[0];
   const pnlSeries = buildPnlSeries(dashboard.trades);
   const pnlPositive = totalPnl >= 0;
+  const candleSeries = buildCandleSeries(recentCandles.candles);
+  const lastCandle = candleSeries.at(-1) ?? null;
+  const firstCandle = candleSeries.at(0) ?? null;
+  const candleChange = lastCandle && firstCandle ? lastCandle.close - firstCandle.open : 0;
+  const candleChangePct =
+    lastCandle && firstCandle && firstCandle.open !== 0
+      ? (candleChange / firstCandle.open) * 100
+      : 0;
+  const candleUp = candleChange >= 0;
 
   return (
     <main className="tv-shell">
@@ -162,46 +212,86 @@ export default async function DashboardPage() {
         </div>
 
         <div className="tv-col tv-col-center">
-          <section className="tv-panel tv-chart-panel" aria-label="累積損益">
+          <section
+            className="tv-panel tv-chart-panel tv-chart-panel-price"
+            aria-label="価格チャート"
+          >
+            <PanelHeader
+              title={`${formatSymbol(recentCandles.symbol)} · ${recentCandles.timeframe.toUpperCase()} · ${recentCandles.priceType.toUpperCase()}`}
+              meta={`${candleSeries.length} bars`}
+            />
+            <div className="tv-panel-body">
+              <div className="tv-chart-summary">
+                <div className="tv-chart-headline">
+                  <span className="tv-chart-headline-label">終値 / Last</span>
+                  <span className={`tv-chart-headline-value ${candleUp ? "profit" : "loss"}`}>
+                    {lastCandle ? lastCandle.close.toFixed(3) : "—"}
+                    {lastCandle && firstCandle ? (
+                      <span className="tv-chart-headline-delta">
+                        {candleUp ? "▲" : "▼"} {Math.abs(candleChange).toFixed(3)} (
+                        {candleChangePct >= 0 ? "+" : "−"}
+                        {Math.abs(candleChangePct).toFixed(2)}%)
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+                <div className="tv-chart-stats">
+                  <div className="tv-chart-stat">
+                    <span className="tv-chart-stat-label">高値 / High</span>
+                    <span className="tv-chart-stat-value">
+                      {lastCandle ? lastCandle.high.toFixed(3) : "—"}
+                    </span>
+                  </div>
+                  <div className="tv-chart-stat">
+                    <span className="tv-chart-stat-label">安値 / Low</span>
+                    <span className="tv-chart-stat-value">
+                      {lastCandle ? lastCandle.low.toFixed(3) : "—"}
+                    </span>
+                  </div>
+                  <div className="tv-chart-stat">
+                    <span className="tv-chart-stat-label">本数 / Bars</span>
+                    <span className="tv-chart-stat-value">
+                      {candleSeries.length.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {candleSeries.length > 0 ? (
+                <CandlestickChart data={candleSeries} />
+              ) : (
+                <div className="tv-chart-empty">
+                  USD/JPYのMIDキャンドルが取得できていません(worker未起動 / データ未蓄積)
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="tv-panel tv-chart-panel tv-chart-panel-compact" aria-label="累積損益">
             <PanelHeader
               title="累積損益 / Cumulative PnL"
               meta={dashboard.trades.length > 0 ? `${dashboard.trades.length} fills` : "0 fills"}
             />
             <div className="tv-panel-body">
-              <div className="tv-chart-summary">
+              <div className="tv-chart-summary tv-chart-summary-compact">
                 <div className="tv-chart-headline">
                   <span className="tv-chart-headline-label">確定損益 / Realized</span>
-                  <span className={`tv-chart-headline-value ${pnlPositive ? "profit" : "loss"}`}>
+                  <span
+                    className={`tv-chart-headline-value tv-chart-headline-value-sm ${pnlPositive ? "profit" : "loss"}`}
+                  >
                     {formatJpySigned(totalPnl)}
                     <span className="tv-chart-headline-delta">
-                      {pnlPositive ? "▲" : "▼"} {formatJpyAbs(totalPnl)}
+                      勝率 {dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"} ·{" "}
+                      {dashboard.trades.length} trades
                     </span>
                   </span>
-                </div>
-                <div className="tv-chart-stats">
-                  <div className="tv-chart-stat">
-                    <span className="tv-chart-stat-label">勝率 / Win</span>
-                    <span className="tv-chart-stat-value">
-                      {dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"}
-                    </span>
-                  </div>
-                  <div className="tv-chart-stat">
-                    <span className="tv-chart-stat-label">取引 / Trades</span>
-                    <span className="tv-chart-stat-value">
-                      {dashboard.trades.length.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="tv-chart-stat">
-                    <span className="tv-chart-stat-label">候補 / Active</span>
-                    <span className="tv-chart-stat-value">{activeCandidates.toLocaleString()}</span>
-                  </div>
                 </div>
               </div>
 
               {pnlSeries.length > 0 ? (
                 <PnlChart data={pnlSeries} positive={pnlPositive} />
               ) : (
-                <div className="tv-chart-empty">
+                <div className="tv-chart-empty tv-chart-empty-compact">
                   確定取引が記録され次第、ここに累積損益が描画されます
                 </div>
               )}
@@ -652,6 +742,32 @@ function ReviewList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+function buildCandleSeries(candles: RecentCandlesResponse["candles"]): CandlePoint[] {
+  if (candles.length === 0) return [];
+
+  const seenTimes = new Set<number>();
+  const points: CandlePoint[] = [];
+
+  for (const candle of candles) {
+    const ms = new Date(candle.openedAt).getTime();
+    if (Number.isNaN(ms)) continue;
+    let time = Math.floor(ms / 1000);
+    while (seenTimes.has(time)) {
+      time += 1;
+    }
+    seenTimes.add(time);
+    points.push({
+      time: time as UTCTimestamp,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+    });
+  }
+
+  return points;
+}
+
 function buildPnlSeries(trades: DashboardSummary["trades"]): PnlPoint[] {
   if (trades.length === 0) return [];
 
@@ -693,10 +809,6 @@ function formatJpy(value: number) {
 function formatJpySigned(value: number) {
   const sign = value > 0 ? "+" : value < 0 ? "−" : "";
   return `${sign}${formatJpy(Math.abs(value))}`;
-}
-
-function formatJpyAbs(value: number) {
-  return formatJpy(Math.abs(value));
 }
 
 function formatDateTime(value: string) {

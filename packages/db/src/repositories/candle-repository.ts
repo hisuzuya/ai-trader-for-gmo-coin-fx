@@ -1,11 +1,26 @@
 import type { CanonicalCandle } from "@ai-trade/domain/market-data";
-import { sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "../client.js";
 import { candles } from "../schema/index.js";
 
-type CandleDatabase = Pick<typeof db, "insert">;
+type CandleDatabase = Pick<typeof db, "insert" | "select">;
 const NUMERIC_18_6_ABS_LIMIT = 1_000_000_000_000;
+
+export type RecentCandle = {
+  openedAt: Date;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
+export type GetRecentCandlesInput = {
+  symbol: string;
+  timeframe: string;
+  priceType: "bid" | "ask" | "mid";
+  limit: number;
+};
 
 export class CandleRepository {
   constructor(private readonly database: CandleDatabase = db) {}
@@ -30,6 +45,41 @@ export class CandleRepository {
           updatedAt: sql`now()`,
         },
       });
+  }
+
+  async getRecent(input: GetRecentCandlesInput): Promise<RecentCandle[]> {
+    if (input.limit <= 0) {
+      return [];
+    }
+
+    const rows = await this.database
+      .select({
+        openedAt: candles.openedAt,
+        open: candles.open,
+        high: candles.high,
+        low: candles.low,
+        close: candles.close,
+      })
+      .from(candles)
+      .where(
+        and(
+          eq(candles.symbol, input.symbol),
+          eq(candles.timeframe, input.timeframe),
+          eq(candles.priceType, input.priceType),
+        ),
+      )
+      .orderBy(desc(candles.openedAt))
+      .limit(input.limit);
+
+    return rows
+      .map((row) => ({
+        openedAt: row.openedAt,
+        open: Number(row.open),
+        high: Number(row.high),
+        low: Number(row.low),
+        close: Number(row.close),
+      }))
+      .reverse();
   }
 }
 

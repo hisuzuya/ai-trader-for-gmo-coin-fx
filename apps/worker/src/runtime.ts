@@ -1,12 +1,14 @@
 import {
   aiDailyReviews,
   aiTuningProposals,
+  CandleRepository,
   checkDbConnection,
   DbJobRunRecorder,
   db,
   type JobRunRecorder,
   paperAccounts,
   paperTrades,
+  type RecentCandle,
   runRecordedJob,
   strategyRuns,
 } from "@ai-trade/db";
@@ -20,6 +22,15 @@ import type { AiDailyReviewerService, DailyReviewRunResult } from "./services/ai
 import type { AiTunerService, AiTuningRunResult } from "./services/ai-tuner.js";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "./types.js";
 
+export interface CandleReader {
+  getRecent(input: {
+    symbol: string;
+    timeframe: string;
+    priceType: "bid" | "ask" | "mid";
+    limit: number;
+  }): Promise<RecentCandle[]>;
+}
+
 export class WorkerRuntime {
   private readonly startedAt = new Date();
   private started = false;
@@ -28,6 +39,7 @@ export class WorkerRuntime {
     private readonly services: WorkerService[],
     private readonly historicalImporter: HistoricalImporter = new StubHistoricalImporter(),
     private readonly jobRunRecorder: JobRunRecorder = new DbJobRunRecorder(),
+    private readonly candleReader: CandleReader = new CandleRepository(),
   ) {}
 
   async start(): Promise<void> {
@@ -197,6 +209,28 @@ export class WorkerRuntime {
     };
   }
 
+  async recentCandles(input: RecentCandlesQuery): Promise<RecentCandlesResponse> {
+    const candles = await this.candleReader.getRecent({
+      symbol: input.symbol,
+      timeframe: input.timeframe,
+      priceType: input.priceType,
+      limit: input.limit,
+    });
+
+    return {
+      symbol: input.symbol,
+      timeframe: input.timeframe,
+      priceType: input.priceType,
+      candles: candles.map((candle) => ({
+        openedAt: candle.openedAt.toISOString(),
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+      })),
+    };
+  }
+
   async runHistoricalImport(date: string): Promise<{
     jobRunId: string;
     result: HistoricalImportResult;
@@ -297,6 +331,26 @@ export type WorkerDashboardSummary = {
     warnings: unknown;
     nextActions: unknown;
     createdAt: string;
+  }[];
+};
+
+export type RecentCandlesQuery = {
+  symbol: string;
+  timeframe: string;
+  priceType: "bid" | "ask" | "mid";
+  limit: number;
+};
+
+export type RecentCandlesResponse = {
+  symbol: string;
+  timeframe: string;
+  priceType: "bid" | "ask" | "mid";
+  candles: {
+    openedAt: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
   }[];
 };
 

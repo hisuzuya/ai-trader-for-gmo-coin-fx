@@ -13,6 +13,8 @@ export {
 } from "./repositories/ai-tuning-repository.js";
 export {
   CandleRepository,
+  type GetRecentCandlesInput,
+  type RecentCandle,
   toCandleInsertRows,
 } from "./repositories/candle-repository.js";
 export {
