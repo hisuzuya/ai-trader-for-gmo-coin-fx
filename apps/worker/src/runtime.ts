@@ -146,7 +146,17 @@ export class WorkerRuntime {
       throw new Error("Agent scheduler service is not registered.");
     }
 
-    return scheduler.listAgents();
+    return scheduler.listAgentSummaries();
+  }
+
+  async getAgentDetail(agentId: string) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.getAgentDetail(agentId);
   }
 
   async runAgent(agentId?: string) {
@@ -172,6 +182,26 @@ export class WorkerRuntime {
     }
 
     return scheduler.createVersion(input);
+  }
+
+  async rollbackAgentVersion(input: { agentId: string; sourceVersion: number; note?: string }) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.rollbackVersion(input);
+  }
+
+  async deleteAgentMemory(input: { agentId: string; memoryId: string }) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.deleteMemory(input);
   }
 
   async dashboardSummary(options: { accountName?: string } = {}): Promise<WorkerDashboardSummary> {
@@ -578,5 +608,10 @@ function isAiDailyReviewerService(service: WorkerService): service is AiDailyRev
 }
 
 function isAgentScheduler(service: WorkerService): service is AgentScheduler {
-  return service.name === "agent-scheduler" && "listAgents" in service && "runOnce" in service;
+  return (
+    service.name === "agent-scheduler" &&
+    "listAgentSummaries" in service &&
+    "getAgentDetail" in service &&
+    "runOnce" in service
+  );
 }
