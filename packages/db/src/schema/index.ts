@@ -220,6 +220,9 @@ export const aiAgents = pgTable(
     pausedReason: text("paused_reason"),
     sharedMemoryEnabled: boolean("shared_memory_enabled").notNull().default(false),
     characterId: text("character_id"),
+    initialBalanceJpy: numeric("initial_balance_jpy", { precision: 18, scale: 6 })
+      .notNull()
+      .default("100000"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
@@ -365,18 +368,23 @@ export const strategyRuns = pgTable("strategy_runs", {
   metadata: jsonb("metadata_json"),
 });
 
-export const paperAccounts = pgTable("paper_accounts", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  strategyRunId: uuid("strategy_run_id").references(() => strategyRuns.id),
-  name: text("name").notNull(),
-  currency: text("currency").notNull().default("JPY"),
-  initialBalanceJpy: numeric("initial_balance_jpy", { precision: 18, scale: 6 }).notNull(),
-  balanceJpy: numeric("balance_jpy", { precision: 18, scale: 6 }).notNull(),
-  leverage: numeric("leverage", { precision: 10, scale: 2 }).notNull(),
-  status: paperAccountStatus("status").notNull().default("active"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
-});
+export const paperAccounts = pgTable(
+  "paper_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    strategyRunId: uuid("strategy_run_id").references(() => strategyRuns.id),
+    agentId: uuid("agent_id").references(() => aiAgents.id),
+    name: text("name").notNull(),
+    currency: text("currency").notNull().default("JPY"),
+    initialBalanceJpy: numeric("initial_balance_jpy", { precision: 18, scale: 6 }).notNull(),
+    balanceJpy: numeric("balance_jpy", { precision: 18, scale: 6 }).notNull(),
+    leverage: numeric("leverage", { precision: 10, scale: 2 }).notNull(),
+    status: paperAccountStatus("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [uniqueIndex("paper_accounts_agent_id_idx").on(table.agentId)],
+);
 
 export const paperPositions = pgTable(
   "paper_positions",
@@ -406,8 +414,8 @@ export const paperPositions = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
   (table) => [
-    uniqueIndex("paper_positions_one_open_position_per_account_idx")
-      .on(table.accountId)
+    uniqueIndex("paper_positions_one_open_position_per_strategy_run_idx")
+      .on(table.accountId, table.strategyRunId)
       .where(sql`${table.status} = 'open'`),
   ],
 );

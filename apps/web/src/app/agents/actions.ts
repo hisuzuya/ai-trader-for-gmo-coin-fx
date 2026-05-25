@@ -116,6 +116,7 @@ export async function createAgent(formData: FormData) {
   const systemPrompt = String(formData.get("systemPrompt") ?? "").trim();
   const model = String(formData.get("model") ?? "").trim();
   const runIntervalRaw = Number(formData.get("runIntervalSec"));
+  const initialBalanceRaw = Number(formData.get("initialBalanceJpy"));
   const allowedTools = formData
     .getAll("allowedTools")
     .map(String)
@@ -131,6 +132,10 @@ export async function createAgent(formData: FormData) {
 
   if (!Number.isFinite(runIntervalRaw) || runIntervalRaw < 60) {
     redirect(`/agents?character=${characterIdRaw}&error=invalid_interval#picker`);
+  }
+
+  if (!Number.isFinite(initialBalanceRaw) || initialBalanceRaw <= 0) {
+    redirect(`/agents?character=${characterIdRaw}&error=invalid_balance#picker`);
   }
 
   if (SECRET_LIKE_PATTERN.test(systemPrompt)) {
@@ -151,6 +156,7 @@ export async function createAgent(formData: FormData) {
         runIntervalSec: runIntervalRaw,
         model,
         characterId: characterIdRaw,
+        initialBalanceJpy: initialBalanceRaw,
         sharedMemoryEnabled: formData.get("sharedMemoryEnabled") === "on",
       }),
     },

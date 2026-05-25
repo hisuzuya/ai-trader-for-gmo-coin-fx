@@ -137,6 +137,11 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
             {initialError === "invalid_interval" ? (
               <p className="panel-toast warn mb-2.5">実行間隔は 60 秒以上にしてください</p>
             ) : null}
+            {initialError === "invalid_balance" ? (
+              <p className="panel-toast warn mb-2.5">
+                初期資金は 1 円以上の正の数を指定してください
+              </p>
+            ) : null}
             {initialError === "create_failed" ? (
               <p className="panel-toast warn mb-2.5">作成に失敗しました。再試行してください</p>
             ) : null}
@@ -196,6 +201,20 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="col-span-2">
+                <span>初期資金 (JPY)</span>
+                <input
+                  type="number"
+                  name="initialBalanceJpy"
+                  defaultValue={100000}
+                  min={1}
+                  step={1000}
+                  required
+                />
+                <small className="text-[11px] text-muted">
+                  このエージェント専用のペーパー口座に入金される金額。後から残高を直接編集することはできません
+                </small>
               </label>
               <label className="col-span-2">
                 <span>System prompt</span>

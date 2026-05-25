@@ -20,6 +20,9 @@ import {
   aiAgentStrategyProposals,
   aiAgents,
   aiAgentVersions,
+  paperAccounts,
+  paperPositions,
+  paperTrades,
   strategyRuns,
 } from "../schema/index.js";
 
@@ -48,6 +51,7 @@ export type CreateAgentInput = {
   runIntervalSec: number;
   model: string;
   characterId: CharacterId | null;
+  initialBalanceJpy: number;
   maxConsecutiveFailures?: number;
   tokenBudgetPerRun?: number;
   costBudgetPerRunUsd?: number;
@@ -88,9 +92,50 @@ export type AgentSummary = AgentDefinition & {
   rejectedProposalCount: number;
   succeededRunCount: number;
   failedRunCount: number;
+  paperAccount: AgentPaperAccountSummary | null;
+};
+
+export type AgentPaperAccountSummary = {
+  accountId: string;
+  balanceJpy: number;
+  initialBalanceJpy: number;
+  pnlJpy: number;
+  pnlPct: number;
+  openPositionCount: number;
+  closedTradeCount: number;
+  totalRealizedPnlJpy: number;
+};
+
+export type AgentPaperAccountDetail = AgentPaperAccountSummary & {
+  openPositions: {
+    id: string;
+    strategyRunId: string | null;
+    symbol: string;
+    side: "long" | "short";
+    quantity: number;
+    entryPrice: number;
+    openedAt: string;
+    stopLossPrice: number;
+    takeProfitPrice: number;
+    spreadPips: number;
+  }[];
+  recentTrades: {
+    id: string;
+    strategyRunId: string | null;
+    symbol: string;
+    side: "long" | "short";
+    quantity: number;
+    entryPrice: number;
+    exitPrice: number;
+    pnlJpy: number;
+    closeReason: string;
+    openedAt: string;
+    closedAt: string;
+  }[];
 };
 
 export type AgentDetail = AgentDefinition & {
+  paperAccount: AgentPaperAccountDetail | null;
   observations: {
     id: string;
     kind: string;
@@ -170,16 +215,55 @@ export class AiAgentRepository {
           .where(eq(aiAgentRuns.agentId, agent.id))
           .orderBy(desc(aiAgentRuns.startedAt))
           .limit(1);
-        const [proposalRows, runRows] = await Promise.all([
-          this.database
-            .select({ validationStatus: aiAgentStrategyProposals.validationStatus })
-            .from(aiAgentStrategyProposals)
-            .where(eq(aiAgentStrategyProposals.agentId, agent.id)),
-          this.database
-            .select({ status: aiAgentRuns.status })
-            .from(aiAgentRuns)
-            .where(eq(aiAgentRuns.agentId, agent.id)),
-        ]);
+        const [proposalRows, runRows, paperAccountRows, openPositionRows, tradeRows] =
+          await Promise.all([
+            this.database
+              .select({ validationStatus: aiAgentStrategyProposals.validationStatus })
+              .from(aiAgentStrategyProposals)
+              .where(eq(aiAgentStrategyProposals.agentId, agent.id)),
+            this.database
+              .select({ status: aiAgentRuns.status })
+              .from(aiAgentRuns)
+              .where(eq(aiAgentRuns.agentId, agent.id)),
+            this.database
+              .select({
+                id: paperAccounts.id,
+                balanceJpy: paperAccounts.balanceJpy,
+                initialBalanceJpy: paperAccounts.initialBalanceJpy,
+              })
+              .from(paperAccounts)
+              .where(eq(paperAccounts.agentId, agent.id))
+              .limit(1),
+            this.database
+              .select({ id: paperPositions.id })
+              .from(paperPositions)
+              .innerJoin(paperAccounts, eq(paperAccounts.id, paperPositions.accountId))
+              .where(and(eq(paperAccounts.agentId, agent.id), eq(paperPositions.status, "open"))),
+            this.database
+              .select({ pnlJpy: paperTrades.pnlJpy })
+              .from(paperTrades)
+              .innerJoin(paperAccounts, eq(paperAccounts.id, paperTrades.accountId))
+              .where(eq(paperAccounts.agentId, agent.id)),
+          ]);
+
+        const accountRow = paperAccountRows[0];
+        const paperAccount: AgentPaperAccountSummary | null = accountRow
+          ? {
+              accountId: accountRow.id,
+              balanceJpy: Number(accountRow.balanceJpy),
+              initialBalanceJpy: Number(accountRow.initialBalanceJpy),
+              pnlJpy: Number(accountRow.balanceJpy) - Number(accountRow.initialBalanceJpy),
+              pnlPct:
+                Number(accountRow.initialBalanceJpy) > 0
+                  ? ((Number(accountRow.balanceJpy) - Number(accountRow.initialBalanceJpy)) /
+                      Number(accountRow.initialBalanceJpy)) *
+                    100
+                  : 0,
+              openPositionCount: openPositionRows.length,
+              closedTradeCount: tradeRows.length,
+              totalRealizedPnlJpy: tradeRows.reduce((acc, row) => acc + Number(row.pnlJpy), 0),
+            }
+          : null;
 
         return {
           ...agent,
@@ -199,6 +283,7 @@ export class AiAgentRepository {
           ).length,
           succeededRunCount: runRows.filter((run) => run.status === "succeeded").length,
           failedRunCount: runRows.filter((run) => run.status !== "succeeded").length,
+          paperAccount,
         };
       }),
     );
@@ -211,96 +296,102 @@ export class AiAgentRepository {
       return null;
     }
 
-    const [observations, memories, proposals, reviews, runs, versions] = await Promise.all([
-      this.database
-        .select({
-          id: aiAgentObservations.id,
-          kind: aiAgentObservations.kind,
-          summary: aiAgentObservations.summary,
-          evidence: aiAgentObservations.evidence,
-          tags: aiAgentObservations.tags,
-          createdAt: aiAgentObservations.createdAt,
-        })
-        .from(aiAgentObservations)
-        .where(eq(aiAgentObservations.agentId, agentId))
-        .orderBy(desc(aiAgentObservations.createdAt))
-        .limit(20),
-      this.database
-        .select({
-          id: aiAgentMemories.id,
-          type: aiAgentMemories.type,
-          content: aiAgentMemories.content,
-          tags: aiAgentMemories.tags,
-          sourceRefs: aiAgentMemories.sourceRefs,
-          createdAt: aiAgentMemories.createdAt,
-        })
-        .from(aiAgentMemories)
-        .where(eq(aiAgentMemories.agentId, agentId))
-        .orderBy(desc(aiAgentMemories.createdAt))
-        .limit(50),
-      this.database
-        .select({
-          id: aiAgentStrategyProposals.id,
-          strategyName: aiAgentStrategyProposals.strategyName,
-          validationStatus: aiAgentStrategyProposals.validationStatus,
-          rejectionReasons: aiAgentStrategyProposals.rejectionReasons,
-          insertedStrategyRunId: aiAgentStrategyProposals.insertedStrategyRunId,
-          strategyRunStatus: strategyRuns.status,
-          createdAt: aiAgentStrategyProposals.createdAt,
-        })
-        .from(aiAgentStrategyProposals)
-        .leftJoin(strategyRuns, eq(strategyRuns.id, aiAgentStrategyProposals.insertedStrategyRunId))
-        .where(eq(aiAgentStrategyProposals.agentId, agentId))
-        .orderBy(desc(aiAgentStrategyProposals.createdAt))
-        .limit(50),
-      this.database
-        .select({
-          id: aiAgentCandidateReviews.id,
-          strategyName: aiAgentCandidateReviews.strategyName,
-          recommendation: aiAgentCandidateReviews.recommendation,
-          confidence: aiAgentCandidateReviews.confidence,
-          reason: aiAgentCandidateReviews.reason,
-          evidence: aiAgentCandidateReviews.evidence,
-          applied: aiAgentCandidateReviews.applied,
-          createdAt: aiAgentCandidateReviews.createdAt,
-        })
-        .from(aiAgentCandidateReviews)
-        .where(eq(aiAgentCandidateReviews.agentId, agentId))
-        .orderBy(desc(aiAgentCandidateReviews.createdAt))
-        .limit(50),
-      this.database
-        .select({
-          id: aiAgentRuns.id,
-          agentVersion: aiAgentRuns.agentVersion,
-          status: aiAgentRuns.status,
-          outputSummary: aiAgentRuns.outputSummary,
-          toolCalls: aiAgentRuns.toolCalls,
-          tokenUsage: aiAgentRuns.tokenUsage,
-          error: aiAgentRuns.error,
-          startedAt: aiAgentRuns.startedAt,
-          finishedAt: aiAgentRuns.finishedAt,
-        })
-        .from(aiAgentRuns)
-        .where(eq(aiAgentRuns.agentId, agentId))
-        .orderBy(desc(aiAgentRuns.startedAt))
-        .limit(50),
-      this.database
-        .select({
-          id: aiAgentVersions.id,
-          version: aiAgentVersions.version,
-          systemPrompt: aiAgentVersions.systemPrompt,
-          allowedTools: aiAgentVersions.allowedTools,
-          note: aiAgentVersions.note,
-          createdAt: aiAgentVersions.createdAt,
-        })
-        .from(aiAgentVersions)
-        .where(eq(aiAgentVersions.agentId, agentId))
-        .orderBy(desc(aiAgentVersions.version))
-        .limit(50),
-    ]);
+    const [observations, memories, proposals, reviews, runs, versions, paperAccount] =
+      await Promise.all([
+        this.database
+          .select({
+            id: aiAgentObservations.id,
+            kind: aiAgentObservations.kind,
+            summary: aiAgentObservations.summary,
+            evidence: aiAgentObservations.evidence,
+            tags: aiAgentObservations.tags,
+            createdAt: aiAgentObservations.createdAt,
+          })
+          .from(aiAgentObservations)
+          .where(eq(aiAgentObservations.agentId, agentId))
+          .orderBy(desc(aiAgentObservations.createdAt))
+          .limit(20),
+        this.database
+          .select({
+            id: aiAgentMemories.id,
+            type: aiAgentMemories.type,
+            content: aiAgentMemories.content,
+            tags: aiAgentMemories.tags,
+            sourceRefs: aiAgentMemories.sourceRefs,
+            createdAt: aiAgentMemories.createdAt,
+          })
+          .from(aiAgentMemories)
+          .where(eq(aiAgentMemories.agentId, agentId))
+          .orderBy(desc(aiAgentMemories.createdAt))
+          .limit(50),
+        this.database
+          .select({
+            id: aiAgentStrategyProposals.id,
+            strategyName: aiAgentStrategyProposals.strategyName,
+            validationStatus: aiAgentStrategyProposals.validationStatus,
+            rejectionReasons: aiAgentStrategyProposals.rejectionReasons,
+            insertedStrategyRunId: aiAgentStrategyProposals.insertedStrategyRunId,
+            strategyRunStatus: strategyRuns.status,
+            createdAt: aiAgentStrategyProposals.createdAt,
+          })
+          .from(aiAgentStrategyProposals)
+          .leftJoin(
+            strategyRuns,
+            eq(strategyRuns.id, aiAgentStrategyProposals.insertedStrategyRunId),
+          )
+          .where(eq(aiAgentStrategyProposals.agentId, agentId))
+          .orderBy(desc(aiAgentStrategyProposals.createdAt))
+          .limit(50),
+        this.database
+          .select({
+            id: aiAgentCandidateReviews.id,
+            strategyName: aiAgentCandidateReviews.strategyName,
+            recommendation: aiAgentCandidateReviews.recommendation,
+            confidence: aiAgentCandidateReviews.confidence,
+            reason: aiAgentCandidateReviews.reason,
+            evidence: aiAgentCandidateReviews.evidence,
+            applied: aiAgentCandidateReviews.applied,
+            createdAt: aiAgentCandidateReviews.createdAt,
+          })
+          .from(aiAgentCandidateReviews)
+          .where(eq(aiAgentCandidateReviews.agentId, agentId))
+          .orderBy(desc(aiAgentCandidateReviews.createdAt))
+          .limit(50),
+        this.database
+          .select({
+            id: aiAgentRuns.id,
+            agentVersion: aiAgentRuns.agentVersion,
+            status: aiAgentRuns.status,
+            outputSummary: aiAgentRuns.outputSummary,
+            toolCalls: aiAgentRuns.toolCalls,
+            tokenUsage: aiAgentRuns.tokenUsage,
+            error: aiAgentRuns.error,
+            startedAt: aiAgentRuns.startedAt,
+            finishedAt: aiAgentRuns.finishedAt,
+          })
+          .from(aiAgentRuns)
+          .where(eq(aiAgentRuns.agentId, agentId))
+          .orderBy(desc(aiAgentRuns.startedAt))
+          .limit(50),
+        this.database
+          .select({
+            id: aiAgentVersions.id,
+            version: aiAgentVersions.version,
+            systemPrompt: aiAgentVersions.systemPrompt,
+            allowedTools: aiAgentVersions.allowedTools,
+            note: aiAgentVersions.note,
+            createdAt: aiAgentVersions.createdAt,
+          })
+          .from(aiAgentVersions)
+          .where(eq(aiAgentVersions.agentId, agentId))
+          .orderBy(desc(aiAgentVersions.version))
+          .limit(50),
+        this.getAgentPaperAccount(agentId),
+      ]);
 
     return {
       ...agent,
+      paperAccount,
       observations: observations.map((observation) => ({
         ...observation,
         createdAt: observation.createdAt.toISOString(),
@@ -362,6 +453,30 @@ export class AiAgentRepository {
       .onConflictDoNothing({
         target: [aiAgentVersions.agentId, aiAgentVersions.version],
       });
+
+    await this.database
+      .insert(paperAccounts)
+      .values([
+        {
+          agentId: RESEARCH_AGENT_SEED_ID,
+          name: "Research Agent 01 paper account",
+          currency: "JPY",
+          initialBalanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
+          balanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
+          leverage: "1.00",
+          status: "active",
+        },
+        {
+          agentId: RESEARCH_AGENT_1H_SEED_ID,
+          name: "Research Agent 1H paper account",
+          currency: "JPY",
+          initialBalanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
+          balanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
+          leverage: "1.00",
+          status: "active",
+        },
+      ])
+      .onConflictDoNothing({ target: paperAccounts.agentId });
   }
 
   async createVersion(input: AgentVersionInput): Promise<{ version: number }> {
@@ -532,8 +647,13 @@ export class AiAgentRepository {
   }
 
   async createAgent(input: CreateAgentInput): Promise<{ id: string }> {
+    if (!Number.isFinite(input.initialBalanceJpy) || input.initialBalanceJpy <= 0) {
+      throw new RangeError("initialBalanceJpy must be a positive finite number");
+    }
+
     return this.database.transaction(async (tx) => {
       const allowedTools = filterAllowedTools(input.allowedTools);
+      const balanceString = input.initialBalanceJpy.toFixed(6);
       const rows = await tx
         .insert(aiAgents)
         .values({
@@ -552,6 +672,7 @@ export class AiAgentRepository {
           pausedReason: null,
           sharedMemoryEnabled: input.sharedMemoryEnabled ?? false,
           characterId: input.characterId,
+          initialBalanceJpy: balanceString,
         })
         .returning({ id: aiAgents.id });
 
@@ -569,8 +690,114 @@ export class AiAgentRepository {
         note: input.note ?? `Created from character ${input.characterId}.`,
       });
 
+      await tx.insert(paperAccounts).values({
+        agentId: created.id,
+        name: `${input.name} paper account`,
+        currency: "JPY",
+        initialBalanceJpy: balanceString,
+        balanceJpy: balanceString,
+        leverage: "1.00",
+        status: "active",
+      });
+
       return { id: created.id };
     });
+  }
+
+  async getAgentPaperAccount(agentId: string): Promise<AgentPaperAccountDetail | null> {
+    const [account] = await this.database
+      .select({
+        id: paperAccounts.id,
+        balanceJpy: paperAccounts.balanceJpy,
+        initialBalanceJpy: paperAccounts.initialBalanceJpy,
+      })
+      .from(paperAccounts)
+      .where(eq(paperAccounts.agentId, agentId))
+      .limit(1);
+
+    if (!account) {
+      return null;
+    }
+
+    const [openPositions, recentTrades] = await Promise.all([
+      this.database
+        .select({
+          id: paperPositions.id,
+          strategyRunId: paperPositions.strategyRunId,
+          symbol: paperPositions.symbol,
+          side: paperPositions.side,
+          quantity: paperPositions.quantity,
+          entryPrice: paperPositions.entryPrice,
+          openedAt: paperPositions.openedAt,
+          stopLossPrice: paperPositions.stopLossPrice,
+          takeProfitPrice: paperPositions.takeProfitPrice,
+          spreadPips: paperPositions.spreadPips,
+        })
+        .from(paperPositions)
+        .where(and(eq(paperPositions.accountId, account.id), eq(paperPositions.status, "open")))
+        .orderBy(desc(paperPositions.openedAt))
+        .limit(20),
+      this.database
+        .select({
+          id: paperTrades.id,
+          strategyRunId: paperTrades.strategyRunId,
+          symbol: paperTrades.symbol,
+          side: paperTrades.side,
+          quantity: paperTrades.quantity,
+          entryPrice: paperTrades.entryPrice,
+          exitPrice: paperTrades.exitPrice,
+          pnlJpy: paperTrades.pnlJpy,
+          closeReason: paperTrades.closeReason,
+          openedAt: paperTrades.openedAt,
+          closedAt: paperTrades.closedAt,
+        })
+        .from(paperTrades)
+        .where(eq(paperTrades.accountId, account.id))
+        .orderBy(desc(paperTrades.closedAt))
+        .limit(20),
+    ]);
+
+    const totalRealizedPnl = recentTrades.reduce((acc, trade) => acc + Number(trade.pnlJpy), 0);
+    const balance = Number(account.balanceJpy);
+    const initial = Number(account.initialBalanceJpy);
+    const pnl = balance - initial;
+    const pnlPct = initial > 0 ? (pnl / initial) * 100 : 0;
+
+    return {
+      accountId: account.id,
+      balanceJpy: balance,
+      initialBalanceJpy: initial,
+      pnlJpy: pnl,
+      pnlPct,
+      openPositionCount: openPositions.length,
+      closedTradeCount: recentTrades.length,
+      totalRealizedPnlJpy: totalRealizedPnl,
+      openPositions: openPositions.map((position) => ({
+        id: position.id,
+        strategyRunId: position.strategyRunId,
+        symbol: position.symbol,
+        side: position.side,
+        quantity: Number(position.quantity),
+        entryPrice: Number(position.entryPrice),
+        openedAt: position.openedAt.toISOString(),
+        stopLossPrice: Number(position.stopLossPrice),
+        takeProfitPrice: Number(position.takeProfitPrice),
+        spreadPips: Number(position.spreadPips),
+      })),
+      recentTrades: recentTrades.map((trade) => ({
+        id: trade.id,
+        strategyRunId: trade.strategyRunId,
+        symbol: trade.symbol,
+        side: trade.side,
+        quantity: Number(trade.quantity),
+        entryPrice: Number(trade.entryPrice),
+        exitPrice: Number(trade.exitPrice),
+        pnlJpy: Number(trade.pnlJpy),
+        closeReason: trade.closeReason,
+        openedAt: trade.openedAt.toISOString(),
+        closedAt: trade.closedAt.toISOString(),
+      })),
+    };
   }
 
   async updateAgentSettings(input: UpdateAgentSettingsInput): Promise<{ updated: boolean }> {
@@ -625,6 +852,8 @@ export class AiAgentRepository {
   }
 }
 
+export const RESEARCH_AGENT_DEFAULT_BALANCE_JPY = "100000";
+
 export function toResearchAgentSeedRow() {
   return {
     id: RESEARCH_AGENT_SEED_ID,
@@ -643,6 +872,7 @@ export function toResearchAgentSeedRow() {
     pausedReason: null,
     sharedMemoryEnabled: true,
     characterId: "ceres" satisfies CharacterId,
+    initialBalanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
   };
 }
 
@@ -664,6 +894,7 @@ export function toResearchAgent1hSeedRow() {
     pausedReason: null,
     sharedMemoryEnabled: true,
     characterId: "iris" satisfies CharacterId,
+    initialBalanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
   };
 }
 
@@ -858,6 +1089,7 @@ function toAgentDefinition(row: typeof aiAgents.$inferSelect): AgentDefinition {
     pausedReason: row.pausedReason ?? undefined,
     sharedMemoryEnabled: row.sharedMemoryEnabled,
     characterId: isCharacterId(row.characterId) ? row.characterId : null,
+    initialBalanceJpy: Number(row.initialBalanceJpy),
   };
 }
 

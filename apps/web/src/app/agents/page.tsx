@@ -31,6 +31,16 @@ type AgentSummary = {
   rejectedProposalCount: number;
   succeededRunCount: number;
   failedRunCount: number;
+  paperAccount: {
+    accountId: string;
+    balanceJpy: number;
+    initialBalanceJpy: number;
+    pnlJpy: number;
+    pnlPct: number;
+    openPositionCount: number;
+    closedTradeCount: number;
+    totalRealizedPnlJpy: number;
+  } | null;
 };
 
 async function getAgents(): Promise<AgentSummary[]> {
@@ -125,6 +135,10 @@ export default async function AgentsPage({ searchParams }: PageProps) {
                 succeededRunCount: agent.succeededRunCount,
                 failedRunCount: agent.failedRunCount,
                 latestRunStatus: agent.latestRun?.status ?? null,
+                balanceJpy: agent.paperAccount?.balanceJpy ?? null,
+                initialBalanceJpy: agent.paperAccount?.initialBalanceJpy ?? null,
+                pnlJpy: agent.paperAccount?.pnlJpy ?? null,
+                openPositionCount: agent.paperAccount?.openPositionCount ?? null,
               };
               return <CrewTile key={agent.id} character={character} agent={summary} />;
             })}

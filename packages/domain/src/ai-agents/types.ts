@@ -76,6 +76,7 @@ export type AgentDefinition = {
   pausedReason?: string;
   sharedMemoryEnabled: boolean;
   characterId: CharacterId | null;
+  initialBalanceJpy: number;
 };
 
 export type AgentRunRequest = {

@@ -12,6 +12,10 @@ export type CrewAgentSummary = {
   succeededRunCount: number;
   failedRunCount: number;
   latestRunStatus: string | null;
+  balanceJpy: number | null;
+  initialBalanceJpy: number | null;
+  pnlJpy: number | null;
+  openPositionCount: number | null;
 };
 
 export function CrewTile({
@@ -22,7 +26,14 @@ export function CrewTile({
   agent: CrewAgentSummary | null;
 }) {
   const href = agent ? `/agents/${agent.id}` : `/agents?character=${character.id}#picker`;
-  const runTotal = (agent?.succeededRunCount ?? 0) + (agent?.failedRunCount ?? 0);
+  const pnlTone =
+    agent?.pnlJpy !== null && agent?.pnlJpy !== undefined
+      ? agent.pnlJpy > 0
+        ? "profit"
+        : agent.pnlJpy < 0
+          ? "loss"
+          : "neutral"
+      : null;
 
   return (
     <Link
@@ -58,24 +69,26 @@ export function CrewTile({
         {agent ? (
           <dl className="crew-tile-kpis">
             <div>
-              <dt>Version</dt>
-              <dd>v{agent.currentVersion}</dd>
+              <dt>Balance</dt>
+              <dd>{agent.balanceJpy !== null ? formatCompactJpy(agent.balanceJpy) : "—"}</dd>
             </div>
             <div>
-              <dt>Accept</dt>
-              <dd>
-                {agent.acceptedProposalCount}/{agent.proposalCount}
+              <dt>PnL</dt>
+              <dd className={pnlTone ? `tone-${pnlTone}` : undefined}>
+                {agent.pnlJpy !== null
+                  ? `${agent.pnlJpy >= 0 ? "+" : ""}${formatCompactJpy(agent.pnlJpy)}`
+                  : "—"}
               </dd>
             </div>
             <div>
-              <dt>Runs</dt>
-              <dd>
-                {agent.succeededRunCount}/{runTotal}
-              </dd>
+              <dt>Open</dt>
+              <dd>{agent.openPositionCount ?? 0}</dd>
             </div>
             <div>
-              <dt>Latest</dt>
-              <dd>{agent.latestRunStatus ?? "none"}</dd>
+              <dt>Runs ok</dt>
+              <dd>
+                {agent.succeededRunCount}/{agent.succeededRunCount + agent.failedRunCount}
+              </dd>
             </div>
           </dl>
         ) : (
@@ -84,4 +97,12 @@ export function CrewTile({
       </div>
     </Link>
   );
+}
+
+function formatCompactJpy(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 100_000_000) return `${sign}¥${(abs / 100_000_000).toFixed(2)}億`;
+  if (abs >= 10_000) return `${sign}¥${(abs / 10_000).toFixed(1)}万`;
+  return `${sign}¥${Math.round(abs).toLocaleString("ja-JP")}`;
 }

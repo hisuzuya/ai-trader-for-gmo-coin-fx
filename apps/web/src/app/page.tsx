@@ -1,6 +1,12 @@
+import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import type { UTCTimestamp } from "lightweight-charts";
+import Image from "next/image";
 import Link from "next/link";
-import { CrewPanelSection } from "@/components/agents/CrewPanelSection";
+import {
+  type AgentSummaryRaw,
+  CrewPanelSection,
+  fetchAgentSummaries,
+} from "@/components/agents/CrewPanelSection";
 import { type CandlePoint, CandlestickChart } from "@/components/CandlestickChart";
 import { PnlChart, type PnlPoint } from "@/components/PnlChart";
 import { appRouter } from "@/server/trpc/root";
@@ -159,23 +165,30 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         ? rawAccount[0]
         : undefined;
 
-  const [health, dashboard, recentCandles] = await Promise.all([
+  const [health, dashboard, recentCandles, agentSummaries] = await Promise.all([
     getHealth(),
     getDashboardSummary(accountParam),
     getRecentCandles(),
+    fetchAgentSummaries(),
   ]);
   const selectedAccountName = dashboard.selectedAccountName;
   const isAccountView = selectedAccountName !== null;
-  const totalBalance = dashboard.accounts.reduce(
-    (sum, account) => sum + Number(account.balanceJpy),
+  const totalBalance = agentSummaries.reduce(
+    (sum, agent) => sum + (agent.paperAccount?.balanceJpy ?? 0),
+    0,
+  );
+  const totalInitialBalance = agentSummaries.reduce(
+    (sum, agent) => sum + (agent.paperAccount?.initialBalanceJpy ?? 0),
+    0,
+  );
+  const totalUnrealizedPnl = totalBalance - totalInitialBalance;
+  const totalOpenPositions = agentSummaries.reduce(
+    (sum, agent) => sum + (agent.paperAccount?.openPositionCount ?? 0),
     0,
   );
   const totalPnl = dashboard.trades.reduce((sum, trade) => sum + Number(trade.pnlJpy), 0);
   const winningTrades = dashboard.trades.filter((trade) => Number(trade.pnlJpy) > 0).length;
   const winRate = dashboard.trades.length > 0 ? (winningTrades / dashboard.trades.length) * 100 : 0;
-  const activeCandidates = dashboard.candidates.filter(
-    (candidate) => candidate.strategyRunStatus === "proposed" || candidate.status === "accepted",
-  ).length;
   const latestReview = dashboard.dailyReviews[0];
   const pnlSeries = buildPnlSeries(dashboard.trades);
   const pnlPositive = totalPnl >= 0;
@@ -191,30 +204,34 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   return (
     <>
-      <CrewPanelSection />
+      <CrewPanelSection agents={agentSummaries} />
       <main className="tv-shell">
         <Sidebar />
         <TopBar healthOk={health.ok} healthService={health.service} timestamp={health.timestamp} />
         <TickerStrip
           balance={totalBalance}
-          pnl={totalPnl}
+          unrealizedPnl={totalUnrealizedPnl}
+          realizedPnl={totalPnl}
           winRate={winRate}
           trades={dashboard.trades.length}
-          candidates={activeCandidates}
+          openPositions={totalOpenPositions}
         />
 
         <div className="tv-main">
           <div className="tv-col tv-col-left">
-            <section className="tv-panel" aria-label="ペーパー口座">
-              <PanelHeader title="ペーパー口座" meta={`${dashboard.accounts.length}`} />
+            <section className="tv-panel" aria-label="エージェント口座">
+              <PanelHeader
+                title="エージェント口座 / Agent Accounts"
+                meta={`${agentSummaries.length}`}
+              />
               <div className="tv-panel-body">
-                {dashboard.accounts.length === 0 ? (
-                  <EmptyState text="口座が同期されていません" />
+                {agentSummaries.length === 0 ? (
+                  <EmptyState text="エージェントがまだ配属されていません" />
                 ) : (
                   <>
                     <div className="tv-watchlist-head">
-                      <span>口座名</span>
-                      <span className="text-right">残高</span>
+                      <span>エージェント</span>
+                      <span className="text-right">残高 / PnL</span>
                     </div>
                     <Link
                       href="/"
@@ -224,44 +241,30 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                       }`}
                     >
                       <div className="tv-watchlist-name">
-                        <span className="tv-watchlist-symbol">全口座 (集計)</span>
+                        <span className="tv-watchlist-symbol">クルー合計</span>
                         <span className="tv-watchlist-sub">
                           <span className="tv-tag">ALL</span>
-                          <span>{dashboard.accounts.length} accounts</span>
+                          <span>{agentSummaries.length} agents</span>
                         </span>
                       </div>
                       <div className="tv-watchlist-balance">
                         {formatJpy(totalBalance)}
-                        <small>JPY</small>
+                        <small
+                          className={
+                            totalUnrealizedPnl > 0
+                              ? "tv-pnl profit"
+                              : totalUnrealizedPnl < 0
+                                ? "tv-pnl loss"
+                                : undefined
+                          }
+                        >
+                          {formatJpySigned(totalUnrealizedPnl)}
+                        </small>
                       </div>
                     </Link>
-                    {dashboard.accounts.map((account) => {
-                      const isSelected = selectedAccountName === account.name;
-                      return (
-                        <Link
-                          href={`/?account=${encodeURIComponent(account.name)}`}
-                          scroll={false}
-                          key={account.name}
-                          className={`tv-watchlist-row tv-watchlist-row-link ${
-                            isSelected ? "active" : ""
-                          }`}
-                        >
-                          <div className="tv-watchlist-name">
-                            <span className="tv-watchlist-symbol">{account.name}</span>
-                            <span className="tv-watchlist-sub">
-                              <span className={`tv-tag ${normalizeStatus(account.status)}`}>
-                                {translateStatus(account.status)}
-                              </span>
-                              <span>{formatDateTime(account.updatedAt)}</span>
-                            </span>
-                          </div>
-                          <div className="tv-watchlist-balance">
-                            {formatJpy(Number(account.balanceJpy))}
-                            <small>JPY</small>
-                          </div>
-                        </Link>
-                      );
-                    })}
+                    {agentSummaries.map((agent) => (
+                      <AgentAccountRow key={agent.id} agent={agent} />
+                    ))}
                   </>
                 )}
               </div>
@@ -527,6 +530,47 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   );
 }
 
+function AgentAccountRow({ agent }: { agent: AgentSummaryRaw }) {
+  const character = getCharacter(agent.characterId);
+  const account = agent.paperAccount;
+  const pnl = account?.pnlJpy ?? 0;
+  const balance = account?.balanceJpy ?? 0;
+  const pnlClass = pnl > 0 ? "tv-pnl profit" : pnl < 0 ? "tv-pnl loss" : undefined;
+  return (
+    <Link
+      href={`/agents/${agent.id}`}
+      className="tv-watchlist-row tv-watchlist-row-link"
+      data-character-id={character?.id ?? "unassigned"}
+    >
+      <div className="tv-watchlist-name flex items-center gap-2">
+        {character ? (
+          <Image
+            src={character.avatarPath ?? character.imagePath}
+            alt={`${character.name} avatar`}
+            width={28}
+            height={28}
+            className="rounded-md"
+            unoptimized
+          />
+        ) : null}
+        <span className="flex flex-col">
+          <span className="tv-watchlist-symbol">{agent.name}</span>
+          <span className="tv-watchlist-sub">
+            <span className={`tv-tag ${normalizeStatus(agent.status)}`}>
+              {translateStatus(agent.status)}
+            </span>
+            <span>{account ? `${account.openPositionCount} open` : "no account"}</span>
+          </span>
+        </span>
+      </div>
+      <div className="tv-watchlist-balance">
+        {account ? formatJpy(balance) : "—"}
+        <small className={pnlClass}>{account ? formatJpySigned(pnl) : ""}</small>
+      </div>
+    </Link>
+  );
+}
+
 function Sidebar() {
   const upcomingTitle = "未実装 (ルート未追加)";
   return (
@@ -721,51 +765,55 @@ function TopBar({
 
 function TickerStrip({
   balance,
-  pnl,
+  unrealizedPnl,
+  realizedPnl,
   winRate,
   trades,
-  candidates,
+  openPositions,
 }: {
   balance: number;
-  pnl: number;
+  unrealizedPnl: number;
+  realizedPnl: number;
   winRate: number;
   trades: number;
-  candidates: number;
+  openPositions: number;
 }) {
   return (
     <div className="tv-ticker">
       <div className="tv-ticker-tile">
         <span className="tv-ticker-label">
-          <span>総資産</span>
-          <span>Equity</span>
+          <span>クルー総残高</span>
+          <span>Crew Equity</span>
         </span>
         <span className="tv-ticker-value">{formatJpy(balance)}</span>
       </div>
       <div className="tv-ticker-tile">
         <span className="tv-ticker-label">
-          <span>確定損益</span>
-          <span>Realized PnL</span>
+          <span>含み損益</span>
+          <span>Unrealized PnL</span>
         </span>
-        <span className={`tv-ticker-value ${pnl >= 0 ? "profit" : "loss"}`}>
-          {formatJpySigned(pnl)}
-        </span>
-      </div>
-      <div className="tv-ticker-tile">
-        <span className="tv-ticker-label">
-          <span>勝率 / 取引</span>
-          <span>Win Rate / Trades</span>
-        </span>
-        <span className="tv-ticker-value">
-          {trades > 0 ? `${winRate.toFixed(1)}%` : "—"}
-          <span className="ml-2 text-[13px] text-muted">({trades})</span>
+        <span className={`tv-ticker-value ${unrealizedPnl >= 0 ? "profit" : "loss"}`}>
+          {formatJpySigned(unrealizedPnl)}
         </span>
       </div>
       <div className="tv-ticker-tile">
         <span className="tv-ticker-label">
-          <span>候補戦略</span>
-          <span>Active Candidates</span>
+          <span>確定損益 / 勝率</span>
+          <span>Realized / Win Rate</span>
         </span>
-        <span className="tv-ticker-value accent">{candidates.toLocaleString()}</span>
+        <span className={`tv-ticker-value ${realizedPnl >= 0 ? "profit" : "loss"}`}>
+          {formatJpySigned(realizedPnl)}
+          <span className="ml-2 text-[13px] text-muted">
+            {trades > 0 ? `${winRate.toFixed(1)}% (${trades})` : "—"}
+          </span>
+        </span>
+      </div>
+      <div className="tv-ticker-tile">
+        <span className="tv-ticker-label">
+          <span>オープン中</span>
+          <span>Open Positions</span>
+        </span>
+        <span className="tv-ticker-value accent">{openPositions.toLocaleString()}</span>
       </div>
     </div>
   );
