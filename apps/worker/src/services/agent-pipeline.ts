@@ -181,6 +181,16 @@ export class AgentScheduler implements WorkerService {
     return this.repository.listAgents();
   }
 
+  async listAgentSummaries() {
+    await this.repository.seedResearchAgent();
+    return this.repository.listAgentSummaries();
+  }
+
+  async getAgentDetail(agentId: string) {
+    await this.repository.seedResearchAgent();
+    return this.repository.getAgentDetail(agentId);
+  }
+
   async createVersion(input: {
     agentId: string;
     systemPrompt: string;
@@ -189,6 +199,16 @@ export class AgentScheduler implements WorkerService {
   }): Promise<{ version: number }> {
     await this.repository.seedResearchAgent();
     return this.repository.createVersion(input);
+  }
+
+  async rollbackVersion(input: { agentId: string; sourceVersion: number; note?: string }) {
+    await this.repository.seedResearchAgent();
+    return this.repository.createVersionFromVersion(input);
+  }
+
+  async deleteMemory(input: { agentId: string; memoryId: string }) {
+    await this.repository.seedResearchAgent();
+    return this.repository.deleteMemory(input);
   }
 
   async runOnce(agentId?: string): Promise<AgentRunResponse> {

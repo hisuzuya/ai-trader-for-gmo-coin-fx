@@ -11,6 +11,12 @@ type AgentSummary = {
   runIntervalSec: number;
   model: string;
   allowedTools: string[];
+  latestRun: {
+    status: string;
+    startedAt: string;
+    finishedAt: string | null;
+  } | null;
+  proposalCount: number;
 };
 
 async function getAgents(): Promise<AgentSummary[]> {
@@ -70,7 +76,14 @@ export default async function AgentsPage() {
                   <dt>Tools</dt>
                   <dd>{agent.allowedTools.length}</dd>
                 </div>
+                <div>
+                  <dt>Proposals</dt>
+                  <dd>{agent.proposalCount}</dd>
+                </div>
               </dl>
+              <p className="agent-model">
+                Latest run: {agent.latestRun ? agent.latestRun.status : "none"}
+              </p>
               <p className="agent-model">{agent.model}</p>
             </Link>
           ))

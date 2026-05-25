@@ -1,6 +1,8 @@
 export { checkDbConnection, db, pgPool } from "./client.js";
 export {
+  type AgentDetail,
   type AgentRunRecordInput,
+  type AgentSummary,
   type AgentVersionInput,
   AiAgentRepository,
   RESEARCH_AGENT_SEED_ID,

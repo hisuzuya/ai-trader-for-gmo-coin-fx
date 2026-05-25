@@ -474,6 +474,66 @@ describe("worker Hono app", () => {
       before: new Date("2026-05-25T05:00:00.000Z"),
     });
   });
+
+  it("returns agent detail from the runtime", async () => {
+    const runtime = {
+      getAgentDetail: vi.fn().mockResolvedValue({
+        id: "agent-1",
+        name: "Research Agent 01",
+        memories: [],
+        proposals: [],
+        reviews: [],
+        runs: [],
+        versions: [],
+      }),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request("/agents/agent-1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.agent.name).toBe("Research Agent 01");
+    expect(runtime.getAgentDetail).toHaveBeenCalledWith("agent-1");
+  });
+
+  it("rolls back an agent version through a new version", async () => {
+    const runtime = {
+      rollbackAgentVersion: vi.fn().mockResolvedValue({ version: 4 }),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request("/agents/agent-1/versions/2/rollback", {
+      method: "POST",
+      body: JSON.stringify({ note: "rollback" }),
+      headers: { "content-type": "application/json" },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.version).toBe(4);
+    expect(runtime.rollbackAgentVersion).toHaveBeenCalledWith({
+      agentId: "agent-1",
+      sourceVersion: 2,
+      note: "rollback",
+    });
+  });
+
+  it("deletes agent memory through the runtime", async () => {
+    const runtime = {
+      deleteAgentMemory: vi.fn().mockResolvedValue({ deleted: true }),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request("/agents/agent-1/memories/memory-1", {
+      method: "DELETE",
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.deleted).toBe(true);
+    expect(runtime.deleteAgentMemory).toHaveBeenCalledWith({
+      agentId: "agent-1",
+      memoryId: "memory-1",
+    });
+  });
 });
 
 type JobRunRecord = {

@@ -7,7 +7,7 @@ import {
   type AgentToolCallLog,
 } from "@ai-trade/domain/ai-agents";
 import { validateAiStrategyProposal } from "@ai-trade/domain/strategies";
-import { eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "../client.js";
 import {
@@ -21,7 +21,7 @@ import {
   strategyRuns,
 } from "../schema/index.js";
 
-type AiAgentDatabase = Pick<typeof db, "insert" | "select" | "transaction">;
+type AiAgentDatabase = Pick<typeof db, "delete" | "insert" | "select" | "transaction">;
 type AiAgentWriteDatabase = Pick<typeof db, "insert" | "update">;
 const SECRET_LIKE_PATTERN =
   /(sk-[A-Za-z0-9_-]{16,}|[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY)[A-Z0-9_]*\s*[:=]\s*["']?[^"',\s}]+)/;
@@ -45,12 +45,242 @@ export type AgentRunRecordInput = {
   response: AgentRunResponse;
 };
 
+export type AgentSummary = AgentDefinition & {
+  latestRun: {
+    status: string;
+    startedAt: string;
+    finishedAt: string | null;
+  } | null;
+  proposalCount: number;
+};
+
+export type AgentDetail = AgentDefinition & {
+  observations: {
+    id: string;
+    kind: string;
+    summary: string;
+    evidence: unknown;
+    tags: string[];
+    createdAt: string;
+  }[];
+  memories: {
+    id: string;
+    type: string;
+    content: string;
+    tags: string[];
+    sourceRefs: unknown;
+    createdAt: string;
+  }[];
+  proposals: {
+    id: string;
+    strategyName: string;
+    validationStatus: string;
+    rejectionReasons: unknown;
+    insertedStrategyRunId: string | null;
+    strategyRunStatus: string | null;
+    createdAt: string;
+  }[];
+  reviews: {
+    id: string;
+    strategyName: string;
+    recommendation: string;
+    confidence: string;
+    reason: string;
+    evidence: unknown;
+    applied: boolean;
+    createdAt: string;
+  }[];
+  runs: {
+    id: string;
+    agentVersion: number;
+    status: string;
+    outputSummary: unknown;
+    toolCalls: unknown;
+    tokenUsage: unknown;
+    error: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+  }[];
+  versions: {
+    id: string;
+    version: number;
+    systemPrompt: string;
+    allowedTools: AgentDefinition["allowedTools"];
+    note: string | null;
+    createdAt: string;
+  }[];
+};
+
 export class AiAgentRepository {
   constructor(private readonly database: AiAgentDatabase = db) {}
 
   async listAgents(): Promise<AgentDefinition[]> {
     const rows = await this.database.select().from(aiAgents);
     return rows.map(toAgentDefinition);
+  }
+
+  async listAgentSummaries(): Promise<AgentSummary[]> {
+    const agents = await this.listAgents();
+
+    return Promise.all(
+      agents.map(async (agent) => {
+        const [latestRun] = await this.database
+          .select({
+            status: aiAgentRuns.status,
+            startedAt: aiAgentRuns.startedAt,
+            finishedAt: aiAgentRuns.finishedAt,
+          })
+          .from(aiAgentRuns)
+          .where(eq(aiAgentRuns.agentId, agent.id))
+          .orderBy(desc(aiAgentRuns.startedAt))
+          .limit(1);
+        const proposalRows = await this.database
+          .select({ id: aiAgentStrategyProposals.id })
+          .from(aiAgentStrategyProposals)
+          .where(eq(aiAgentStrategyProposals.agentId, agent.id));
+
+        return {
+          ...agent,
+          latestRun: latestRun
+            ? {
+                status: latestRun.status,
+                startedAt: latestRun.startedAt.toISOString(),
+                finishedAt: latestRun.finishedAt?.toISOString() ?? null,
+              }
+            : null,
+          proposalCount: proposalRows.length,
+        };
+      }),
+    );
+  }
+
+  async getAgentDetail(agentId: string): Promise<AgentDetail | null> {
+    const [agent] = (await this.listAgents()).filter((candidate) => candidate.id === agentId);
+
+    if (!agent) {
+      return null;
+    }
+
+    const [observations, memories, proposals, reviews, runs, versions] = await Promise.all([
+      this.database
+        .select({
+          id: aiAgentObservations.id,
+          kind: aiAgentObservations.kind,
+          summary: aiAgentObservations.summary,
+          evidence: aiAgentObservations.evidence,
+          tags: aiAgentObservations.tags,
+          createdAt: aiAgentObservations.createdAt,
+        })
+        .from(aiAgentObservations)
+        .where(eq(aiAgentObservations.agentId, agentId))
+        .orderBy(desc(aiAgentObservations.createdAt))
+        .limit(20),
+      this.database
+        .select({
+          id: aiAgentMemories.id,
+          type: aiAgentMemories.type,
+          content: aiAgentMemories.content,
+          tags: aiAgentMemories.tags,
+          sourceRefs: aiAgentMemories.sourceRefs,
+          createdAt: aiAgentMemories.createdAt,
+        })
+        .from(aiAgentMemories)
+        .where(eq(aiAgentMemories.agentId, agentId))
+        .orderBy(desc(aiAgentMemories.createdAt))
+        .limit(50),
+      this.database
+        .select({
+          id: aiAgentStrategyProposals.id,
+          strategyName: aiAgentStrategyProposals.strategyName,
+          validationStatus: aiAgentStrategyProposals.validationStatus,
+          rejectionReasons: aiAgentStrategyProposals.rejectionReasons,
+          insertedStrategyRunId: aiAgentStrategyProposals.insertedStrategyRunId,
+          strategyRunStatus: strategyRuns.status,
+          createdAt: aiAgentStrategyProposals.createdAt,
+        })
+        .from(aiAgentStrategyProposals)
+        .leftJoin(strategyRuns, eq(strategyRuns.id, aiAgentStrategyProposals.insertedStrategyRunId))
+        .where(eq(aiAgentStrategyProposals.agentId, agentId))
+        .orderBy(desc(aiAgentStrategyProposals.createdAt))
+        .limit(50),
+      this.database
+        .select({
+          id: aiAgentCandidateReviews.id,
+          strategyName: aiAgentCandidateReviews.strategyName,
+          recommendation: aiAgentCandidateReviews.recommendation,
+          confidence: aiAgentCandidateReviews.confidence,
+          reason: aiAgentCandidateReviews.reason,
+          evidence: aiAgentCandidateReviews.evidence,
+          applied: aiAgentCandidateReviews.applied,
+          createdAt: aiAgentCandidateReviews.createdAt,
+        })
+        .from(aiAgentCandidateReviews)
+        .where(eq(aiAgentCandidateReviews.agentId, agentId))
+        .orderBy(desc(aiAgentCandidateReviews.createdAt))
+        .limit(50),
+      this.database
+        .select({
+          id: aiAgentRuns.id,
+          agentVersion: aiAgentRuns.agentVersion,
+          status: aiAgentRuns.status,
+          outputSummary: aiAgentRuns.outputSummary,
+          toolCalls: aiAgentRuns.toolCalls,
+          tokenUsage: aiAgentRuns.tokenUsage,
+          error: aiAgentRuns.error,
+          startedAt: aiAgentRuns.startedAt,
+          finishedAt: aiAgentRuns.finishedAt,
+        })
+        .from(aiAgentRuns)
+        .where(eq(aiAgentRuns.agentId, agentId))
+        .orderBy(desc(aiAgentRuns.startedAt))
+        .limit(50),
+      this.database
+        .select({
+          id: aiAgentVersions.id,
+          version: aiAgentVersions.version,
+          systemPrompt: aiAgentVersions.systemPrompt,
+          allowedTools: aiAgentVersions.allowedTools,
+          note: aiAgentVersions.note,
+          createdAt: aiAgentVersions.createdAt,
+        })
+        .from(aiAgentVersions)
+        .where(eq(aiAgentVersions.agentId, agentId))
+        .orderBy(desc(aiAgentVersions.version))
+        .limit(50),
+    ]);
+
+    return {
+      ...agent,
+      observations: observations.map((observation) => ({
+        ...observation,
+        createdAt: observation.createdAt.toISOString(),
+      })),
+      memories: memories.map((memory) => ({
+        ...memory,
+        createdAt: memory.createdAt.toISOString(),
+      })),
+      proposals: proposals.map((proposal) => ({
+        ...proposal,
+        strategyRunStatus: proposal.strategyRunStatus ?? null,
+        createdAt: proposal.createdAt.toISOString(),
+      })),
+      reviews: reviews.map((review) => ({
+        ...review,
+        createdAt: review.createdAt.toISOString(),
+      })),
+      runs: runs.map((run) => ({
+        ...run,
+        agentVersion: Number(run.agentVersion),
+        startedAt: run.startedAt.toISOString(),
+        finishedAt: run.finishedAt?.toISOString() ?? null,
+      })),
+      versions: versions.map((version) => ({
+        ...version,
+        version: Number(version.version),
+        allowedTools: filterAllowedTools(version.allowedTools),
+        createdAt: version.createdAt.toISOString(),
+      })),
+    };
   }
 
   async seedResearchAgent(): Promise<void> {
@@ -105,6 +335,48 @@ export class AiAgentRepository {
 
       return { version: nextVersion };
     });
+  }
+
+  async createVersionFromVersion(input: {
+    agentId: string;
+    sourceVersion: number;
+    note?: string;
+  }): Promise<{ version: number }> {
+    const [source] = await this.database
+      .select({
+        systemPrompt: aiAgentVersions.systemPrompt,
+        allowedTools: aiAgentVersions.allowedTools,
+      })
+      .from(aiAgentVersions)
+      .where(
+        and(
+          eq(aiAgentVersions.agentId, input.agentId),
+          eq(aiAgentVersions.version, String(input.sourceVersion)),
+        ),
+      )
+      .limit(1);
+
+    if (!source) {
+      throw new Error("Agent version not found.");
+    }
+
+    return this.createVersion({
+      agentId: input.agentId,
+      systemPrompt: source.systemPrompt,
+      allowedTools: filterAllowedTools(source.allowedTools),
+      note: input.note ?? `Rollback to version ${input.sourceVersion}.`,
+    });
+  }
+
+  async deleteMemory(input: { agentId: string; memoryId: string }): Promise<{ deleted: boolean }> {
+    const rows = await this.database
+      .delete(aiAgentMemories)
+      .where(
+        and(eq(aiAgentMemories.agentId, input.agentId), eq(aiAgentMemories.id, input.memoryId)),
+      )
+      .returning({ id: aiAgentMemories.id });
+
+    return { deleted: rows.length > 0 };
   }
 
   async recordRun(input: AgentRunRecordInput): Promise<void> {

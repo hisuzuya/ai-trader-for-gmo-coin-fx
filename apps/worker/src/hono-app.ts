@@ -28,6 +28,28 @@ export function createWorkerApp(runtime: WorkerRuntime) {
       );
     }
   });
+  app.get("/agents/:id", async (c) => {
+    try {
+      const agent = await runtime.getAgentDetail(c.req.param("id"));
+
+      if (!agent) {
+        return c.json({ ok: false, error: "Agent not found." }, 404);
+      }
+
+      return c.json({
+        ok: true,
+        agent,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Agent detail lookup failed.",
+        },
+        500,
+      );
+    }
+  });
   app.post("/agents/:id/versions", async (c) => {
     if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
       return c.json({ ok: false, error: "Unauthorized." }, 401);
@@ -62,6 +84,63 @@ export function createWorkerApp(runtime: WorkerRuntime) {
         {
           ok: false,
           error: error instanceof Error ? error.message : "Agent version creation failed.",
+        },
+        500,
+      );
+    }
+  });
+  app.post("/agents/:id/versions/:version/rollback", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
+    const sourceVersion = Number(c.req.param("version"));
+    const body = await c.req.json().catch(() => null);
+    const note =
+      typeof body === "object" && body !== null && "note" in body && typeof body.note === "string"
+        ? body.note
+        : undefined;
+
+    if (!Number.isInteger(sourceVersion) || sourceVersion <= 0) {
+      return c.json({ ok: false, error: "version must be a positive integer." }, 400);
+    }
+
+    try {
+      return c.json({
+        ok: true,
+        ...(await runtime.rollbackAgentVersion({
+          agentId: c.req.param("id"),
+          sourceVersion,
+          note,
+        })),
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Agent rollback failed.",
+        },
+        500,
+      );
+    }
+  });
+  app.delete("/agents/:id/memories/:memoryId", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
+    try {
+      const result = await runtime.deleteAgentMemory({
+        agentId: c.req.param("id"),
+        memoryId: c.req.param("memoryId"),
+      });
+
+      return c.json({ ok: result.deleted, ...result }, result.deleted ? 200 : 404);
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Agent memory delete failed.",
         },
         500,
       );
