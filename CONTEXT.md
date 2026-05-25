@@ -21,7 +21,7 @@ timeframeごとに置く安定した比較基準の戦略。**Baseline Strategy*
 _Avoid_: default strategy, production strategy, control strategy
 
 **Candidate Strategy**:
-paper tradingで評価中の提案戦略。validation通過後にpaper評価へ自動投入できるが、人間承認なしに **Baseline Strategy** へ昇格しない。
+paper tradingで評価中の提案戦略。validation通過後にpaper評価へ自動投入され、**Daily Review** が `confidence: high` で推奨した場合は **Baseline Strategy** へ自動昇格 (auto-promotion) または自動停止 (auto-retirement) する。`confidence: medium / low` の推奨は適用しない(将来ダッシュボードに警告表示する)。
 _Avoid_: experiment, variant, AI strategy
 
 **Strategy Definition**:
@@ -79,7 +79,7 @@ Claude CLIを隔離実行し、proposalまたはreview JSONだけを返すruntim
 _Avoid_: AI worker, Claude worker
 
 **Daily Review**:
-直近paper trading成績、warning、candidate recommendationをまとめる構造化review。人間レビューを補助するもので、単独ではbaselineを変更しない。
+直近paper trading成績、warning、candidate recommendationをまとめる構造化review。`status: accepted` の review に含まれる `confidence: high` の `baseline_promotion_candidates` と `candidate_retirement_candidates` は、`AiDailyReviewerService` が自動で `recordPaperDecision` に流して **Baseline Strategy** へ昇格・停止する(auto-apply)。`confidence: medium / low` および `status: rejected / failed` の review は適用しない。
 _Avoid_: report, summary
 
 ## Flagged Ambiguities
@@ -97,7 +97,7 @@ _Avoid_: report, summary
 
 Developer: "このAI ProposalをBaseline Strategyに置き換えてよいですか?"
 
-Domain expert: "いいえ。validation後にCandidate StrategyとしてPaper Accountで走らせます。Baseline Strategyへの昇格には人間承認が必要です。"
+Domain expert: "AI Proposalを直接Baselineにはしません。validation後にCandidate StrategyとしてPaper Accountで走らせ、Daily Reviewが`confidence: high`で推奨した場合に AiDailyReviewerService が auto-promotion を行います。`medium / low` 推奨や `rejected` review は適用されません。"
 
 Developer: "Strategy Runはどの価格を読みますか?"
 

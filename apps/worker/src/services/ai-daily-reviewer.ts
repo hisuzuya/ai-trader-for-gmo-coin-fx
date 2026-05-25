@@ -9,14 +9,16 @@ import {
   db,
   paperAccounts,
   paperTrades,
+  strategyRuns,
 } from "@ai-trade/db";
 import {
+  type AiDailyReview,
   type AiDailyReviewResponse,
   type AiDailyReviewValidationResult,
   type DailyReviewInput,
   validateAiDailyReview,
 } from "@ai-trade/domain/ai-tuning";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import type { ServiceHealth, ServiceState, WorkerService } from "../types.js";
 
@@ -29,7 +31,24 @@ export type DailyReviewRunResult = {
   promotionCandidateCount: number;
   retirementCandidateCount: number;
   reason: string;
+  autoApply?: AutoApplyResult;
 };
+
+export type AutoApplyResult = {
+  appliedPromotions: { strategyName: string; strategyRunId: string }[];
+  appliedRetirements: { strategyName: string; strategyRunId: string }[];
+  skipped: { strategyName: string; reason: string }[];
+};
+
+export type AutoApplyInput = {
+  reviewDate: string;
+  baselinePromotionCandidates: AiDailyReview["baseline_promotion_candidates"];
+  candidateRetirementCandidates: AiDailyReview["candidate_retirement_candidates"];
+};
+
+export interface DailyReviewDecisionExecutor {
+  applyRecommendations(input: AutoApplyInput): Promise<AutoApplyResult>;
+}
 
 export interface DailyReviewProvider {
   generateDailyReview(input: DailyReviewInput): Promise<AiDailyReviewResponse>;
@@ -52,6 +71,7 @@ export type AiDailyReviewerServiceOptions = {
   aiProvider?: DailyReviewProvider;
   contextProvider?: DailyReviewContextProvider;
   store?: DailyReviewStore;
+  decisionExecutor?: DailyReviewDecisionExecutor;
 };
 
 export class AiDailyReviewerService implements WorkerService {
@@ -65,6 +85,7 @@ export class AiDailyReviewerService implements WorkerService {
   private readonly aiProvider: DailyReviewProvider;
   private readonly contextProvider: DailyReviewContextProvider;
   private readonly store: DailyReviewStore;
+  private readonly decisionExecutor: DailyReviewDecisionExecutor;
   private interval: ReturnType<typeof setInterval> | null = null;
   private firstRunTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -74,6 +95,7 @@ export class AiDailyReviewerService implements WorkerService {
     this.aiProvider = options.aiProvider ?? new HttpDailyReviewProvider(env.AI_RUNNER_INTERNAL_URL);
     this.contextProvider = options.contextProvider ?? new DbDailyReviewContextProvider();
     this.store = options.store ?? new AiDailyReviewRepository();
+    this.decisionExecutor = options.decisionExecutor ?? new DbDailyReviewDecisionExecutor();
   }
 
   async start(): Promise<void> {
@@ -149,6 +171,28 @@ export class AiDailyReviewerService implements WorkerService {
       validation,
     });
 
+    let autoApply: AutoApplyResult | undefined;
+    if (validation.status === "accepted") {
+      try {
+        autoApply = await this.decisionExecutor.applyRecommendations({
+          reviewDate,
+          baselinePromotionCandidates: validation.review.baseline_promotion_candidates,
+          candidateRetirementCandidates: validation.review.candidate_retirement_candidates,
+        });
+      } catch (error) {
+        autoApply = {
+          appliedPromotions: [],
+          appliedRetirements: [],
+          skipped: [
+            {
+              strategyName: "<all>",
+              reason: `auto-apply failed: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+        };
+      }
+    }
+
     const result =
       validation.status === "accepted"
         ? {
@@ -160,6 +204,7 @@ export class AiDailyReviewerService implements WorkerService {
             promotionCandidateCount: validation.review.baseline_promotion_candidates.length,
             retirementCandidateCount: validation.review.candidate_retirement_candidates.length,
             reason: validation.review.summary,
+            autoApply,
           }
         : {
             attemptedAt: now.toISOString(),
@@ -288,6 +333,130 @@ export class InMemoryDailyReviewStore implements DailyReviewStore {
   ): Promise<void> {
     this.invocations.push(invocation);
     this.reviews.push(review);
+  }
+}
+
+export class DbDailyReviewDecisionExecutor implements DailyReviewDecisionExecutor {
+  async applyRecommendations(input: AutoApplyInput): Promise<AutoApplyResult> {
+    const result: AutoApplyResult = {
+      appliedPromotions: [],
+      appliedRetirements: [],
+      skipped: [],
+    };
+
+    for (const rec of input.baselinePromotionCandidates) {
+      if (rec.confidence !== "high") {
+        result.skipped.push({
+          strategyName: rec.strategyName,
+          reason: `promote skipped: confidence=${rec.confidence}`,
+        });
+        continue;
+      }
+
+      const ids = await this.applyDecision(
+        rec.strategyName,
+        "promote_baseline",
+        input.reviewDate,
+        rec.reason,
+      );
+
+      if (ids.length === 0) {
+        result.skipped.push({
+          strategyName: rec.strategyName,
+          reason: "promote skipped: no matching proposed strategy run",
+        });
+      } else {
+        for (const id of ids) {
+          result.appliedPromotions.push({ strategyName: rec.strategyName, strategyRunId: id });
+        }
+      }
+    }
+
+    for (const rec of input.candidateRetirementCandidates) {
+      if (rec.confidence !== "high") {
+        result.skipped.push({
+          strategyName: rec.strategyName,
+          reason: `retire skipped: confidence=${rec.confidence}`,
+        });
+        continue;
+      }
+
+      const ids = await this.applyDecision(
+        rec.strategyName,
+        "retire_candidate",
+        input.reviewDate,
+        rec.reason,
+      );
+
+      if (ids.length === 0) {
+        result.skipped.push({
+          strategyName: rec.strategyName,
+          reason: "retire skipped: no matching proposed strategy run",
+        });
+      } else {
+        for (const id of ids) {
+          result.appliedRetirements.push({ strategyName: rec.strategyName, strategyRunId: id });
+        }
+      }
+    }
+
+    return result;
+  }
+
+  private async applyDecision(
+    strategyName: string,
+    action: "promote_baseline" | "retire_candidate",
+    reviewDate: string,
+    reason: string,
+  ): Promise<string[]> {
+    const status = action === "promote_baseline" ? "promoted_to_baseline" : "retired";
+    const now = new Date();
+
+    return db.transaction(async (tx) => {
+      const updated = await tx
+        .update(strategyRuns)
+        .set({
+          status,
+          finishedAt: now,
+          metadata: {
+            automaticPaperDecision: action,
+            decidedAt: now.toISOString(),
+            reviewDate,
+            reason,
+          },
+        })
+        .where(
+          and(eq(strategyRuns.strategyName, strategyName), eq(strategyRuns.status, "proposed")),
+        )
+        .returning({ id: strategyRuns.id });
+
+      const ids = updated.map((row) => row.id);
+
+      if (action === "retire_candidate" && ids.length > 0) {
+        for (const id of ids) {
+          await tx
+            .update(paperAccounts)
+            .set({ status: "stopped", updatedAt: now })
+            .where(eq(paperAccounts.strategyRunId, id));
+        }
+      }
+
+      return ids;
+    });
+  }
+}
+
+export class InMemoryDailyReviewDecisionExecutor implements DailyReviewDecisionExecutor {
+  readonly calls: AutoApplyInput[] = [];
+  result: AutoApplyResult = {
+    appliedPromotions: [],
+    appliedRetirements: [],
+    skipped: [],
+  };
+
+  async applyRecommendations(input: AutoApplyInput): Promise<AutoApplyResult> {
+    this.calls.push(input);
+    return this.result;
   }
 }
 
