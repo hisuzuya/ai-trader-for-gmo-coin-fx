@@ -64,6 +64,13 @@
       "when": 1779729047487,
       "tag": "0008_blue_the_order",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779900000000,
+      "tag": "0009_agent_paper_account",
+      "breakpoints": true
     }
   ]
 }

@@ -121,6 +121,7 @@ export function createWorkerApp(runtime: WorkerRuntime) {
         runIntervalSec: body.runIntervalSec,
         model: body.model,
         characterId: body.characterId ?? null,
+        initialBalanceJpy: body.initialBalanceJpy,
         sharedMemoryEnabled: body.sharedMemoryEnabled,
         note: body.note,
       });
@@ -526,6 +527,7 @@ type CreateAgentBody = {
   allowedTools: string[];
   runIntervalSec: number;
   model: string;
+  initialBalanceJpy: number;
   characterId?: CharacterId | null;
   sharedMemoryEnabled?: boolean;
   note?: string;
@@ -542,6 +544,13 @@ function isCreateAgentBody(body: unknown): body is CreateAgentBody {
   }
   if (typeof b.runIntervalSec !== "number" || !Number.isFinite(b.runIntervalSec)) return false;
   if (typeof b.model !== "string" || b.model.trim().length === 0) return false;
+  if (
+    typeof b.initialBalanceJpy !== "number" ||
+    !Number.isFinite(b.initialBalanceJpy) ||
+    b.initialBalanceJpy <= 0
+  ) {
+    return false;
+  }
   if (b.characterId !== undefined && b.characterId !== null) {
     if (typeof b.characterId !== "string" || !isCharacterId(b.characterId)) return false;
   }

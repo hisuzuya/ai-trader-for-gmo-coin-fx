@@ -1531,6 +1531,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+.crew-tile-kpis dd.tone-profit {
+  color: var(--profit-strong);
+}
+
+.crew-tile-kpis dd.tone-loss {
+  color: var(--loss-strong);
+}
+
 .crew-tile-cta {
   color: color-mix(in srgb, var(--character-color, var(--accent)) 70%, var(--text));
   font-size: 12px;
@@ -1677,6 +1685,92 @@
   font-size: 18px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+
+.character-hero-kpis dd.tone-profit {
+  color: var(--profit-strong);
+}
+
+.character-hero-kpis dd.tone-loss {
+  color: var(--loss-strong);
+}
+
+.portfolio-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 18px;
+  margin-top: 6px;
+}
+
+@media (max-width: 720px) {
+  .portfolio-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.portfolio-summary-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-soft, rgba(255, 255, 255, 0.04));
+}
+
+.portfolio-summary-cell span {
+  color: var(--subtle);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.portfolio-summary-cell strong {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-summary-cell strong.tone-profit {
+  color: var(--profit-strong);
+}
+
+.portfolio-summary-cell strong.tone-loss {
+  color: var(--loss-strong);
+}
+
+.portfolio-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-table th {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--subtle);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.portfolio-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.portfolio-table td.tone-profit {
+  color: var(--profit-strong);
+  font-weight: 500;
+}
+
+.portfolio-table td.tone-loss {
+  color: var(--loss-strong);
+  font-weight: 500;
 }
 
 @media (max-width: 880px) {
@@ -1882,6 +1976,20 @@
   color: var(--text-strong);
   font-variant-numeric: tabular-nums;
   margin: 0;
+}
+
+.kpi-card dd.tone-profit {
+  color: var(--profit-strong);
+}
+
+.kpi-card dd.tone-loss {
+  color: var(--loss-strong);
+}
+
+.kpi-card dd small {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: 4px;
 }
 
 .kpi-card-trend {

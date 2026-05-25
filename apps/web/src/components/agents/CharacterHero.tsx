@@ -15,7 +15,7 @@ export function CharacterHero({
   persona: string;
   status: "active" | "paused";
   version: number;
-  kpis: { label: string; value: string }[];
+  kpis: { label: string; value: string; tone?: "profit" | "loss" | "neutral" }[];
   pausedReason?: string | null;
 }) {
   const tagline = character?.catchphrase ?? persona;
@@ -66,7 +66,7 @@ export function CharacterHero({
           {kpis.map((kpi) => (
             <div key={kpi.label}>
               <dt>{kpi.label}</dt>
-              <dd>{kpi.value}</dd>
+              <dd className={kpi.tone ? `tone-${kpi.tone}` : undefined}>{kpi.value}</dd>
             </div>
           ))}
         </dl>

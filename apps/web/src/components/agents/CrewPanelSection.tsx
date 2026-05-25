@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { type CrewAgentSummary, CrewTile } from "./CrewTile";
 
-type AgentSummaryRaw = {
+export type AgentSummaryRaw = {
   id: string;
   name: string;
   status: "active" | "paused";
@@ -14,9 +14,19 @@ type AgentSummaryRaw = {
   succeededRunCount: number;
   failedRunCount: number;
   latestRun: { status: string } | null;
+  paperAccount: {
+    accountId: string;
+    balanceJpy: number;
+    initialBalanceJpy: number;
+    pnlJpy: number;
+    pnlPct: number;
+    openPositionCount: number;
+    closedTradeCount: number;
+    totalRealizedPnlJpy: number;
+  } | null;
 };
 
-async function fetchAgentSummaries(): Promise<AgentSummaryRaw[]> {
+export async function fetchAgentSummaries(): Promise<AgentSummaryRaw[]> {
   const url = new URL("/agents", process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787");
   const response = await fetch(url, { cache: "no-store" }).catch(() => null);
 
@@ -28,13 +38,27 @@ async function fetchAgentSummaries(): Promise<AgentSummaryRaw[]> {
   return Array.isArray(body.agents) ? body.agents : [];
 }
 
-export async function CrewPanelSection() {
-  const agents = await fetchAgentSummaries();
+export async function CrewPanelSection({
+  agents: agentsProp,
+}: {
+  agents?: AgentSummaryRaw[];
+} = {}) {
+  const agents = agentsProp ?? (await fetchAgentSummaries());
   const activeCount = agents.filter((agent) => agent.status === "active").length;
-  const totalProposals = agents.reduce((sum, a) => sum + a.proposalCount, 0);
-  const acceptedProposals = agents.reduce((sum, a) => sum + a.acceptedProposalCount, 0);
-  const totalSucceededRuns = agents.reduce((sum, a) => sum + a.succeededRunCount, 0);
-  const totalRuns = agents.reduce((sum, a) => sum + a.succeededRunCount + a.failedRunCount, 0);
+  const totalBalance = agents.reduce(
+    (sum, agent) => sum + (agent.paperAccount?.balanceJpy ?? 0),
+    0,
+  );
+  const totalInitial = agents.reduce(
+    (sum, agent) => sum + (agent.paperAccount?.initialBalanceJpy ?? 0),
+    0,
+  );
+  const totalPnl = totalBalance - totalInitial;
+  const totalPnlPct = totalInitial > 0 ? (totalPnl / totalInitial) * 100 : 0;
+  const totalOpenPositions = agents.reduce(
+    (sum, agent) => sum + (agent.paperAccount?.openPositionCount ?? 0),
+    0,
+  );
 
   return (
     <section className="page-shell">
@@ -68,6 +92,10 @@ export async function CrewPanelSection() {
                   succeededRunCount: agent.succeededRunCount,
                   failedRunCount: agent.failedRunCount,
                   latestRunStatus: agent.latestRun?.status ?? null,
+                  balanceJpy: agent.paperAccount?.balanceJpy ?? null,
+                  initialBalanceJpy: agent.paperAccount?.initialBalanceJpy ?? null,
+                  pnlJpy: agent.paperAccount?.pnlJpy ?? null,
+                  openPositionCount: agent.paperAccount?.openPositionCount ?? null,
                 }
               : null;
             return <CrewTile key={character.id} character={character} agent={summary} />;
@@ -88,27 +116,27 @@ export async function CrewPanelSection() {
               <p className="kpi-card-trend">配属中のエージェント</p>
             </div>
             <div className="kpi-card">
-              <dt>Proposals</dt>
-              <dd>
-                {acceptedProposals}
-                <small> /{totalProposals}</small>
-              </dd>
-              <p className="kpi-card-trend">accepted / total</p>
+              <dt>合計 Balance</dt>
+              <dd>{formatCompactJpy(totalBalance)}</dd>
+              <p className="kpi-card-trend">全エージェントの口座残高</p>
             </div>
             <div className="kpi-card">
-              <dt>Runs</dt>
-              <dd>
-                {totalSucceededRuns}
-                <small> /{totalRuns}</small>
+              <dt>合計 PnL</dt>
+              <dd className={totalPnl > 0 ? "tone-profit" : totalPnl < 0 ? "tone-loss" : undefined}>
+                {totalPnl >= 0 ? "+" : ""}
+                {formatCompactJpy(totalPnl)}
+                <small>
+                  {" "}
+                  ({totalPnlPct >= 0 ? "+" : ""}
+                  {totalPnlPct.toFixed(2)}%)
+                </small>
               </dd>
-              <p className="kpi-card-trend">succeeded / total</p>
+              <p className="kpi-card-trend">balance − initial の合計</p>
             </div>
             <div className="kpi-card">
-              <dt>Unassigned</dt>
-              <dd>
-                {AGENT_CHARACTERS.length - agents.filter((a) => getCharacter(a.characterId)).length}
-              </dd>
-              <p className="kpi-card-trend">未配属のキャラ</p>
+              <dt>Open positions</dt>
+              <dd>{totalOpenPositions}</dd>
+              <p className="kpi-card-trend">クルー全体のオープン数</p>
             </div>
           </dl>
           <div className="mt-3.5 flex flex-wrap gap-1.5">
@@ -118,9 +146,21 @@ export async function CrewPanelSection() {
             <Link href="/runs" className="btn-ghost">
               See all runs →
             </Link>
+            <span className="text-[11px] text-muted">
+              未配属キャラ:{" "}
+              {AGENT_CHARACTERS.length - agents.filter((a) => getCharacter(a.characterId)).length}
+            </span>
           </div>
         </aside>
       </div>
     </section>
   );
+}
+
+function formatCompactJpy(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 100_000_000) return `${sign}¥${(abs / 100_000_000).toFixed(2)}億`;
+  if (abs >= 10_000) return `${sign}¥${(abs / 10_000).toFixed(1)}万`;
+  return `${sign}¥${Math.round(abs).toLocaleString("ja-JP")}`;
 }

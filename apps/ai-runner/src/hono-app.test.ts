@@ -321,6 +321,7 @@ function agentRunInput() {
       costBudgetPerRunUsd: 5,
       sharedMemoryEnabled: true,
       characterId: null,
+      initialBalanceJpy: 100000,
     },
     contextSummary: "No active candidates.",
     version: 1,

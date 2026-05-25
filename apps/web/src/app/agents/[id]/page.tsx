@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 const TABS = [
   { id: "overview", label: "Overview" },
+  { id: "portfolio", label: "Portfolio" },
   { id: "prompt", label: "Prompt" },
   { id: "memory", label: "Memory" },
   { id: "proposals", label: "Proposals" },
@@ -20,6 +21,42 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+
+type PaperAccountDetail = {
+  accountId: string;
+  balanceJpy: number;
+  initialBalanceJpy: number;
+  pnlJpy: number;
+  pnlPct: number;
+  openPositionCount: number;
+  closedTradeCount: number;
+  totalRealizedPnlJpy: number;
+  openPositions: {
+    id: string;
+    strategyRunId: string | null;
+    symbol: string;
+    side: "long" | "short";
+    quantity: number;
+    entryPrice: number;
+    openedAt: string;
+    stopLossPrice: number;
+    takeProfitPrice: number;
+    spreadPips: number;
+  }[];
+  recentTrades: {
+    id: string;
+    strategyRunId: string | null;
+    symbol: string;
+    side: "long" | "short";
+    quantity: number;
+    entryPrice: number;
+    exitPrice: number;
+    pnlJpy: number;
+    closeReason: string;
+    openedAt: string;
+    closedAt: string;
+  }[];
+};
 
 type AgentDetail = {
   id: string;
@@ -38,6 +75,8 @@ type AgentDetail = {
   pausedReason?: string;
   sharedMemoryEnabled: boolean;
   characterId?: string | null;
+  initialBalanceJpy: number;
+  paperAccount: PaperAccountDetail | null;
   observations: {
     id: string;
     kind: string;
@@ -137,6 +176,20 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
   const succeededRuns = agent.runs.filter((run) => run.status === "succeeded").length;
   const acceptedProposals = agent.proposals.filter((p) => p.validationStatus === "accepted").length;
   const totalProposals = agent.proposals.length;
+  const account = agent.paperAccount;
+  const pnlTone: "profit" | "loss" | "neutral" = account
+    ? account.pnlJpy > 0
+      ? "profit"
+      : account.pnlJpy < 0
+        ? "loss"
+        : "neutral"
+    : "neutral";
+  const balanceLabel = account ? formatJpy(account.balanceJpy) : "—";
+  const pnlLabel = account
+    ? `${account.pnlJpy >= 0 ? "+" : ""}${formatJpy(account.pnlJpy)} (${
+        account.pnlPct >= 0 ? "+" : ""
+      }${account.pnlPct.toFixed(2)}%)`
+    : "—";
 
   return (
     <section className="page-shell">
@@ -170,13 +223,18 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
         version={agent.currentVersion}
         pausedReason={agent.pausedReason}
         kpis={[
+          { label: "Balance", value: balanceLabel },
+          { label: "PnL", value: pnlLabel, tone: pnlTone },
+          {
+            label: "Open positions",
+            value: account ? String(account.openPositionCount) : "—",
+          },
           { label: "Runs ok", value: `${succeededRuns}/${totalRuns}` },
           {
             label: "Accept",
             value: `${acceptedProposals}/${totalProposals}`,
           },
           { label: "Interval", value: `${agent.runIntervalSec}s` },
-          { label: "Cost cap", value: `$${agent.costBudgetPerRunUsd}` },
         ]}
       />
 
@@ -193,6 +251,7 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
       </nav>
 
       {activeTab === "overview" ? <OverviewPanel agent={agent} /> : null}
+      {activeTab === "portfolio" ? <PortfolioPanel agent={agent} /> : null}
       {activeTab === "prompt" ? <PromptPanel agent={agent} action={saveAction} /> : null}
       {activeTab === "memory" ? <MemoryPanel agent={agent} action={deleteMemoryAction} /> : null}
       {activeTab === "proposals" ? <ProposalsPanel agent={agent} /> : null}
@@ -454,4 +513,170 @@ function VersionsPanel({
       ))}
     </section>
   );
+}
+
+function PortfolioPanel({ agent }: { agent: AgentDetail }) {
+  const account = agent.paperAccount;
+  if (!account) {
+    return (
+      <section className="panel">
+        <div className="panel-title">
+          <h2>Paper account</h2>
+        </div>
+        <p className="text-muted">
+          このエージェントには専用のペーパー口座がまだ作成されていません。
+          {agent.initialBalanceJpy
+            ? ` 初期資金は ${formatJpy(agent.initialBalanceJpy)} の設定です。`
+            : ""}
+        </p>
+      </section>
+    );
+  }
+
+  const pnlTone = account.pnlJpy > 0 ? "profit" : account.pnlJpy < 0 ? "loss" : "neutral";
+
+  return (
+    <>
+      <section className="panel">
+        <div className="panel-title">
+          <h2>Paper account summary</h2>
+          <span className="meta-pill subtle">{account.accountId.slice(0, 8)}</span>
+        </div>
+        <div className="portfolio-summary-grid">
+          <div className="portfolio-summary-cell">
+            <span>Balance</span>
+            <strong>{formatJpy(account.balanceJpy)}</strong>
+          </div>
+          <div className="portfolio-summary-cell">
+            <span>Initial</span>
+            <strong>{formatJpy(account.initialBalanceJpy)}</strong>
+          </div>
+          <div className="portfolio-summary-cell">
+            <span>Unrealized + Realized PnL</span>
+            <strong className={`tone-${pnlTone}`}>
+              {account.pnlJpy >= 0 ? "+" : ""}
+              {formatJpy(account.pnlJpy)} ({account.pnlPct >= 0 ? "+" : ""}
+              {account.pnlPct.toFixed(2)}%)
+            </strong>
+          </div>
+          <div className="portfolio-summary-cell">
+            <span>Open positions</span>
+            <strong>{account.openPositionCount}</strong>
+          </div>
+          <div className="portfolio-summary-cell">
+            <span>Closed trades (latest 20)</span>
+            <strong>{account.closedTradeCount}</strong>
+          </div>
+          <div className="portfolio-summary-cell">
+            <span>Realized (latest 20)</span>
+            <strong
+              className={
+                account.totalRealizedPnlJpy > 0
+                  ? "tone-profit"
+                  : account.totalRealizedPnlJpy < 0
+                    ? "tone-loss"
+                    : undefined
+              }
+            >
+              {account.totalRealizedPnlJpy >= 0 ? "+" : ""}
+              {formatJpy(account.totalRealizedPnlJpy)}
+            </strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">
+          <h2>Open positions ({account.openPositionCount})</h2>
+        </div>
+        {account.openPositions.length === 0 ? (
+          <p className="text-muted">現在オープン中のポジションはありません。</p>
+        ) : (
+          <table className="portfolio-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Qty</th>
+                <th>Entry</th>
+                <th>SL / TP</th>
+                <th>Opened</th>
+                <th>Strategy</th>
+              </tr>
+            </thead>
+            <tbody>
+              {account.openPositions.map((pos) => (
+                <tr key={pos.id}>
+                  <td>{pos.symbol}</td>
+                  <td>
+                    <span className={`status-pill ${pos.side === "long" ? "active" : "paused"}`}>
+                      {pos.side}
+                    </span>
+                  </td>
+                  <td>{pos.quantity}</td>
+                  <td>{pos.entryPrice.toFixed(3)}</td>
+                  <td>
+                    {pos.stopLossPrice.toFixed(3)} / {pos.takeProfitPrice.toFixed(3)}
+                  </td>
+                  <td>{pos.openedAt.slice(0, 19).replace("T", " ")}</td>
+                  <td>{pos.strategyRunId ? pos.strategyRunId.slice(0, 8) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">
+          <h2>Recent trades ({account.closedTradeCount})</h2>
+        </div>
+        {account.recentTrades.length === 0 ? (
+          <p className="text-muted">確定済みのトレードはまだありません。</p>
+        ) : (
+          <table className="portfolio-table">
+            <thead>
+              <tr>
+                <th>Closed</th>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Entry → Exit</th>
+                <th>PnL</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {account.recentTrades.map((trade) => (
+                <tr key={trade.id}>
+                  <td>{trade.closedAt.slice(0, 19).replace("T", " ")}</td>
+                  <td>{trade.symbol}</td>
+                  <td>
+                    <span className={`status-pill ${trade.side === "long" ? "active" : "paused"}`}>
+                      {trade.side}
+                    </span>
+                  </td>
+                  <td>
+                    {trade.entryPrice.toFixed(3)} → {trade.exitPrice.toFixed(3)}
+                  </td>
+                  <td
+                    className={
+                      trade.pnlJpy > 0 ? "tone-profit" : trade.pnlJpy < 0 ? "tone-loss" : undefined
+                    }
+                  >
+                    {trade.pnlJpy >= 0 ? "+" : ""}
+                    {formatJpy(trade.pnlJpy)}
+                  </td>
+                  <td>{trade.closeReason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </>
+  );
+}
+
+function formatJpy(value: number): string {
+  return `¥${Math.round(value).toLocaleString("ja-JP")}`;
 }
