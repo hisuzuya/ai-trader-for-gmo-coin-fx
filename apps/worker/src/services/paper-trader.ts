@@ -200,7 +200,7 @@ export class PaperTraderService implements WorkerService {
     const candidates = (await this.candidateRepository?.listRunnableCandidates()) ?? [];
     const seen = new Set<string>();
 
-    return [...this.baseStrategies, ...candidates].filter((strategy) => {
+    return [...candidates, ...this.baseStrategies].filter((strategy) => {
       if (seen.has(strategy.meta.name)) {
         return false;
       }
@@ -514,7 +514,7 @@ export class DbCandidateStrategyRepository implements CandidateStrategyRepositor
       .from(strategyRuns)
       .where(inArray(strategyRuns.status, ["proposed", "promoted_to_baseline"]))
       .orderBy(desc(strategyRuns.startedAt))
-      .limit(6);
+      .limit(15);
 
     return rows.flatMap((row) => {
       const parsed = strategyDefinitionSchema.safeParse(row.strategyDefinition);

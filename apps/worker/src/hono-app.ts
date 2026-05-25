@@ -318,6 +318,10 @@ export function createWorkerApp(runtime: WorkerRuntime) {
     }),
   );
   app.post("/jobs/historical-import", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
     const body = await c.req.json().catch(() => null);
 
     if (!isHistoricalImportBody(body)) {
@@ -350,6 +354,10 @@ export function createWorkerApp(runtime: WorkerRuntime) {
   });
 
   app.post("/jobs/ai-tuning", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
     try {
       const result = await runtime.runAiTuning();
       return c.json({
@@ -368,6 +376,10 @@ export function createWorkerApp(runtime: WorkerRuntime) {
   });
 
   app.post("/jobs/daily-review", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
     try {
       const result = await runtime.runDailyReview();
       return c.json({
@@ -386,6 +398,10 @@ export function createWorkerApp(runtime: WorkerRuntime) {
   });
 
   app.post("/jobs/agent-run", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
     const body = await c.req.json().catch(() => null);
     const agentId =
       typeof body === "object" &&
@@ -413,6 +429,10 @@ export function createWorkerApp(runtime: WorkerRuntime) {
   });
 
   app.post("/jobs/agent-run-all", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
     try {
       const results = await runtime.runAllAgents();
       return c.json({
@@ -431,6 +451,10 @@ export function createWorkerApp(runtime: WorkerRuntime) {
   });
 
   app.post("/paper-decisions", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
     const body = await c.req.json().catch(() => null);
 
     if (!isPaperDecisionBody(body)) {

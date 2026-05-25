@@ -196,12 +196,12 @@ describe("PaperTraderService", () => {
 
     expect(candidateRepository.listRunnableCandidates).toHaveBeenCalledOnce();
     expect(statuses.map((status) => status.strategyName)).toEqual([
-      "baseline_1m",
       "candidate_1m_spread_guard",
+      "baseline_1m",
     ]);
     expect(tradingRepository.steps.map((step) => step.strategy.meta.name)).toEqual([
-      "baseline_1m",
       "candidate_1m_spread_guard",
+      "baseline_1m",
     ]);
   });
 

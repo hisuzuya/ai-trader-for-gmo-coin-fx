@@ -1,11 +1,13 @@
 import type { DailyReviewRecommendation } from "@ai-trade/domain/ai-tuning";
+import { BASELINE_STRATEGIES } from "@ai-trade/domain/strategies";
 import { describe, expect, it, vi } from "vitest";
-
 import {
+  type AdoptionGateMetrics,
   AiDailyReviewerService,
   type DailyReviewContextProvider,
   type DailyReviewDecisionExecutor,
   type DailyReviewProvider,
+  evaluateAdoptionGateSnapshot,
   InMemoryDailyReviewDecisionExecutor,
   InMemoryDailyReviewStore,
 } from "./ai-daily-reviewer.js";
@@ -106,6 +108,89 @@ describe("InMemoryDailyReviewDecisionExecutor", () => {
       candidateRetirementCandidates: [],
     });
     expect(result.appliedPromotions).toEqual([{ strategyName: "s", strategyRunId: "r" }]);
+  });
+});
+
+describe("evaluateAdoptionGateSnapshot", () => {
+  it("accepts a candidate that beats the current baseline without relaxing risk gates", () => {
+    const baseline = BASELINE_STRATEGIES["5m"];
+    const candidate = {
+      ...baseline,
+      meta: { ...baseline.meta, name: "candidate_5m_tighter_exit" },
+      exit: { ...baseline.exit, take_profit_pips: baseline.exit.take_profit_pips + 1 },
+    };
+    const metrics: AdoptionGateMetrics = {
+      candidate: {
+        strategyName: candidate.meta.name,
+        accountId: "candidate-account",
+        netProfitJpy: 1100,
+        tradeCount: 12,
+        maxDrawdownPct: 4,
+      },
+      baseline: {
+        strategyName: baseline.meta.name,
+        accountId: "baseline-account",
+        netProfitJpy: 1000,
+        tradeCount: 12,
+        maxDrawdownPct: 5,
+      },
+      minTradeCount: 12,
+      profitImprovementPct: 10,
+    };
+
+    expect(
+      evaluateAdoptionGateSnapshot({
+        candidateStrategy: candidate,
+        baselineStrategy: baseline,
+        metrics,
+      }),
+    ).toEqual([]);
+  });
+
+  it("rejects weak or risk-relaxed candidates", () => {
+    const baseline = BASELINE_STRATEGIES["1m"];
+    const candidate = {
+      ...baseline,
+      meta: { ...baseline.meta, name: "candidate_1m_loose_risk" },
+      gates: {
+        ...baseline.gates,
+        volatility: {
+          ...baseline.gates.volatility,
+          max_spread_pips: baseline.gates.volatility.max_spread_pips + 0.2,
+        },
+      },
+    };
+    const metrics: AdoptionGateMetrics = {
+      candidate: {
+        strategyName: candidate.meta.name,
+        accountId: "candidate-account",
+        netProfitJpy: 1010,
+        tradeCount: 5,
+        maxDrawdownPct: 20,
+      },
+      baseline: {
+        strategyName: baseline.meta.name,
+        accountId: "baseline-account",
+        netProfitJpy: 1000,
+        tradeCount: 20,
+        maxDrawdownPct: 5,
+      },
+      minTradeCount: 20,
+      profitImprovementPct: 1,
+    };
+
+    expect(
+      evaluateAdoptionGateSnapshot({
+        candidateStrategy: candidate,
+        baselineStrategy: baseline,
+        metrics,
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        "candidate trade_count 5 is below minimum 20",
+        "candidate relaxes max_spread_pips",
+      ]),
+    );
   });
 });
 

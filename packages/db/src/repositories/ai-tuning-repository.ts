@@ -1,10 +1,12 @@
 import type { AiProposalValidationResult, AiStrategyProposal } from "@ai-trade/domain/ai-tuning";
 import type { StrategyDefinition } from "@ai-trade/domain/strategies";
+import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "../client.js";
 import { aiInvocations, aiTuningProposals, strategyRuns } from "../schema/index.js";
 
 type AiTuningDatabase = Pick<typeof db, "insert" | "transaction">;
+const MAX_CANDIDATE_SLOTS_PER_TIMEFRAME = 3;
 
 export type AiInvocationRecordInput = {
   id: string;
@@ -48,6 +50,45 @@ export class AiTuningRepository {
         return;
       }
 
+      const activeCandidateRows = await tx
+        .select({
+          id: strategyRuns.id,
+          strategyName: strategyRuns.strategyName,
+          metadata: strategyRuns.metadata,
+        })
+        .from(strategyRuns)
+        .where(
+          and(
+            eq(strategyRuns.timeframe, input.validation.proposal.strategy.meta.timeframe),
+            eq(strategyRuns.status, "proposed"),
+          ),
+        )
+        .orderBy(asc(strategyRuns.startedAt));
+      const activeCandidates = activeCandidateRows.filter((row) => isCandidateSlot(row.metadata));
+      const retireCount = Math.max(
+        0,
+        activeCandidates.length - (MAX_CANDIDATE_SLOTS_PER_TIMEFRAME - 1),
+      );
+      const candidatesToRetire = activeCandidates.slice(0, retireCount);
+      const now = new Date();
+
+      for (const candidate of candidatesToRetire) {
+        await tx
+          .update(strategyRuns)
+          .set({
+            status: "retired",
+            finishedAt: now,
+            metadata: {
+              ...(isRecord(candidate.metadata) ? candidate.metadata : {}),
+              candidateSlotAutoRetired: true,
+              replacementStrategyRunId: input.id,
+              retiredAt: now.toISOString(),
+              reason: "candidate slot limit exceeded",
+            },
+          })
+          .where(eq(strategyRuns.id, candidate.id));
+      }
+
       await tx.insert(strategyRuns).values({
         id: input.id,
         strategyName: input.validation.proposal.strategy.meta.name,
@@ -65,6 +106,14 @@ export class AiTuningRepository {
       });
     });
   }
+}
+
+function isCandidateSlot(metadata: unknown): boolean {
+  return isRecord(metadata) && metadata.candidateSlot === true;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function toAiInvocationInsertRow(input: AiInvocationRecordInput) {
