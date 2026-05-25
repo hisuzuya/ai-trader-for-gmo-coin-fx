@@ -15,12 +15,13 @@ COMPOSE_ENV_ARGS=()
 if [ -f .env.production ]; then
   COMPOSE_ENV_ARGS=(--env-file .env.production)
 fi
+COMPOSE_FILE_ARGS=(-f docker/compose.yml)
 
 git fetch --prune origin "$BRANCH"
 git checkout "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
-docker compose "${COMPOSE_ENV_ARGS[@]}" down --remove-orphans
-docker compose "${COMPOSE_ENV_ARGS[@]}" up -d --build --remove-orphans
+docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" down --remove-orphans
+docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build --remove-orphans
 
-docker compose "${COMPOSE_ENV_ARGS[@]}" ps
+docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" ps

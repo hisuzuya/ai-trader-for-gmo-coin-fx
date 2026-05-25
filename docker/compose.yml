@@ -1,3 +1,5 @@
+name: ai-trade
+
 services:
   timescaledb:
     image: timescale/timescaledb:2.17.2-pg16
@@ -21,11 +23,12 @@ services:
 
   next-web:
     build:
-      context: .
+      context: ..
+      dockerfile: docker/Dockerfile
       target: next-web
     restart: unless-stopped
     env_file:
-      - path: .env.production
+      - path: ../.env.production
         required: false
     environment:
       DATABASE_URL: postgresql://${AI_TRADE_POSTGRES_USER:-ai_trade}:${AI_TRADE_POSTGRES_PASSWORD:-ai_trade}@timescaledb:5432/${AI_TRADE_POSTGRES_DB:-ai_trade}
@@ -55,11 +58,12 @@ services:
 
   worker:
     build:
-      context: .
+      context: ..
+      dockerfile: docker/Dockerfile
       target: worker
     restart: unless-stopped
     env_file:
-      - path: .env.production
+      - path: ../.env.production
         required: false
     environment:
       DATABASE_URL: postgresql://${AI_TRADE_POSTGRES_USER:-ai_trade}:${AI_TRADE_POSTGRES_PASSWORD:-ai_trade}@timescaledb:5432/${AI_TRADE_POSTGRES_DB:-ai_trade}
@@ -87,10 +91,11 @@ services:
 
   db-migrate:
     build:
-      context: .
+      context: ..
+      dockerfile: docker/Dockerfile
       target: db-migrate
     env_file:
-      - path: .env.production
+      - path: ../.env.production
         required: false
     environment:
       DATABASE_URL: postgresql://${AI_TRADE_POSTGRES_USER:-ai_trade}:${AI_TRADE_POSTGRES_PASSWORD:-ai_trade}@timescaledb:5432/${AI_TRADE_POSTGRES_DB:-ai_trade}
@@ -106,17 +111,18 @@ services:
 
   ai-runner:
     build:
-      context: .
+      context: ..
+      dockerfile: docker/Dockerfile
       target: ai-runner
     restart: unless-stopped
     env_file:
-      - path: .env.production
+      - path: ../.env.production
         required: false
     environment:
       AI_RUNNER_PORT: "8788"
       CLAUDE_CONFIG_DIR: /home/node/.claude
     volumes:
-      - ./secrets/claude:/home/node/.claude:ro
+      - ../secrets/claude:/home/node/.claude:ro
     healthcheck:
       test:
         [
