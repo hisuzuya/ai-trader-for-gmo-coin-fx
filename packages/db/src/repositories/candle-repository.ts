@@ -1,5 +1,5 @@
 import type { CanonicalCandle } from "@ai-trade/domain/market-data";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 
 import { db } from "../client.js";
 import { candles } from "../schema/index.js";
@@ -20,6 +20,7 @@ export type GetRecentCandlesInput = {
   timeframe: string;
   priceType: "bid" | "ask" | "mid";
   limit: number;
+  before?: Date;
 };
 
 export class CandleRepository {
@@ -52,6 +53,16 @@ export class CandleRepository {
       return [];
     }
 
+    const predicates = [
+      eq(candles.symbol, input.symbol),
+      eq(candles.timeframe, input.timeframe),
+      eq(candles.priceType, input.priceType),
+    ];
+
+    if (input.before !== undefined) {
+      predicates.push(lt(candles.openedAt, input.before));
+    }
+
     const rows = await this.database
       .select({
         openedAt: candles.openedAt,
@@ -61,13 +72,7 @@ export class CandleRepository {
         close: candles.close,
       })
       .from(candles)
-      .where(
-        and(
-          eq(candles.symbol, input.symbol),
-          eq(candles.timeframe, input.timeframe),
-          eq(candles.priceType, input.priceType),
-        ),
-      )
+      .where(and(...predicates))
       .orderBy(desc(candles.openedAt))
       .limit(input.limit);
 

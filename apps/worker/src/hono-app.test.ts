@@ -409,7 +409,8 @@ describe("worker Hono app", () => {
       symbol: "USD_JPY",
       timeframe: "1m",
       priceType: "mid",
-      limit: 200,
+      limit: 500,
+      before: undefined,
     });
     expect(body).toMatchObject({
       ok: true,
@@ -448,6 +449,30 @@ describe("worker Hono app", () => {
 
     expect(response.status).toBe(400);
     expect(runtime.recentCandles).not.toHaveBeenCalled();
+  });
+
+  it("accepts a before cursor for paged candle lookup", async () => {
+    const runtime = {
+      recentCandles: vi.fn().mockResolvedValue({
+        symbol: "USD_JPY",
+        timeframe: "1m",
+        priceType: "mid",
+        candles: [],
+      }),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request(
+      "/candles?limit=5000&before=2026-05-25T05%3A00%3A00.000Z",
+    );
+
+    expect(response.status).toBe(200);
+    expect(runtime.recentCandles).toHaveBeenCalledWith({
+      symbol: "USD_JPY",
+      timeframe: "1m",
+      priceType: "mid",
+      limit: 5000,
+      before: new Date("2026-05-25T05:00:00.000Z"),
+    });
   });
 });
 

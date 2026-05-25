@@ -829,6 +829,56 @@ ul {
   min-height: 260px;
 }
 
+.tv-chart-frame {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.tv-chart-loadbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 0 6px;
+  border: 0;
+  margin: 0;
+}
+
+.tv-chart-load-status {
+  min-width: 86px;
+  text-align: right;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.tv-chart-load-error {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--loss-soft);
+  border-radius: 3px;
+  background: rgb(239 83 80 / 0.08);
+  color: var(--loss-strong);
+  font-size: 11px;
+}
+
+.tv-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .tv-chart-panel-compact .tv-chart-container {
   height: 96px;
   min-height: 80px;

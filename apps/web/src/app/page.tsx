@@ -110,7 +110,7 @@ async function getDashboardSummary(accountName?: string): Promise<DashboardSumma
 type RecentCandlesResponse = {
   symbol: string;
   timeframe: string;
-  priceType: string;
+  priceType: "bid" | "ask" | "mid";
   candles: {
     openedAt: string;
     open: number;
@@ -126,7 +126,7 @@ async function getRecentCandles(): Promise<RecentCandlesResponse> {
   url.searchParams.set("symbol", "USD_JPY");
   url.searchParams.set("timeframe", "1m");
   url.searchParams.set("priceType", "mid");
-  url.searchParams.set("limit", "200");
+  url.searchParams.set("limit", "1000");
 
   const response = await fetch(url, { cache: "no-store" }).catch(() => null);
 
@@ -139,7 +139,7 @@ async function getRecentCandles(): Promise<RecentCandlesResponse> {
   return {
     symbol: body.symbol ?? "USD_JPY",
     timeframe: body.timeframe ?? "1m",
-    priceType: body.priceType ?? "mid",
+    priceType: isPriceType(body.priceType) ? body.priceType : "mid",
     candles: Array.isArray(body.candles) ? body.candles : [],
   };
 }
@@ -312,7 +312,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </div>
 
               {candleSeries.length > 0 ? (
-                <CandlestickChart data={candleSeries} />
+                <CandlestickChart
+                  data={candleSeries}
+                  query={{
+                    symbol: recentCandles.symbol,
+                    timeframe: recentCandles.timeframe,
+                    priceType: recentCandles.priceType,
+                  }}
+                  initialLimit={1000}
+                />
               ) : (
                 <div className="tv-chart-empty">
                   USD/JPYのMIDキャンドルが取得できていません(worker未起動 / データ未蓄積)
@@ -933,6 +941,10 @@ function buildCandleSeries(candles: RecentCandlesResponse["candles"]): CandlePoi
   }
 
   return points;
+}
+
+function isPriceType(value: unknown): value is RecentCandlesResponse["priceType"] {
+  return value === "bid" || value === "ask" || value === "mid";
 }
 
 function buildPnlSeries(trades: DashboardSummary["trades"]): PnlPoint[] {
