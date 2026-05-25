@@ -168,7 +168,49 @@ baseline_15m:
     - regime invalidation exitを重視
 ```
 
-初期baselineの目的は「勝つこと」だけではなく、AI candidateの比較基準を安定させること。baselineは人間承認なしに自動変更しない。
+初期baselineの目的は「勝つこと」だけではなく、AI candidateの比較基準を作ること。baselineは固定controlではなく、timeframeごとに1つだけ存在する現役の基準戦略として継続的に自動更新する。
+
+### Baseline Auto-Update
+
+Baselineは同じtimeframeのCandidateだけから自動昇格できる。
+
+```text
+candidate_1m  -> baseline_1m
+candidate_5m  -> baseline_5m
+candidate_15m -> baseline_15m
+```
+
+自動昇格条件:
+
+```text
+Adoption Gate通過
+AND
+Daily Review recommendation = promote
+AND
+Daily Review confidence = high
+```
+
+新しいbaselineが昇格した場合、旧baselineはtimeframe別validation window 1回分だけShadow Baseline Runとして継続評価する。Shadow Baseline Runが新baselineより明確に良い場合は、自動rollbackで旧baselineを現役baselineに戻す。
+
+自動停止条件:
+
+```text
+Daily Review recommendation = retire
+AND
+Daily Review confidence = high
+```
+
+停止はAdoption Gateを待たない。昇格は厳しく、停止は早く扱う。
+
+Candidate Slotはtimeframeごとに最大3本にする。枠が埋まっている状態で新しいCandidateがschema/risk validationを通過した場合は、保留せず即投入し、既存Candidateから1本を自動停止して枠を空ける。
+
+押し出し優先順位:
+
+1. Daily Reviewで`confidence: high`の停止推薦があるもの。
+2. Adoption Gateの最低条件から最も遠いもの。
+3. validation windowを終えた最古のもの。
+
+新Candidate投入前にCandidate Similarity Checkを行い、直近のactive、rejected、retired candidateとStrategy Definitionの構造が近すぎる候補はrejectする。ただし、明確な改善理由と主要parameter差分がある場合は投入を許可する。
 
 ### DSL Validation
 
@@ -185,6 +227,7 @@ validation:
   - symbol must be USD_JPY in initial implementation
   - max open positions cannot exceed 2
   - allow_reversal_entry must remain false in initial implementation
+  - candidate must not be structurally too similar to recent active/rejected/retired candidates
 ```
 
 risk gateの緩和、未許可indicator追加、TypeScriptコード生成、shell実行要求を含むproposalはrejectする。
@@ -530,7 +573,7 @@ paper tradingは複数候補を同時に並走する。
   - candidate_15m_3
 ```
 
-candidateはtimeframeごとに最大3個、合計9個まで。baseline昇格は人間承認とする。
+candidateはtimeframeごとに最大3個、合計9個まで。baseline昇格は同じtimeframe内で、Adoption GateとDaily Review `confidence: high`のANDにより自動適用する。
 
 candidate lifecycle:
 
@@ -544,6 +587,5 @@ proposed
 
 候補入れ替え:
 
-- 最低24時間は走らせる。
 - emergency reject条件に触れたら即停止する。
-- 枠が満杯の場合、最低評価期間を満たした低スコア候補から入れ替える。
+- 枠が満杯の場合、新Candidateを保留せず、停止推薦があるもの、Adoption Gateの最低条件から最も遠いもの、validation windowを終えた最古のものの順で入れ替える。
