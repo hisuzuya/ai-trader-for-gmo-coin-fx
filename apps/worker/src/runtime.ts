@@ -29,6 +29,7 @@ export interface CandleReader {
     timeframe: string;
     priceType: "bid" | "ask" | "mid";
     limit: number;
+    before?: Date;
   }): Promise<RecentCandle[]>;
 }
 
@@ -313,6 +314,7 @@ export class WorkerRuntime {
       timeframe: input.timeframe,
       priceType: input.priceType,
       limit: input.limit,
+      before: input.before,
     });
 
     return {
@@ -475,6 +477,7 @@ export type RecentCandlesQuery = {
   timeframe: string;
   priceType: "bid" | "ask" | "mid";
   limit: number;
+  before?: Date;
 };
 
 export type RecentCandlesResponse = {

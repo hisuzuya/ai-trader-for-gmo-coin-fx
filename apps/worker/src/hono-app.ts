@@ -173,8 +173,8 @@ function isHistoricalImportBody(body: unknown): body is { date: string } {
 const DEFAULT_CANDLES_SYMBOL = "USD_JPY";
 const DEFAULT_CANDLES_TIMEFRAME = "1m";
 const DEFAULT_CANDLES_PRICE_TYPE = "mid" as const;
-const DEFAULT_CANDLES_LIMIT = 200;
-const MAX_CANDLES_LIMIT = 1000;
+const DEFAULT_CANDLES_LIMIT = 500;
+const MAX_CANDLES_LIMIT = 5000;
 const ALLOWED_CANDLE_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 const ALLOWED_CANDLE_PRICE_TYPES = ["bid", "ask", "mid"] as const;
 
@@ -183,6 +183,7 @@ type CandlesQuery = {
   timeframe: (typeof ALLOWED_CANDLE_TIMEFRAMES)[number];
   priceType: (typeof ALLOWED_CANDLE_PRICE_TYPES)[number];
   limit: number;
+  before?: Date;
 };
 
 function parseCandlesQuery(
@@ -222,9 +223,19 @@ function parseCandlesQuery(
     };
   }
 
+  const beforeRaw = raw.before?.trim();
+  let before: Date | undefined;
+
+  if (beforeRaw) {
+    before = new Date(beforeRaw);
+    if (Number.isNaN(before.getTime())) {
+      return { ok: false, error: "before must be an ISO-8601 timestamp." };
+    }
+  }
+
   return {
     ok: true,
-    value: { symbol, timeframe: timeframeRaw, priceType: priceTypeRaw, limit },
+    value: { symbol, timeframe: timeframeRaw, priceType: priceTypeRaw, limit, before },
   };
 }
 
