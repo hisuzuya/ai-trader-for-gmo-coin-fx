@@ -1165,6 +1165,38 @@ ul {
   gap: 4px;
 }
 
+.tv-strategy-row-readonly .tv-strategy-meta {
+  min-width: 0;
+}
+
+.tv-strategy-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  align-self: center;
+  white-space: nowrap;
+}
+
+.tv-strategy-status-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tv-strategy-status-value {
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  max-width: 180px;
+  white-space: normal;
+  text-align: right;
+  line-height: 1.35;
+}
+
 /* ============ Account detail ============ */
 .tv-detail-grid {
   display: grid;

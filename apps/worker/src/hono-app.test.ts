@@ -8,6 +8,7 @@ import {
   AiDailyReviewerService,
   type DailyReviewContextProvider,
   type DailyReviewProvider,
+  InMemoryDailyReviewDecisionExecutor,
   InMemoryDailyReviewStore,
 } from "./services/ai-daily-reviewer.js";
 import { type AiProvider, AiTunerService, InMemoryAiTuningStore } from "./services/ai-tuner.js";
@@ -238,6 +239,7 @@ describe("worker Hono app", () => {
         },
       }),
     };
+    const decisionExecutor = new InMemoryDailyReviewDecisionExecutor();
     const runtime = new WorkerRuntime([
       new AiDailyReviewerService({
         enabled: true,
@@ -245,6 +247,7 @@ describe("worker Hono app", () => {
         aiProvider,
         contextProvider,
         store,
+        decisionExecutor,
       }),
     ]);
     await runtime.start();
@@ -266,6 +269,13 @@ describe("worker Hono app", () => {
     });
     expect(store.invocations).toHaveLength(1);
     expect(store.reviews).toHaveLength(1);
+    expect(decisionExecutor.calls).toHaveLength(1);
+    expect(decisionExecutor.calls[0]).toMatchObject({
+      reviewDate: "2026-05-24",
+      candidateRetirementCandidates: [
+        { strategyName: "candidate_1m_spread_guard", confidence: "medium" },
+      ],
+    });
     vi.useRealTimers();
   });
 

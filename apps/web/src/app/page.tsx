@@ -1,5 +1,4 @@
 import type { UTCTimestamp } from "lightweight-charts";
-import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { type CandlePoint, CandlestickChart } from "@/components/CandlestickChart";
 import { PnlChart, type PnlPoint } from "@/components/PnlChart";
@@ -143,31 +142,6 @@ async function getRecentCandles(): Promise<RecentCandlesResponse> {
     priceType: body.priceType ?? "mid",
     candles: Array.isArray(body.candles) ? body.candles : [],
   };
-}
-
-async function recordPaperDecision(formData: FormData) {
-  "use server";
-
-  const strategyRunId = formData.get("strategyRunId");
-  const action = formData.get("action");
-
-  if (
-    typeof strategyRunId !== "string" ||
-    typeof action !== "string" ||
-    (action !== "promote_baseline" && action !== "retire_candidate")
-  ) {
-    return;
-  }
-
-  const baseUrl = process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787";
-  await fetch(new URL("/paper-decisions", baseUrl), {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ strategyRunId, action }),
-    cache: "no-store",
-  });
-
-  revalidatePath("/");
 }
 
 type PageProps = {
@@ -492,9 +466,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               ) : (
                 dashboard.candidates.map((candidate) => {
                   const status = candidate.strategyRunStatus ?? candidate.status;
-                  const actionable = candidate.strategyRunStatus === "proposed";
                   return (
-                    <article className="tv-strategy-row" key={candidate.id}>
+                    <article
+                      className="tv-strategy-row tv-strategy-row-readonly"
+                      key={candidate.id}
+                    >
                       <div className="tv-strategy-meta">
                         <span className="tv-strategy-name">
                           {candidate.candidateStrategyName ?? candidate.id}
@@ -507,27 +483,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                           </span>
                         </span>
                       </div>
-                      <form className="tv-strategy-actions" action={recordPaperDecision}>
-                        <input type="hidden" name="strategyRunId" value={candidate.id} />
-                        <button
-                          className="tv-btn primary"
-                          name="action"
-                          type="submit"
-                          value="promote_baseline"
-                          disabled={!actionable}
-                        >
-                          採用
-                        </button>
-                        <button
-                          className="tv-btn danger"
-                          name="action"
-                          type="submit"
-                          value="retire_candidate"
-                          disabled={!actionable}
-                        >
-                          停止
-                        </button>
-                      </form>
+                      <div className="tv-strategy-status">
+                        <span className="tv-strategy-status-label">自動審査</span>
+                        <span className="tv-strategy-status-value">
+                          {describeAutoStatus(status)}
+                        </span>
+                      </div>
                     </article>
                   );
                 })
@@ -1078,6 +1039,7 @@ function translateStatus(status: string) {
     healthy: "正常",
     open: "保有中",
     proposed: "提案中",
+    promoted_to_baseline: "Baseline昇格済み",
     rejected: "却下",
     retired: "停止済み",
     running: "実行中",
@@ -1085,6 +1047,28 @@ function translateStatus(status: string) {
   };
 
   return labels[status.toLowerCase()] ?? status;
+}
+
+function describeAutoStatus(status: string): string {
+  const normalized = status.toLowerCase();
+  switch (normalized) {
+    case "proposed":
+      return "自動審査中(次回 Daily Review で判定)";
+    case "promoted_to_baseline":
+      return "自動採用済み → Baseline 昇格";
+    case "retired":
+      return "自動停止済み";
+    case "running_paper":
+      return "Paper 評価中";
+    case "validated":
+      return "Validation 通過";
+    case "rejected":
+      return "却下";
+    case "failed":
+      return "失敗";
+    default:
+      return status;
+  }
 }
 
 function formatRecommendationItems(value: unknown): string[] {
