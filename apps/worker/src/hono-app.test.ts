@@ -329,6 +329,50 @@ describe("worker Hono app", () => {
     expect(runtime.recordPaperDecision).not.toHaveBeenCalled();
   });
 
+  it("forwards account query to dashboardSummary when provided", async () => {
+    const runtime = {
+      dashboardSummary: vi.fn().mockResolvedValue({
+        selectedAccountName: "baseline_1m",
+        accounts: [],
+        trades: [],
+        candidates: [],
+        dailyReviews: [],
+        accountDetail: { name: "baseline_1m" },
+      }),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request("/dashboard?account=baseline_1m");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(runtime.dashboardSummary).toHaveBeenCalledWith({ accountName: "baseline_1m" });
+    expect(body).toMatchObject({
+      ok: true,
+      summary: {
+        selectedAccountName: "baseline_1m",
+        accountDetail: { name: "baseline_1m" },
+      },
+    });
+  });
+
+  it("omits accountName when account query is missing or blank", async () => {
+    const runtime = {
+      dashboardSummary: vi.fn().mockResolvedValue({
+        selectedAccountName: null,
+        accounts: [],
+        trades: [],
+        candidates: [],
+        dailyReviews: [],
+        accountDetail: null,
+      }),
+    } as unknown as WorkerRuntime;
+
+    const response = await createWorkerApp(runtime).request("/dashboard?account=");
+
+    expect(response.status).toBe(200);
+    expect(runtime.dashboardSummary).toHaveBeenCalledWith({});
+  });
+
   it("returns recent candles with default query parameters", async () => {
     const runtime = {
       recentCandles: vi.fn().mockResolvedValue({

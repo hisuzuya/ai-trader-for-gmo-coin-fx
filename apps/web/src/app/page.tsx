@@ -1,12 +1,40 @@
 import type { UTCTimestamp } from "lightweight-charts";
 import { revalidatePath } from "next/cache";
+import Link from "next/link";
 import { type CandlePoint, CandlestickChart } from "@/components/CandlestickChart";
 import { PnlChart, type PnlPoint } from "@/components/PnlChart";
 import { appRouter } from "@/server/trpc/root";
 
 export const dynamic = "force-dynamic";
 
+type AccountDetail = {
+  name: string;
+  balanceJpy: string;
+  initialBalanceJpy: string;
+  openPositions: {
+    symbol: string;
+    side: string;
+    quantity: string;
+    entryPrice: string;
+    stopLossPrice: string;
+    takeProfitPrice: string;
+    bestPriceSinceOpen: string;
+    spreadPips: string;
+    openedAt: string;
+  }[];
+  strategyRun: {
+    id: string;
+    strategyName: string;
+    symbol: string;
+    timeframe: string;
+    status: string;
+    startedAt: string;
+    strategyDefinition: unknown;
+  } | null;
+};
+
 type DashboardSummary = {
+  selectedAccountName: string | null;
   accounts: {
     name: string;
     balanceJpy: string;
@@ -38,6 +66,16 @@ type DashboardSummary = {
     nextActions: unknown;
     createdAt: string;
   }[];
+  accountDetail: AccountDetail | null;
+};
+
+const EMPTY_DASHBOARD: DashboardSummary = {
+  selectedAccountName: null,
+  accounts: [],
+  trades: [],
+  candidates: [],
+  dailyReviews: [],
+  accountDetail: null,
 };
 
 async function getHealth() {
@@ -45,31 +83,29 @@ async function getHealth() {
   return caller.health();
 }
 
-async function getDashboardSummary(): Promise<DashboardSummary> {
+async function getDashboardSummary(accountName?: string): Promise<DashboardSummary> {
   const baseUrl = process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787";
-  const response = await fetch(new URL("/dashboard", baseUrl), {
-    cache: "no-store",
-  }).catch(() => null);
+  const url = new URL("/dashboard", baseUrl);
+  if (accountName) {
+    url.searchParams.set("account", accountName);
+  }
+  const response = await fetch(url, { cache: "no-store" }).catch(() => null);
 
   if (!response?.ok) {
-    return {
-      accounts: [],
-      trades: [],
-      candidates: [],
-      dailyReviews: [],
-    };
+    return EMPTY_DASHBOARD;
   }
 
-  const body = (await response.json()) as { summary?: DashboardSummary };
+  const body = (await response.json()) as { summary?: Partial<DashboardSummary> };
+  const summary = body.summary ?? {};
 
-  return (
-    body.summary ?? {
-      accounts: [],
-      trades: [],
-      candidates: [],
-      dailyReviews: [],
-    }
-  );
+  return {
+    selectedAccountName: summary.selectedAccountName ?? null,
+    accounts: Array.isArray(summary.accounts) ? summary.accounts : [],
+    trades: Array.isArray(summary.trades) ? summary.trades : [],
+    candidates: Array.isArray(summary.candidates) ? summary.candidates : [],
+    dailyReviews: Array.isArray(summary.dailyReviews) ? summary.dailyReviews : [],
+    accountDetail: summary.accountDetail ?? null,
+  };
 }
 
 type RecentCandlesResponse = {
@@ -134,12 +170,27 @@ async function recordPaperDecision(formData: FormData) {
   revalidatePath("/");
 }
 
-export default async function DashboardPage() {
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function DashboardPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const rawAccount = params.account;
+  const accountParam =
+    typeof rawAccount === "string" && rawAccount.trim().length > 0
+      ? rawAccount.trim()
+      : Array.isArray(rawAccount) && typeof rawAccount[0] === "string"
+        ? rawAccount[0]
+        : undefined;
+
   const [health, dashboard, recentCandles] = await Promise.all([
     getHealth(),
-    getDashboardSummary(),
+    getDashboardSummary(accountParam),
     getRecentCandles(),
   ]);
+  const selectedAccountName = dashboard.selectedAccountName;
+  const isAccountView = selectedAccountName !== null;
   const totalBalance = dashboard.accounts.reduce(
     (sum, account) => sum + Number(account.balanceJpy),
     0,
@@ -188,23 +239,52 @@ export default async function DashboardPage() {
                     <span>口座名</span>
                     <span style={{ textAlign: "right" }}>残高</span>
                   </div>
-                  {dashboard.accounts.map((account) => (
-                    <article className="tv-watchlist-row" key={account.name}>
-                      <div className="tv-watchlist-name">
-                        <span className="tv-watchlist-symbol">{account.name}</span>
-                        <span className="tv-watchlist-sub">
-                          <span className={`tv-tag ${normalizeStatus(account.status)}`}>
-                            {translateStatus(account.status)}
+                  <Link
+                    href="/"
+                    scroll={false}
+                    className={`tv-watchlist-row tv-watchlist-row-link ${
+                      isAccountView ? "" : "active"
+                    }`}
+                  >
+                    <div className="tv-watchlist-name">
+                      <span className="tv-watchlist-symbol">全口座 (集計)</span>
+                      <span className="tv-watchlist-sub">
+                        <span className="tv-tag">ALL</span>
+                        <span>{dashboard.accounts.length} accounts</span>
+                      </span>
+                    </div>
+                    <div className="tv-watchlist-balance">
+                      {formatJpy(totalBalance)}
+                      <small>JPY</small>
+                    </div>
+                  </Link>
+                  {dashboard.accounts.map((account) => {
+                    const isSelected = selectedAccountName === account.name;
+                    return (
+                      <Link
+                        href={`/?account=${encodeURIComponent(account.name)}`}
+                        scroll={false}
+                        key={account.name}
+                        className={`tv-watchlist-row tv-watchlist-row-link ${
+                          isSelected ? "active" : ""
+                        }`}
+                      >
+                        <div className="tv-watchlist-name">
+                          <span className="tv-watchlist-symbol">{account.name}</span>
+                          <span className="tv-watchlist-sub">
+                            <span className={`tv-tag ${normalizeStatus(account.status)}`}>
+                              {translateStatus(account.status)}
+                            </span>
+                            <span>{formatDateTime(account.updatedAt)}</span>
                           </span>
-                          <span>{formatDateTime(account.updatedAt)}</span>
-                        </span>
-                      </div>
-                      <div className="tv-watchlist-balance">
-                        {formatJpy(Number(account.balanceJpy))}
-                        <small>JPY</small>
-                      </div>
-                    </article>
-                  ))}
+                        </div>
+                        <div className="tv-watchlist-balance">
+                          {formatJpy(Number(account.balanceJpy))}
+                          <small>JPY</small>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </>
               )}
             </div>
@@ -269,7 +349,7 @@ export default async function DashboardPage() {
 
           <section className="tv-panel tv-chart-panel tv-chart-panel-compact" aria-label="累積損益">
             <PanelHeader
-              title="累積損益 / Cumulative PnL"
+              title={`累積損益 / Cumulative PnL${selectedAccountName ? ` (${selectedAccountName})` : ""}`}
               meta={dashboard.trades.length > 0 ? `${dashboard.trades.length} fills` : "0 fills"}
             />
             <div className="tv-panel-body">
@@ -300,7 +380,7 @@ export default async function DashboardPage() {
 
           <section className="tv-panel" aria-label="直近の確定取引">
             <PanelHeader
-              title="直近の確定取引 / Recent Fills"
+              title={`直近の確定取引 / Recent Fills${selectedAccountName ? ` (${selectedAccountName})` : ""}`}
               meta={`${dashboard.trades.length}`}
             />
             <div className="tv-panel-body scroll-x">
@@ -398,6 +478,12 @@ export default async function DashboardPage() {
         </div>
 
         <div className="tv-col tv-col-right">
+          {dashboard.accountDetail ? (
+            <>
+              <AccountStrategyPanel detail={dashboard.accountDetail} />
+              <PositionsPanel detail={dashboard.accountDetail} />
+            </>
+          ) : null}
           <section className="tv-panel" aria-label="候補戦略">
             <PanelHeader title="候補戦略 / Candidates" meta={`${dashboard.candidates.length}`} />
             <div className="tv-panel-body">
@@ -723,6 +809,126 @@ function EmptyState({ text }: { text: string }) {
       {text}
     </div>
   );
+}
+
+function AccountStrategyPanel({ detail }: { detail: AccountDetail }) {
+  const run = detail.strategyRun;
+  const definitionPreview = formatStrategyDefinitionPreview(run?.strategyDefinition);
+  const balance = Number(detail.balanceJpy);
+  const initial = Number(detail.initialBalanceJpy);
+  const pnl = Number.isFinite(balance) && Number.isFinite(initial) ? balance - initial : 0;
+  const pnlPositive = pnl >= 0;
+  return (
+    <section className="tv-panel" aria-label="戦略詳細">
+      <PanelHeader
+        title={`戦略詳細 / Strategy (${detail.name})`}
+        meta={run ? run.status.toUpperCase() : "—"}
+      />
+      <div className="tv-panel-body">
+        <dl className="tv-detail-grid">
+          <div>
+            <dt>残高 / Balance</dt>
+            <dd>{formatJpy(balance)}</dd>
+          </div>
+          <div>
+            <dt>初期 / Initial</dt>
+            <dd>{formatJpy(initial)}</dd>
+          </div>
+          <div>
+            <dt>変動 / Δ</dt>
+            <dd className={pnlPositive ? "tv-pnl profit" : "tv-pnl loss"}>
+              {formatJpySigned(pnl)}
+            </dd>
+          </div>
+          <div>
+            <dt>戦略名 / Strategy</dt>
+            <dd>{run?.strategyName ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>銘柄 / Symbol</dt>
+            <dd>{run ? formatSymbol(run.symbol) : "—"}</dd>
+          </div>
+          <div>
+            <dt>足種 / TF</dt>
+            <dd>{run?.timeframe ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>開始 / Started</dt>
+            <dd>{run ? formatDateTime(run.startedAt) : "—"}</dd>
+          </div>
+        </dl>
+        {definitionPreview && (
+          <details className="tv-detail-collapsible">
+            <summary>Strategy Definition (JSON)</summary>
+            <pre className="tv-code-block">{definitionPreview}</pre>
+          </details>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PositionsPanel({ detail }: { detail: AccountDetail }) {
+  return (
+    <section className="tv-panel" aria-label="保有ポジション">
+      <PanelHeader
+        title={`保有ポジション / Open Positions (${detail.name})`}
+        meta={`${detail.openPositions.length}`}
+      />
+      <div className="tv-panel-body">
+        {detail.openPositions.length === 0 ? (
+          <EmptyState text="現在この口座に保有ポジションはありません" />
+        ) : (
+          detail.openPositions.map((position) => (
+            <article className="tv-position-row" key={`${position.openedAt}-${position.symbol}`}>
+              <div className="tv-position-head">
+                <span className="tv-symbol">{formatSymbol(position.symbol)}</span>
+                <span className={`tv-side ${position.side.toLowerCase()}`}>
+                  {translateSide(position.side)}
+                </span>
+                <span className="tv-time">{formatDateTime(position.openedAt)}</span>
+              </div>
+              <dl className="tv-position-grid">
+                <div>
+                  <dt>数量</dt>
+                  <dd>{Number(position.quantity).toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>エントリー</dt>
+                  <dd>{Number(position.entryPrice).toFixed(3)}</dd>
+                </div>
+                <div>
+                  <dt>SL</dt>
+                  <dd>{Number(position.stopLossPrice).toFixed(3)}</dd>
+                </div>
+                <div>
+                  <dt>TP</dt>
+                  <dd>{Number(position.takeProfitPrice).toFixed(3)}</dd>
+                </div>
+                <div>
+                  <dt>最良値</dt>
+                  <dd>{Number(position.bestPriceSinceOpen).toFixed(3)}</dd>
+                </div>
+                <div>
+                  <dt>Spread</dt>
+                  <dd>{Number(position.spreadPips).toFixed(1)} pips</dd>
+                </div>
+              </dl>
+            </article>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function formatStrategyDefinitionPreview(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return null;
+  }
 }
 
 function ReviewList({ title, items }: { title: string; items: string[] }) {
