@@ -15,7 +15,7 @@ COMPOSE_ENV_ARGS=()
 if [ -f .env.production ]; then
   COMPOSE_ENV_ARGS=(--env-file .env.production)
 fi
-COMPOSE_FILE_ARGS=(-f docker/compose.yml -f docker/compose.production.yml)
+COMPOSE_FILE_ARGS=(-f docker/compose.yml)
 
 git fetch --prune origin "$BRANCH"
 git checkout "$BRANCH"
