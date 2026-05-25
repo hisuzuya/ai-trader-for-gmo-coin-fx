@@ -213,7 +213,7 @@ unique:
 
 初期の`feature_set_version`は`fx-core-v1`にする。
 
-`features.values`はjsonbで保存するが、`feature_set_version`ごとにschema manifestをコード上に持ち、AI proposal validationとpaper traderは同じmanifestを参照する。strategy runには使用した`feature_set_version`と`input_source_version`を保存し、後から同じ入力で再計算できるようにする。
+`features.values`はjsonbで保存するが、`feature_set_version`ごとにschema manifestをコード上に持ち、AI Proposal validationとpaper traderは同じmanifestを参照する。Strategy Runには使用した`feature_set_version`と`input_source_version`を保存し、後から同じ入力で再計算できるようにする。
 
 `fx-core-v1`:
 

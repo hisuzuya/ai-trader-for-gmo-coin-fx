@@ -71,7 +71,7 @@ describe("AI tuning repository row helpers", () => {
             {
               code: "risk_gate_relaxed",
               path: "$.strategy.risk",
-              message: "risk gate cannot be relaxed",
+              message: "Risk Gate cannot be relaxed",
             },
           ],
         },

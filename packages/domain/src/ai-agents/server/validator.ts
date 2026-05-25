@@ -154,7 +154,7 @@ const parseAgentOutputJson = (
       reason: {
         code: "invalid_json",
         path: "$",
-        message: error instanceof Error ? error.message : "agent output is not valid JSON",
+        message: error instanceof Error ? error.message : "AI Agent output is not valid JSON",
       },
     };
   }
@@ -177,7 +177,7 @@ const findForbiddenCapabilities = (value: unknown): RejectReason[] => {
       reasons.push({
         code: "forbidden_capability",
         path,
-        message: `agent output contains forbidden capability text matching ${matched.source}`,
+        message: `AI Agent output contains forbidden capability text matching ${matched.source}`,
       });
     }
   });

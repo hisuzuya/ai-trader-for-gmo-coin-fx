@@ -390,7 +390,7 @@ export function createWorkerApp(runtime: WorkerRuntime) {
       return c.json(
         {
           ok: false,
-          error: error instanceof Error ? error.message : "AI daily review failed.",
+          error: error instanceof Error ? error.message : "Daily Review failed.",
         },
         500,
       );

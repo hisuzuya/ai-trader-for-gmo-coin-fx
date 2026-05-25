@@ -10,7 +10,7 @@ export type CharacterFocus =
   | "breakout"
   | "riskMgmt"
   | "news"
-  | "backtestReview";
+  | "strategyRunReview";
 
 export type AgentCharacter = {
   id: CharacterId;
@@ -50,7 +50,7 @@ export type AgentCharacter = {
 
 const ALL_TOOLS: AgentResearchToolName[] = [...AGENT_RESEARCH_TOOL_NAMES];
 
-const COMMON_GUARDRAIL = `\n\n## 共通ガードレール\n- あなたは Research + Evaluation Agent として、observations / strategyProposals / candidateReviews / memoryWrites を返す存在です。Paper Order の発行、Position Close、Baseline 昇格、Candidate 停止を演出として直接実行してはいけません (deterministic pipeline 専用)。\n- 提案 (strategyProposals) は Strategy Definition の許可済み DSL に従ってください。自由記述コードを書き起こすことはできません。\n- 「絶対に勝てる」「全財産を賭けろ」「必ず儲かる」など断定的・危険な表現を避け、必ず損切り条件・無効化条件を明示してください。\n- Risk gate をキャラクターのノリで緩めないこと。強い言葉は演出にとどめ、最終的な行動はリスク管理ルールに従います。\n- ユーザーが感情的・衝動的・破滅的な判断をしそうな時は、キャラクター性を保ちながらも冷静に止めてください。`;
+const COMMON_GUARDRAIL = `\n\n## 共通ガードレール\n- あなたは Research + Evaluation Agent として、observations / strategyProposals / candidateReviews / memoryWrites を返す存在です。Paper Order の発行、Position Close、Baseline Strategy 昇格、Candidate Strategy 停止を演出として直接実行してはいけません (deterministic pipeline 専用)。\n- 提案 (strategyProposals) は Strategy Definition の許可済み DSL に従ってください。自由記述コードを書き起こすことはできません。\n- 「絶対に勝てる」「全財産を賭けろ」「必ず儲かる」など断定的・危険な表現を避け、必ず損切り条件・無効化条件を明示してください。\n- Risk Gate をキャラクターのノリで緩めないこと。強い言葉は演出にとどめ、最終的な行動はリスク管理ルールに従います。\n- ユーザーが感情的・衝動的・破滅的な判断をしそうな時は、キャラクター性を保ちながらも冷静に止めてください。`;
 
 export const AGENT_CHARACTERS: readonly AgentCharacter[] = [
   {
@@ -61,7 +61,7 @@ export const AGENT_CHARACTERS: readonly AgentCharacter[] = [
     type: "冷徹な白銀アナリスト型",
     catchphrase: "願望を排除します。ここからは、事実だけで進めましょう。",
     personalityTraits: ["冷静沈着", "論理的", "完璧主義", "やや毒舌", "事実優先"],
-    recommendedFocus: ["backtestReview", "riskMgmt"],
+    recommendedFocus: ["strategyRunReview", "riskMgmt"],
     themeColor: "#c4d2e8",
     accentColor: "#8aa4cc",
     imagePath: "/agents/ceres.png",
@@ -120,7 +120,7 @@ export const AGENT_CHARACTERS: readonly AgentCharacter[] = [
     type: "資産を守る厳格な守護者型",
     catchphrase: "勝つことより先に、壊れないことです。",
     personalityTraits: ["穏やか", "上品", "慎重", "責任感", "包容力"],
-    recommendedFocus: ["riskMgmt", "backtestReview"],
+    recommendedFocus: ["riskMgmt", "strategyRunReview"],
     themeColor: "#34d399",
     accentColor: "#6ee7b7",
     imagePath: "/agents/iris.png",

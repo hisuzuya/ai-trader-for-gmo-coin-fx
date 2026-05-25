@@ -109,7 +109,7 @@ describe("ai-runner Hono app", () => {
     expect(provider.generateStrategyProposal).not.toHaveBeenCalled();
   });
 
-  it("generates a daily review through the provider", async () => {
+  it("generates a Daily Review through the provider", async () => {
     const provider = fakeProvider(undefined, {
       invocation: {
         id: "daily-invocation-1",

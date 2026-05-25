@@ -193,7 +193,7 @@ describe("worker Hono app", () => {
     expect(store.proposals).toHaveLength(1);
   });
 
-  it("runs AI daily review and records the accepted review", async () => {
+  it("runs Daily Review and records the accepted review", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-24T00:00:00.000Z"));
     const store = new InMemoryDailyReviewStore();

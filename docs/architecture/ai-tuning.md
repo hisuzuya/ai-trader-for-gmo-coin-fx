@@ -28,7 +28,7 @@ workerの責務:
 - `ai-runner`へproposal/review生成リクエストを送る。
 - 戻り値を再度schema validationする。
 - AI invocation summaryをDBへ保存する。
-- candidate投入、採用判定、risk gate判定を行う。
+- Candidate Strategy投入、採用判定、Risk Gate判定を行う。
 
 Claude CLI実行の初期設定:
 
@@ -50,14 +50,14 @@ output:
   - explanationはJSON field内に限定
 ```
 
-失敗時は既存baseline/candidateを維持し、AI proposalは`failed`として保存する。
+失敗時は既存Baseline Strategy / Candidate Strategyを維持し、AI Proposalは`failed`として保存する。
 
 AI tunerに渡す情報:
 
 - 現在のstrategy definition。
 - 現在のparameter ranges。
 - 直近paper成績。
-- 過去backtest要約。
+- 過去のStrategy Run要約。
 - walk-forward要約。
 - rejectされた過去候補の理由。
 - 現在の探索方針。
@@ -88,23 +88,23 @@ API key、DB URL、GMO secret、Cloudflare tokenなどはpromptに含めない�
 - DB接続情報。
 - API secret。
 - shell実行権限。
-- risk gateを緩和する権限。
+- Risk Gateを緩和する権限。
 
 ### Tuning Cadence
 
 ```text
 hourly tuning
-  - 既存strategy definitionのパラメータ微調整候補を生成
-  - gate通過後、paper candidateへ自動投入
+  - 既存Strategy Definitionのパラメータ微調整候補を生成
+  - gate通過後、Candidate Strategyへ自動投入
   - liveには反映しない
 
-daily review
-  - AIが日次レビューを作成
+Daily Review
+  - AIがDaily Reviewを作成
   - 1m / 5m / 15mの成績比較
-  - baseline昇格候補を推薦
-  - candidate停止候補を推薦
-  - Adoption Gateを通過した`confidence: high`の昇格推薦を自動適用する
-  - `confidence: high`の停止推薦を自動適用する
+  - Baseline Strategy昇格候補をCandidate Reviewとして出力
+  - Candidate Strategy停止候補をCandidate Reviewとして出力
+  - Adoption Gateを通過した`confidence: high`の昇格Candidate Reviewを自動適用する
+  - `confidence: high`の停止Candidate Reviewを自動適用する
 
 weekly review
   - ロジック構造の変更
@@ -157,7 +157,7 @@ exploration:
   - min_trade_count_for_promotion: 6
 ```
 
-採用判定はAdoption GateとDaily ReviewのANDで行う。Adoption Gate単独、Daily Review単独ではbaseline昇格しない。
+採用判定はAdoption GateとDaily ReviewのANDで行う。Adoption Gate単独、Daily Review単独ではBaseline Strategy昇格しない。
 
 重視する指標:
 
@@ -173,21 +173,21 @@ candidate_adoption_max_drawdown_limit_pct: 15
 emergency_retire_drawdown_pct: 20
 ```
 
-20,000円口座では、10%は2,000円、15%は3,000円、20%は4,000円に相当する。10%到達で日次レビュー警告、15%超過でcandidate採用拒否、20%到達でcandidate即停止候補とする。
+20,000円口座では、10%は2,000円、15%は3,000円、20%は4,000円に相当する。10%到達でDaily Review警告、15%超過でCandidate Strategy採用拒否、20%到達でCandidate Strategy即停止候補とする。
 
 Adoption Gate:
 
-- `net_profit_after_cost` が同じtimeframeの現Baselineを5%以上上回る。
+- `net_profit_after_cost` が同じtimeframeの現Baseline Strategyを5%以上上回る。
 - `trade_count >= min_trade_count_for_promotion`。
 - `max_drawdown_pct <= baseline.max_drawdown_pct`。
 - `max_drawdown_pct <= 15`。
 - spread / slippage stressで大きく崩れない。
 - validationがtrainより極端に悪くない。
-- risk gateを緩和していない。
-- candidateとbaselineのtimeframeが一致している。
+- Risk Gateを緩和していない。
+- Candidate StrategyとBaseline Strategyのtimeframeが一致している。
 
 Daily Review適用:
 
-- `baseline_promotion_candidates` は、Adoption Gate通過かつ`confidence: high`の場合だけ自動昇格する。
-- `candidate_retirement_candidates` は、`confidence: high`の場合に自動停止する。
+- `baseline_promotion_candidates` は、Adoption Gate通過かつ`confidence: high`の場合だけBaseline Strategyへ自動昇格する。
+- `candidate_retirement_candidates` は、`confidence: high`の場合にCandidate Strategyを自動停止する。
 - `confidence: medium / low` は自動適用せず、運用確認対象として保存する。

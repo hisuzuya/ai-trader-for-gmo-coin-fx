@@ -109,7 +109,7 @@ export class AiTunerService implements WorkerService {
 
     const sourceStrategy = this.strategies[0];
     if (!sourceStrategy) {
-      throw new Error("No baseline strategy is configured for AI tuning.");
+      throw new Error("No Baseline Strategy is configured for AI tuning.");
     }
 
     const response = await this.aiProvider.generateStrategyProposal(
@@ -222,7 +222,7 @@ function buildStrategyProposalInput(baseline: StrategyDefinition): StrategyPropo
     },
     rejectedCandidateSummaries: [],
     explorationPolicy:
-      "Keep risk gates at least as strict as baseline. Prefer small parameter changes suitable for paper validation.",
+      "Keep Risk Gates at least as strict as the current Baseline Strategy. Prefer small parameter changes suitable for Paper Trading validation.",
   };
 }
 

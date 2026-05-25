@@ -29,7 +29,7 @@ const expectRejectedWith = (proposal: unknown, code: RejectReasonCode) => {
 };
 
 describe("strategy definition schema", () => {
-  it("parses every initial baseline strategy", () => {
+  it("parses every initial Baseline Strategy", () => {
     for (const strategy of baselineStrategies) {
       expect(() => strategyDefinitionSchema.parse(strategy)).not.toThrow();
     }
@@ -37,13 +37,13 @@ describe("strategy definition schema", () => {
 });
 
 describe("AI strategy proposal validation", () => {
-  it("accepts the canonical valid AI proposal fixture", () => {
+  it("accepts the canonical valid AI Proposal fixture", () => {
     const result = validateAiStrategyProposal(readFixture("ai/strategy-proposal-valid.json"));
 
     expect(result.status).toBe("accepted");
   });
 
-  it("rejects the canonical invalid AI proposal fixture with reasons", () => {
+  it("rejects the canonical invalid AI Proposal fixture with reasons", () => {
     const result = validateAiStrategyProposal(readFixture("ai/strategy-proposal-invalid.json"));
 
     expect(result.status).toBe("rejected");
@@ -182,7 +182,7 @@ describe("AI strategy proposal validation", () => {
     );
   });
 
-  it("rejects risk gate relaxation", () => {
+  it("rejects Risk Gate relaxation", () => {
     expectRejectedWith(
       proposalFrom({
         ...BASELINE_STRATEGIES["5m"],

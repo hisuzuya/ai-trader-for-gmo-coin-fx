@@ -135,12 +135,12 @@ AIがしてはいけないこと:
 - 本番コードを直接変更する。
 - DBやファイルを直接編集する。
 - shell実行権限を持つ。
-- risk gateを自動で緩和する。
+- Risk Gateを自動で緩和する。
 - live tradingに未検証ロジックを自動反映する。
 
 ### Initial Baseline Strategies
 
-初期baselineは、1m / 5m / 15mにそれぞれ1つずつ置く。全て同じDSLで表現し、timeframe別にexit parameterとgateを変える。
+初期Baseline Strategyは、1m / 5m / 15mにそれぞれ1つずつ置く。全て同じDSLで表現し、timeframe別にexit parameterとgateを変える。
 
 ```text
 baseline_1m:
@@ -156,7 +156,7 @@ baseline_1m:
 baseline_5m:
   mode: hybrid
   intent:
-    - 標準baseline
+    - 標準Baseline Strategy
     - range/trend regime切替
     - BB + RSI + ADX + EMA/SMA整合
 
@@ -168,11 +168,11 @@ baseline_15m:
     - regime invalidation exitを重視
 ```
 
-初期baselineの目的は「勝つこと」だけではなく、AI candidateの比較基準を作ること。baselineは固定controlではなく、timeframeごとに1つだけ存在する現役の基準戦略として継続的に自動更新する。
+初期Baseline Strategyの目的は「勝つこと」だけではなく、AI Proposalから作られるCandidate Strategyの比較基準を作ること。Baseline Strategyは固定controlではなく、timeframeごとに1つだけ存在する現役の基準戦略として継続的に自動更新する。
 
 ### Baseline Auto-Update
 
-Baselineは同じtimeframeのCandidateだけから自動昇格できる。
+Baseline Strategyは同じtimeframeのCandidate Strategyだけから自動昇格できる。
 
 ```text
 candidate_1m  -> baseline_1m
@@ -190,7 +190,7 @@ AND
 Daily Review confidence = high
 ```
 
-新しいbaselineが昇格した場合、旧baselineはtimeframe別validation window 1回分だけShadow Baseline Runとして継続評価する。Shadow Baseline Runが新baselineより明確に良い場合は、自動rollbackで旧baselineを現役baselineに戻す。
+新しいBaseline Strategyが昇格した場合、旧Baseline Strategyはtimeframe別validation window 1回分だけShadow Baseline Runとして継続評価する。Shadow Baseline Runが新Baseline Strategyより明確に良い場合は、Baseline Rollbackで旧Baseline Strategyを現役Baseline Strategyに戻す。
 
 自動停止条件:
 
@@ -202,7 +202,7 @@ Daily Review confidence = high
 
 停止はAdoption Gateを待たない。昇格は厳しく、停止は早く扱う。
 
-Candidate Slotはtimeframeごとに最大3本にする。枠が埋まっている状態で新しいCandidateがschema/risk validationを通過した場合は、保留せず即投入し、既存Candidateから1本を自動停止して枠を空ける。
+Candidate Slotはtimeframeごとに最大3本にする。枠が埋まっている状態で新しいCandidate Strategyがschema/Risk Gate validationを通過した場合は、保留せず即投入し、既存Candidate Strategyから1本を自動停止して枠を空ける。
 
 押し出し優先順位:
 
@@ -210,11 +210,11 @@ Candidate Slotはtimeframeごとに最大3本にする。枠が埋まってい�
 2. Adoption Gateの最低条件から最も遠いもの。
 3. validation windowを終えた最古のもの。
 
-新Candidate投入前にCandidate Similarity Checkを行い、直近のactive、rejected、retired candidateとStrategy Definitionの構造が近すぎる候補はrejectする。ただし、明確な改善理由と主要parameter差分がある場合は投入を許可する。
+新Candidate Strategy投入前にCandidate Similarity Checkを行い、直近のactive、rejected、retired Candidate StrategyとStrategy Definitionの構造が近すぎる候補はrejectする。ただし、明確な改善理由と主要parameter差分がある場合は投入を許可する。
 
 ### DSL Validation
 
-AI proposalは以下を通過しなければcandidateに投入しない。
+AI Proposalは以下を通過しなければCandidate Strategyに投入しない。
 
 ```text
 validation:
@@ -222,15 +222,15 @@ validation:
   - schema validation
   - allowed indicator validation
   - parameter range validation
-  - risk gate cannot be relaxed
+  - Risk Gate cannot be relaxed
   - timeframe must be 1m | 5m | 15m
   - symbol must be USD_JPY in initial implementation
   - max open positions cannot exceed 2
   - allow_reversal_entry must remain false in initial implementation
-  - candidate must not be structurally too similar to recent active/rejected/retired candidates
+  - Candidate Strategy must not be structurally too similar to recent active/rejected/retired Candidate Strategies
 ```
 
-risk gateの緩和、未許可indicator追加、TypeScriptコード生成、shell実行要求を含むproposalはrejectする。
+Risk Gateの緩和、未許可indicator追加、TypeScriptコード生成、shell実行要求を含むAI Proposalはrejectする。
 
 ## Trade Gates
 
@@ -271,7 +271,7 @@ signal quality gate
   - SMA整合で危険な逆方向entryを抑止
   - candle confirmationはパラメータ化
 
-account risk gate
+Paper Account Risk Gate
   - 日次損失上限
   - 連敗クールダウン
   - rolling PnL gate
@@ -342,7 +342,7 @@ slippage_pips:
   severe_stress: 1.0
 ```
 
-1mはspread負けしやすいため厳しめに扱う。15mは保有時間が長くなりやすいため、entry gate上はやや広めに許容する。candidate採用ではnormalだけでなくstress条件でも大きく崩れないことを確認する。
+1mはspread負けしやすいため厳しめに扱う。15mは保有時間が長くなりやすいため、entry gate上はやや広めに許容する。Candidate Strategy採用ではnormalだけでなくstress条件でも大きく崩れないことを確認する。
 
 spread推定は以下の優先順位で行う。
 
@@ -358,7 +358,7 @@ default_spread_pips:
   15m: 1.0
 ```
 
-paper execution、backtest、candidate evaluationでは、使用したspreadの値と取得元を保存する。
+paper execution、Strategy Run evaluation、Candidate Strategy evaluationでは、使用したspreadの値と取得元を保存する。
 
 ```text
 spread_source: websocket_bid_ask | rest_snapshot | default
@@ -481,13 +481,13 @@ when both TP and SL touched in same 1m candle:
   - 理由をpaper_orders.execution_reasonに保存する
 ```
 
-BID/ASK candleがない区間では、mid candleに保存済みspreadを加減してBID/ASK相当を推定する。spread_sourceが`default`の区間はcandidate採用判定で不利に扱う。
+BID/ASK candleがない区間では、mid candleに保存済みspreadを加減してBID/ASK相当を推定する。spread_sourceが`default`の区間はCandidate Strategy採用判定で不利に扱う。
 
 シグナル足のcloseで約定させる方式は、検証が楽観的になりやすいため採用しない。tick/orderbook由来の可変slippageや約定拒否は、より現実寄りのモデルが必要になった段階で将来拡張として扱う。
 
 ### Paper Account
 
-初期のpaper accountは、将来の実運用想定に合わせる。
+初期のPaper Accountは、将来の実運用想定に合わせる。
 
 ```text
 initial_balance_jpy: 20,000
@@ -495,7 +495,7 @@ leverage: 25x
 currency: JPY
 ```
 
-baselineとcandidateはすべて同じ初期資金、同じレバレッジ条件で独立した仮想口座として動かす。これにより、timeframeやstrategy candidate間で、取引回数、手数料・スプレッド込み損益、最大ドローダウン、証拠金維持余力を公平に比較する。
+Baseline StrategyとCandidate Strategyはすべて同じ初期資金、同じレバレッジ条件で独立したPaper Accountとして動かす。これにより、timeframeやCandidate Strategy間で、取引回数、手数料・スプレッド込み損益、最大ドローダウン、証拠金維持余力を公平に比較する。
 
 少額・高レバレッジ運用では、損益率よりも破綻回避を優先する。paper評価では以下を必ず見る。
 
@@ -521,7 +521,7 @@ lot_sizing:
     - emergency_exit_margin_maintenance_rate: 150
 ```
 
-固定数量はUSD/JPYの1,000通貨を初期値にする。固定数量でもrisk gateは必ず通す。固定数量が証拠金余力、最大損失、スプレッド悪化耐性を満たさない場合はentryしない。
+固定数量はUSD/JPYの1,000通貨を初期値にする。固定数量でもRisk Gateは必ず通す。固定数量が証拠金余力、最大損失、スプレッド悪化耐性を満たさない場合はentryしない。
 
 20,000円口座、25倍、USD/JPYが150〜160円台の場合、1,000通貨の必要証拠金は概ね6,000〜6,400円で、口座の約30%強を使う。`max_margin_usage_pct: 50`を守ると2ポジション同時保有はほぼ通らないため、初期実装では1口座1ポジションに固定する。
 
@@ -539,7 +539,7 @@ emergency_exit_margin_maintenance_rate: 150%
 
 300%未満では新規entryを停止する。250%未満ではdashboardと日次レビューで警告する。150%未満ではpaper上でもemergency exit相当として評価し、将来live tradingでは緊急決済候補にする。
 
-同時保有ポジションは、各paper accountごとに最大1までにする。積み増しと両建ては初期実装では禁止し、証拠金使用率50%のrisk gateを必ず通す。
+同時保有ポジションは、各Paper Accountごとに最大1までにする。積み増しと両建ては初期実装では禁止し、証拠金使用率50%のRisk Gateを必ず通す。
 
 ```text
 max_open_positions_per_account: 1
@@ -573,9 +573,9 @@ paper tradingは複数候補を同時に並走する。
   - candidate_15m_3
 ```
 
-candidateはtimeframeごとに最大3個、合計9個まで。baseline昇格は同じtimeframe内で、Adoption GateとDaily Review `confidence: high`のANDにより自動適用する。
+Candidate Strategyはtimeframeごとに最大3個、合計9個まで。Baseline Strategy昇格は同じtimeframe内で、Adoption GateとDaily Review `confidence: high`のANDにより自動適用する。
 
-candidate lifecycle:
+Candidate Strategy lifecycle:
 
 ```text
 proposed

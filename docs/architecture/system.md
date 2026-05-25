@@ -22,7 +22,7 @@ Docker Compose on VM
   ├─ ai-runner
   │   ├─ Hono internal API
   │   ├─ Claude CLI
-  │   └─ AI agent tool loop
+  │   └─ AI Agent tool loop
   │
   ├─ mcp-agent-research
   │   ├─ Hono internal API
@@ -33,7 +33,7 @@ Docker Compose on VM
   │   ├─ features
   │   ├─ strategies
   │   ├─ paper trading data
-  │   └─ AI proposal/review logs
+  │   └─ AI Proposal / Daily Review logs
   │
   └─ host-managed tunnel / reverse proxy
 ```
@@ -140,13 +140,13 @@ packages/
 
 `apps/web`はNext.jsのrouting、dashboard UI、tRPC routerに限定する。`apps/worker`はHono API、scheduler、collector、paper trader、AI provider呼び出しに限定する。
 
-`apps/ai-runner`はClaude CLIの実行とAI agent tool loopだけを担当する。DB接続、repository、scheduler、paper account更新、candidate投入、risk gate判定は持たない。
+`apps/ai-runner`はClaude CLIの実行とAI Agent tool loopだけを担当する。DB接続、repository、scheduler、Paper Account更新、Candidate Strategy投入、Risk Gate判定は持たない。
 
-`apps/mcp-agent-research`はAI agent向けread-only tool APIを担当する。DB接続はread-onlyに固定し、write SQL、mutation repository、paper execution API、risk decisionは持たない。
+`apps/mcp-agent-research`はAI Agent向けread-only tool APIを担当する。DB接続はread-onlyに固定し、write SQL、mutation repository、paper execution API、Risk Gate decisionは持たない。
 
 `packages/db`はDrizzle schema、DB client、migration、repositoryを持つ。DB接続を使う処理は`apps/web`と`apps/worker`から`packages/db`経由で行い、schema定義を重複させない。
 
-`packages/domain`はDBやHTTP serverに依存しない純粋ロジックだけを置く。market-data normalization、candle aggregation、Strategy DSL validation、paper execution model、risk gateはここに置き、Next.jsとworkerの両方から再利用する。
+`packages/domain`はDBやHTTP serverに依存しない純粋ロジックだけを置く。market-data normalization、candle aggregation、Strategy DSL validation、paper execution model、Risk Gateはここに置き、Next.jsとworkerの両方から再利用する。
 
 アプリ固有のcomposition、scheduler、Hono route、tRPC procedure、UI stateはpackage化しない。これにより共通化しすぎによる依存逆転を避ける。
 
@@ -282,7 +282,7 @@ POST /admin/run-tuning
 
 POST /admin/run-daily-review
   - 内部限定
-  - 手動daily review実行
+  - 手動Daily Review実行
 ```
 
 `/admin/*` は初期状態ではDocker network内からのみ呼べる前提にする。Cloudflare Tunnelには公開しない。
@@ -312,7 +312,7 @@ paper trader:
 
 ai tuner:
   - hourly
-  - candidate slotが満杯でも評価し、低スコア候補を入れ替え可能
+  - Candidate Slotが満杯でも評価し、低スコアCandidate Strategyを入れ替え可能
 
 ai daily reviewer:
   - daily
@@ -354,5 +354,5 @@ replay / checkpoint方針:
 - restart時は最後に確定した1m candle以降をREST KLineでbackfillし、WebSocket live streamに復帰する。
 - candle aggregation、feature generation、paper traderはすべてidempotent upsertにし、`symbol + timeframe + opened_at + strategy/account`単位で再実行できるようにする。
 - `running`のまま`locked_until`を過ぎたjobはstaleとして扱い、次回scheduler tickで再取得する。
-- AI tuning / daily review / backupはcollectorとpaper traderを停止させない。AIやbackupの失敗は該当jobをfailedにし、market data収集とpaper tradingは継続する。
+- AI tuning / Daily Review / backupはcollectorとpaper traderを停止させない。AIやbackupの失敗は該当jobをfailedにし、market data収集とpaper tradingは継続する。
 - backupは初期実装ではworker内jobでもよいが、Phase 5までに独立したCompose serviceへ分離できるようにjob interfaceを保つ。

@@ -4,7 +4,7 @@
   "strategy": {
     "meta": {
       "name": "fixture_valid_5m",
-      "description": "Valid USD/JPY 5m strategy fixture for AI proposal validation.",
+      "description": "Valid USD/JPY 5m strategy fixture for AI Proposal validation.",
       "symbol": "USD_JPY",
       "timeframe": "5m",
       "enabled": true

@@ -192,7 +192,7 @@ export class AiDailyReviewerService implements WorkerService {
         warningCount: 0,
         promotionCandidateCount: 0,
         retirementCandidateCount: 0,
-        reason: "AI daily review is disabled. Set AI_DAILY_REVIEW_ENABLED=true to run.",
+        reason: "Daily Review is disabled. Set AI_DAILY_REVIEW_ENABLED=true to run.",
       };
       this.latestResult = result;
       return result;
@@ -289,7 +289,7 @@ export class HttpDailyReviewProvider implements DailyReviewProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`ai-runner daily review failed with status ${response.status}`);
+      throw new Error(`ai-runner Daily Review failed with status ${response.status}`);
     }
 
     return (await response.json()) as AiDailyReviewResponse;
@@ -571,7 +571,7 @@ export class DbDailyReviewDecisionExecutor implements DailyReviewDecisionExecuto
       return {
         ok: false,
         candidateStrategyName: strategyName,
-        reasons: ["candidate strategy definition is invalid"],
+        reasons: ["Candidate Strategy Definition is invalid"],
       };
     }
 
@@ -850,7 +850,7 @@ function toDailyReviewValidation(response: AiDailyReviewResponse): AiDailyReview
         {
           code: "schema_validation_error",
           path: "$",
-          message: response.invocation.errorSummary ?? "AI provider did not return a daily review.",
+          message: response.invocation.errorSummary ?? "AI provider did not return a Daily Review.",
         },
       ],
     };
@@ -886,7 +886,7 @@ function buildWarningSignals(
   const warnings: string[] = [];
 
   if (accounts.length === 0) {
-    warnings.push("No paper accounts are recorded yet.");
+    warnings.push("No Paper Accounts are recorded yet.");
   }
 
   if (recentPnl < 0) {

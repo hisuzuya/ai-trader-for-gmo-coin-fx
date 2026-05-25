@@ -21,7 +21,7 @@ CIでは、MVP buildにlive order adapter、private API client、実注文mutati
 - live order service。
 - live position sync。
 - protective order / emergency close。
-- manual approval flow。
+- Human Approval Gate。
 - kill switch。
 - account reconciliation。
 
@@ -29,8 +29,8 @@ live tradingに自動反映しないもの:
 
 - hourly tuning結果。
 - AIが新規生成したstrategy。
-- risk gateの緩和。
-- baseline昇格。
+- Risk Gateの緩和。
+- Baseline Strategy昇格。
 - Agent CandidateReview。
 
 ### Human Approval Gate Design Placeholder
@@ -39,14 +39,14 @@ Phase 3時点ではlive trading pathを追加しない。将来live tradingを�
 
 承認gateの初期要件:
 
-- agent output、hourly tuning結果、daily reviewはlive orderを直接作らない。
-- 承認対象はStrategy Run ID、評価期間、PnL、drawdown、trade count、risk gate差分を含むimmutable snapshotにする。
+- AI Agent output、hourly tuning結果、Daily Reviewはlive orderを直接作らない。
+- 承認対象はStrategy Run ID、評価期間、PnL、drawdown、trade count、Risk Gate差分を含むimmutable snapshotにする。
 - 承認操作は2段階にし、承認者、承認日時、対象version、失効日時を監査ログに残す。
 - secret mount、live adapter、live endpointは別Compose profileで管理し、通常のpaper運用profileには含めない。
 
 ## Dashboard
 
-初期dashboardは売買操作ではなく、運用監視、paper account比較、AI review確認を最優先にする。
+初期dashboardは売買操作ではなく、運用監視、Paper Account比較、Daily Review確認を最優先にする。
 
 初期画面:
 
@@ -59,7 +59,7 @@ System Status
   - DB status
 
 Paper Accounts
-  - baseline / candidate一覧
+  - Baseline Strategy / Candidate Strategy一覧
   - balance
   - realized / unrealized PnL
   - drawdown
@@ -74,13 +74,13 @@ Strategy Comparison
   - adoption / reject reason
 
 Daily Review
-  - AI daily review
-  - baseline昇格候補
-  - candidate停止候補
+  - Daily Review
+  - Baseline Strategy昇格候補
+  - Candidate Strategy停止候補
   - warnings
 ```
 
-baseline昇格など、人間承認が必要なpaper trading操作はdashboardから行えるようにする。MVP dashboardにはlive適用ボタン、実注文操作、GMO Private API secret入力欄を置かない。
+Baseline Strategy昇格など、人間承認が必要なPaper Trading操作はdashboardから行えるようにする。MVP dashboardにはlive適用ボタン、実注文操作、GMO Private API secret入力欄を置かない。
 
 ## Testing
 
@@ -92,7 +92,7 @@ unit:
   - candle aggregation
   - spread calculation
   - execution price calculation
-  - risk gate
+  - Risk Gate
   - DSL schema validation
   - adoption policy
 
@@ -369,7 +369,7 @@ restore_rehearsal:
     - row count / latest candle timeを検証
 ```
 
-paper trading段階ではVM内backup volumeを初期保存先にする。live tradingへ進む前に外部保存先を追加し、restore rehearsalの結果をdashboardまたはdaily reviewで確認できるようにする。
+Paper Trading段階ではVM内backup volumeを初期保存先にする。live tradingへ進む前に外部保存先を追加し、restore rehearsalの結果をdashboardまたはDaily Reviewで確認できるようにする。
 
 ### Secrets
 

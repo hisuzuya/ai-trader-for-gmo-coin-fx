@@ -13,7 +13,7 @@ import {
 } from "../../../../src/repositories/paper-trading-repository.js";
 
 describe("paper trading repository row helpers", () => {
-  it("converts paper account state to numeric DB strings", () => {
+  it("converts Paper Account state to numeric DB strings", () => {
     expect(
       toPaperAccountInsertRow({
         account: createPaperAccountState("account_1", { balanceJpy: 20_016 }),
