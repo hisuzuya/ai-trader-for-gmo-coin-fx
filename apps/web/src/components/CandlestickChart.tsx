@@ -28,7 +28,6 @@ type CandlestickChartProps = {
     priceType: "bid" | "ask" | "mid";
   };
   initialLimit?: number;
-  limitOptions?: number[];
 };
 
 type CandleApiResponse = {
@@ -46,16 +45,12 @@ type CandleApiResponse = {
   error?: string;
 };
 
-type LoadState = "idle" | "loading" | "error" | "done";
-
-const DEFAULT_LIMIT_OPTIONS = [500, 1000, 5000];
 const LOAD_MORE_LIMIT = 500;
 
 export function CandlestickChart({
   data,
   query,
   initialLimit = data.length,
-  limitOptions = DEFAULT_LIMIT_OPTIONS,
 }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -68,18 +63,13 @@ export function CandlestickChart({
   const loadingRef = useRef(false);
   const loadOlderRef = useRef<() => Promise<void>>(async () => {});
   const [seriesData, setSeriesData] = useState(data);
-  const [selectedLimit, setSelectedLimit] = useState(initialLimit);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const normalized = mergeCandlePoints([], data);
     seriesDataRef.current = normalized;
     setSeriesData(normalized);
-    setSelectedLimit(initialLimit);
     const moreAvailable = normalized.length >= initialLimit;
-    setHasMore(moreAvailable);
     hasMoreRef.current = moreAvailable;
     shouldFitContentRef.current = true;
     pendingPrependCountRef.current = 0;
@@ -198,7 +188,6 @@ export function CandlestickChart({
     if (!oldest) return;
 
     loadingRef.current = true;
-    setLoadState("loading");
     setError(null);
 
     try {
@@ -215,11 +204,8 @@ export function CandlestickChart({
 
       const moreAvailable = addedCount > 0 && incoming.length >= LOAD_MORE_LIMIT;
       hasMoreRef.current = moreAvailable;
-      setHasMore(moreAvailable);
-      setLoadState(moreAvailable ? "idle" : "done");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Candle lookup failed.");
-      setLoadState("error");
     } finally {
       loadingRef.current = false;
     }
@@ -229,60 +215,8 @@ export function CandlestickChart({
     loadOlderRef.current = loadOlder;
   }, [loadOlder]);
 
-  const reloadWithLimit = useCallback(
-    async (limit: number) => {
-      if (!query || loadingRef.current) return;
-
-      loadingRef.current = true;
-      setSelectedLimit(limit);
-      setLoadState("loading");
-      setError(null);
-
-      try {
-        const response = await fetchCandles(query, limit);
-        const nextData = toCandlePoints(response);
-        shouldFitContentRef.current = true;
-        pendingPrependCountRef.current = 0;
-        hasMoreRef.current = nextData.length >= limit;
-        setHasMore(hasMoreRef.current);
-        setSeriesData(nextData);
-        setLoadState(hasMoreRef.current ? "idle" : "done");
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Candle lookup failed.");
-        setLoadState("error");
-      } finally {
-        loadingRef.current = false;
-      }
-    },
-    [query],
-  );
-
   return (
     <div className="tv-chart-frame">
-      {query ? (
-        <fieldset className="tv-chart-loadbar">
-          <legend className="tv-sr-only">チャート表示本数</legend>
-          <div className="tv-segment compact">
-            {limitOptions.map((limit) => (
-              <button
-                type="button"
-                key={limit}
-                className={`tv-segment-btn ${selectedLimit === limit ? "active" : ""}`}
-                onClick={() => void reloadWithLimit(limit)}
-              >
-                {limit.toLocaleString()}
-              </button>
-            ))}
-          </div>
-          <span className="tv-chart-load-status">
-            {loadState === "loading"
-              ? "Loading"
-              : loadState === "done" || !hasMore
-                ? "Oldest loaded"
-                : `${seriesData.length.toLocaleString()} bars`}
-          </span>
-        </fieldset>
-      ) : null}
       <div ref={containerRef} className="tv-chart-container tv-chart-container-tall" />
       {error ? <div className="tv-chart-load-error">{error}</div> : null}
     </div>
