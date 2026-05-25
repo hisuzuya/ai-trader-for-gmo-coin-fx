@@ -2,18 +2,6 @@
 
 AI Tradeは、live tradingへ進む前にUSD/JPY FX戦略をpaper tradingで検証するためのシステム。このglossaryは、設計、issue、実装会話で使うドメイン用語を揃えるために存在する。
 
-## Language
-
-## Pull Request Operations
-
-PRのタイトル、本文、担当者は次のルールで統一する。
-
-- PR titleは英語と日本語を併記し、`English title / 日本語タイトル` の形式にする。
-- PR titleに`[codex]` prefixを付けない。
-- PR bodyは日本語で書く。見出しは原則として `## 概要` と `## 検証` を使い、必要に応じて `## 補足`、`## スコープ`、`## 注意` を追加する。
-- PRには必ずassigneeを設定する。個人作業では原則としてPR author本人をassignする。
-- 既存PRのタイトル、本文、assigneeがこのルールから外れている場合は、見つけた時点で修正する。
-
 ### Strategy Evaluation
 
 **Baseline Strategy**:
@@ -109,6 +97,14 @@ _Avoid_: random exploration, full rewrite, parameter-only tuning
 **AI Runner**:
 Claude CLIを隔離実行し、proposalまたはreview JSONだけを返すruntime。DB write、candidate adoption、paper account更新、risk decisionは持たない。
 _Avoid_: AI worker, Claude worker
+
+**Research Tool Server**:
+AI Agentが市場データ、候補成績、reject履歴、memoryをread-onlyで参照するためのtool runtime。DB write、paper account更新、candidate投入、risk decisionは持たない。
+_Avoid_: agent database, AI database writer, MCP worker
+
+**AI Agent**:
+市場状態、候補戦略、過去の失敗理由を観察し、Strategy Definition候補、Candidate Review、観察、memory write intentを出すresearch entity。Paper Order、Paper Account、Baseline昇格、Candidate停止を直接変更しない。
+_Avoid_: trading bot, autonomous trader, execution agent
 
 **Daily Review**:
 直近paper trading成績、warning、candidate recommendationをまとめる構造化review。`status: accepted` の review に含まれる `confidence: high` の `baseline_promotion_candidates` は、対象 **Candidate Strategy** が **Adoption Gate** も通過している場合にだけ **Baseline Strategy** へ自動昇格する。`confidence: high` の `candidate_retirement_candidates` は自動停止する。`confidence: medium / low` および `status: rejected / failed` の review は適用しない。

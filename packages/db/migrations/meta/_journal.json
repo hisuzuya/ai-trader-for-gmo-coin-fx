@@ -57,6 +57,13 @@
       "when": 1779800000000,
       "tag": "0007_agent_character_id",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779729047487,
+      "tag": "0008_blue_the_order",
+      "breakpoints": true
     }
   ]
 }

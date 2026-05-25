@@ -121,7 +121,7 @@ features
   - feature_set_version
   - input_source_version
   - values_jsonb
-  - unique(symbol, timeframe, price_type, opened_at, feature_set_version)
+  - unique(symbol, timeframe, price_type, opened_at, feature_set_version, input_source_version)
   - hypertable(opened_at)
 
 strategy_definitions
@@ -208,6 +208,7 @@ unique:
   - price_type
   - opened_at
   - feature_set_version
+  - input_source_version
 ```
 
 初期の`feature_set_version`は`fx-core-v1`にする。

@@ -7,6 +7,7 @@
     "dev:web": "pnpm --filter @ai-trade/web dev",
     "dev:worker": "pnpm --filter @ai-trade/worker dev",
     "dev:ai-runner": "pnpm --filter @ai-trade/ai-runner dev",
+    "dev:mcp-agent-research": "pnpm --filter @ai-trade/mcp-agent-research start",
     "build": "pnpm -r --if-present build",
     "db:generate": "pnpm --filter @ai-trade/db generate",
     "db:migrate": "pnpm --filter @ai-trade/db migrate",

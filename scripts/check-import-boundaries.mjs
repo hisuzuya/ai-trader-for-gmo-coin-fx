@@ -11,25 +11,44 @@ const rules = [
     label: "packages/domain must not depend on internal packages or apps",
     dir: "packages/domain/src",
     forbidden: [
-      /^@ai-trade\/(?:db|config|web|worker)(?:\/|$)/,
+      /^@ai-trade\/(?:db|config|web|worker|ai-runner|mcp-agent-research)(?:\/|$)/,
       /^@\/?/,
       /^\.\.\/\.\.\/(?:db|config|apps)\//,
     ],
   },
   {
-    label: "apps/web must not import apps/worker",
+    label: "apps/web must not import other apps",
     dir: "apps/web/src",
-    forbidden: [/^@ai-trade\/worker(?:\/|$)/, /apps\/worker/],
+    forbidden: [
+      /^@ai-trade\/(?:worker|ai-runner|mcp-agent-research)(?:\/|$)/,
+      /apps\/(?:worker|ai-runner|mcp-agent-research)/,
+    ],
   },
   {
-    label: "apps/worker must not import apps/web",
+    label: "apps/worker must not import other apps",
     dir: "apps/worker/src",
-    forbidden: [/^@ai-trade\/web(?:\/|$)/, /apps\/web/],
+    forbidden: [
+      /^@ai-trade\/(?:web|ai-runner|mcp-agent-research)(?:\/|$)/,
+      /apps\/(?:web|ai-runner|mcp-agent-research)/,
+    ],
+  },
+  {
+    label: "apps/ai-runner must not import DB or apps",
+    dir: "apps/ai-runner/src",
+    forbidden: [
+      /^@ai-trade\/(?:db|web|worker|mcp-agent-research)(?:\/|$)/,
+      /apps\/(?:web|worker|mcp-agent-research)/,
+    ],
+  },
+  {
+    label: "apps/mcp-agent-research must not import apps",
+    dir: "apps/mcp-agent-research/src",
+    forbidden: [/^@ai-trade\/(?:web|worker|ai-runner)(?:\/|$)/, /apps\/(?:web|worker|ai-runner)/],
   },
   {
     label: "packages/db must not import apps",
     dir: "packages/db/src",
-    forbidden: [/^@ai-trade\/(?:web|worker)(?:\/|$)/, /apps\//],
+    forbidden: [/^@ai-trade\/(?:web|worker|ai-runner|mcp-agent-research)(?:\/|$)/, /apps\//],
   },
   {
     label: "packages/config must not depend on internal packages or apps",

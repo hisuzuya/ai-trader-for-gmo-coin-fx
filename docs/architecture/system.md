@@ -21,7 +21,12 @@ Docker Compose on VM
   │
   ├─ ai-runner
   │   ├─ Hono internal API
-  │   └─ Claude CLI
+  │   ├─ Claude CLI
+  │   └─ AI agent tool loop
+  │
+  ├─ mcp-agent-research
+  │   ├─ Hono internal API
+  │   └─ read-only research tools
   │
   ├─ timescaledb
   │   ├─ candles
@@ -30,10 +35,10 @@ Docker Compose on VM
   │   ├─ paper trading data
   │   └─ AI proposal/review logs
   │
-  └─ cloudflared
+  └─ host-managed tunnel / reverse proxy
 ```
 
-workerのHono APIは原則としてDocker network内部限定にする。外部公開が必要になった場合のみ、Cloudflare Access付きの管理用hostnameを検討する。
+worker、ai-runner、mcp-agent-researchのHono APIは原則としてDocker network内部限定にする。外部公開が必要になった場合のみ、Cloudflare Access付きの管理用hostnameを検討する。
 
 ## ディレクトリ方針
 
@@ -83,7 +88,14 @@ apps/
       main.ts
       hono-app.ts
       claude-cli-provider.ts
-      schema.ts
+      agent-runner.ts
+
+  mcp-agent-research/
+    src/
+      main.ts
+      hono-app.ts
+      read-only-db.ts
+      tools.ts
 
 packages/
   db/
@@ -128,7 +140,9 @@ packages/
 
 `apps/web`はNext.jsのrouting、dashboard UI、tRPC routerに限定する。`apps/worker`はHono API、scheduler、collector、paper trader、AI provider呼び出しに限定する。
 
-`apps/ai-runner`はClaude CLIの実行だけを担当する。DB接続、repository、scheduler、paper account更新、candidate投入、risk gate判定は持たない。
+`apps/ai-runner`はClaude CLIの実行とAI agent tool loopだけを担当する。DB接続、repository、scheduler、paper account更新、candidate投入、risk gate判定は持たない。
+
+`apps/mcp-agent-research`はAI agent向けread-only tool APIを担当する。DB接続はread-onlyに固定し、write SQL、mutation repository、paper execution API、risk decisionは持たない。
 
 `packages/db`はDrizzle schema、DB client、migration、repositoryを持つ。DB接続を使う処理は`apps/web`と`apps/worker`から`packages/db`経由で行い、schema定義を重複させない。
 
@@ -152,6 +166,9 @@ apps/worker   -> packages/config
 apps/ai-runner -> packages/domain
 apps/ai-runner -> packages/config
 
+apps/mcp-agent-research -> packages/db
+apps/mcp-agent-research -> packages/config
+
 packages/db     -> packages/domain
 packages/db     -> packages/config
 packages/domain -> no internal package dependency
@@ -166,10 +183,12 @@ packages/config -> no internal package dependency
 - `packages/config -> apps/*`
 - `apps/ai-runner -> packages/db`
 - `apps/ai-runner -> apps/worker`
+- `apps/ai-runner -> apps/mcp-agent-research`
+- `apps/mcp-agent-research -> apps/*`
 - `apps/web -> apps/worker`
 - `apps/worker -> apps/web`
 
-workerとai-runnerはDocker network内の内部HTTPで通信する。TypeScript importで互いの`apps/*`配下を参照しない。
+worker、ai-runner、mcp-agent-researchはDocker network内の内部HTTPで通信する。TypeScript importで互いの`apps/*`配下を参照しない。
 
 ### Monorepo Tooling
 
@@ -188,12 +207,13 @@ root package scriptsはworkspace commandに寄せる。
 pnpm --filter @ai-trade/web dev
 pnpm --filter @ai-trade/worker dev
 pnpm --filter @ai-trade/ai-runner dev
+pnpm --filter @ai-trade/mcp-agent-research start
 pnpm --filter @ai-trade/db migrate
 pnpm -r typecheck
 pnpm -r test
 ```
 
-Phase 0では、workspace間の依存方向をCIで検査する。初期は軽量なimport boundary checkでよい。例えば`packages/domain`から`packages/db`、`apps/*`、Node server固有moduleをimportしていないことを検査する。
+Phase 0では、workspace間の依存方向をCIで検査する。初期は軽量なimport boundary checkでよい。例えば`packages/domain`から`packages/db`、`apps/*`、Node server固有moduleをimportしていないこと、`apps/ai-runner`が`packages/db`に依存していないこと、`apps/*`同士がTypeScript importで結合していないことを検査する。
 
 ## Worker Runtime
 
@@ -242,6 +262,15 @@ GET /status
 GET /metrics
   - Prometheus text formatは将来拡張
   - 初期はJSONで十分
+
+GET /agents
+GET /agents/:id
+  - AI Agent一覧と詳細
+
+POST /jobs/agent-run
+POST /jobs/agent-run-all
+  - 内部限定
+  - AI Agentの手動実行
 
 POST /admin/reconnect-collector
   - 内部限定
