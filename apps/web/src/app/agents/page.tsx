@@ -1,5 +1,9 @@
 import Link from "next/link";
 
+import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
+
+import { CrewTile, type CrewAgentSummary } from "@/components/agents/CrewTile";
+
 export const dynamic = "force-dynamic";
 
 type AgentSummary = {
@@ -17,6 +21,7 @@ type AgentSummary = {
   costBudgetPerRunUsd: number;
   pausedReason?: string;
   sharedMemoryEnabled: boolean;
+  characterId?: string | null;
   latestRun: {
     status: string;
     startedAt: string;
@@ -32,9 +37,7 @@ type AgentSummary = {
 async function getAgents(): Promise<AgentSummary[]> {
   const response = await fetch(
     new URL("/agents", process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787"),
-    {
-      cache: "no-store",
-    },
+    { cache: "no-store" },
   ).catch(() => null);
 
   if (!response?.ok) {
@@ -45,79 +48,104 @@ async function getAgents(): Promise<AgentSummary[]> {
   return Array.isArray(body.agents) ? body.agents : [];
 }
 
-export default async function AgentsPage() {
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AgentsPage({ searchParams }: PageProps) {
+  const query = await searchParams;
+  const filter = typeof query.filter === "string" ? query.filter : "all";
   const agents = await getAgents();
 
+  const filtered =
+    filter === "active"
+      ? agents.filter((agent) => agent.status === "active")
+      : filter === "paused"
+        ? agents.filter((agent) => agent.status === "paused")
+        : agents;
+
+  const unassignedAgents = filtered.filter((agent) => !getCharacter(agent.characterId));
+
   return (
-    <main className="agent-shell">
-      <header className="agent-top">
+    <section className="page-shell">
+      <header className="page-header">
         <div>
-          <p className="agent-kicker">Research + Evaluation</p>
+          <p className="page-kicker">Crew Roster</p>
           <h1>Agents</h1>
         </div>
-        <Link className="agent-nav-link" href="/">
-          Dashboard
-        </Link>
+        <div className="page-actions">
+          <Link
+            href="/agents?filter=all"
+            className={filter === "all" ? "btn-secondary" : "btn-ghost"}
+          >
+            All
+          </Link>
+          <Link
+            href="/agents?filter=active"
+            className={filter === "active" ? "btn-secondary" : "btn-ghost"}
+          >
+            Active
+          </Link>
+          <Link
+            href="/agents?filter=paused"
+            className={filter === "paused" ? "btn-secondary" : "btn-ghost"}
+          >
+            Paused
+          </Link>
+          <Link href="/agents/new" className="btn-primary">
+            ＋ New Agent
+          </Link>
+        </div>
       </header>
 
-      <section className="agent-grid" aria-label="AI agents">
-        {agents.length === 0 ? (
-          <div className="agent-empty">Agent scheduler is not ready.</div>
-        ) : (
-          agents.map((agent) => (
-            <Link key={agent.id} className="agent-card" href={`/agents/${agent.id}`}>
-              <div className="agent-card-head">
+      <div className="crew-grid">
+        {AGENT_CHARACTERS.map((character) => {
+          const agent = filtered.find((a) => a.characterId === character.id) ?? null;
+          const summary: CrewAgentSummary | null = agent
+            ? {
+                id: agent.id,
+                name: agent.name,
+                status: agent.status,
+                currentVersion: agent.currentVersion,
+                acceptedProposalCount: agent.acceptedProposalCount,
+                proposalCount: agent.proposalCount,
+                succeededRunCount: agent.succeededRunCount,
+                failedRunCount: agent.failedRunCount,
+                latestRunStatus: agent.latestRun?.status ?? null,
+              }
+            : null;
+          return <CrewTile key={character.id} character={character} agent={summary} />;
+        })}
+      </div>
+
+      {unassignedAgents.length > 0 ? (
+        <section className="panel">
+          <div className="panel-title">
+            <h2>キャラ未設定のエージェント ({unassignedAgents.length})</h2>
+          </div>
+          <p style={{ color: "var(--muted)", marginBottom: 12 }}>
+            既存のエージェントにキャラが未割り当てです。詳細画面の Edit からキャラを選択してください。
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {unassignedAgents.map((agent) => (
+              <Link key={agent.id} href={`/agents/${agent.id}`} className="activity-row">
+                <span
+                  className="character-avatar placeholder"
+                  style={{ width: 36, height: 36 }}
+                  aria-hidden
+                >
+                  ?
+                </span>
                 <div>
-                  <h2>{agent.name}</h2>
-                  <p>{agent.persona}</p>
+                  <div className="activity-row-title">{agent.name}</div>
+                  <div className="activity-row-meta">{agent.persona}</div>
                 </div>
-                <span className={`agent-status ${agent.status}`}>{agent.status}</span>
-              </div>
-              <dl className="agent-metrics">
-                <div>
-                  <dt>Version</dt>
-                  <dd>{agent.currentVersion}</dd>
-                </div>
-                <div>
-                  <dt>Interval</dt>
-                  <dd>{agent.runIntervalSec}s</dd>
-                </div>
-                <div>
-                  <dt>Tools</dt>
-                  <dd>{agent.allowedTools.length}</dd>
-                </div>
-                <div>
-                  <dt>Proposals</dt>
-                  <dd>
-                    {agent.acceptedProposalCount}/{agent.proposalCount}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Runs</dt>
-                  <dd>
-                    {agent.succeededRunCount}/{agent.succeededRunCount + agent.failedRunCount}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Failures</dt>
-                  <dd>
-                    {agent.consecutiveFailures}/{agent.maxConsecutiveFailures}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Budget</dt>
-                  <dd>${agent.costBudgetPerRunUsd}</dd>
-                </div>
-              </dl>
-              <p className="agent-model">
-                Latest run: {agent.latestRun ? agent.latestRun.status : "none"}
-              </p>
-              {agent.pausedReason ? <p className="agent-model">{agent.pausedReason}</p> : null}
-              <p className="agent-model">{agent.model}</p>
-            </Link>
-          ))
-        )}
-      </section>
-    </main>
+                <span className="activity-row-status">v{agent.currentVersion}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </section>
   );
 }

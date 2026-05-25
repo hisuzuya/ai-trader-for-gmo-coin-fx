@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-import type { RejectReason } from "../../ai-tuning/types.js";
-import { validateAiStrategyProposal } from "../../strategies/index.js";
-import { strategyDefinitionSchema } from "../../strategies/server/schema.js";
-import type { AgentRunOutput, AgentRunOutputValidationResult } from "../types.js";
+import type { RejectReason } from "../../ai-tuning/types";
+import { validateAiStrategyProposal } from "../../strategies/index";
+import { strategyDefinitionSchema } from "../../strategies/server/schema";
+import type { AgentRunOutput, AgentRunOutputValidationResult } from "../types";
 
 const textArraySchema = z.array(z.string().min(1).max(500)).max(20);
 const tagArraySchema = z.array(z.string().min(1).max(80)).max(20);

@@ -230,6 +230,26 @@ export class AgentScheduler implements WorkerService {
     return this.repository.createVersion(input);
   }
 
+  async createAgent(input: Parameters<AiAgentRepository["createAgent"]>[0]) {
+    await this.repository.seedResearchAgent();
+    return this.repository.createAgent(input);
+  }
+
+  async updateAgentSettings(input: Parameters<AiAgentRepository["updateAgentSettings"]>[0]) {
+    await this.repository.seedResearchAgent();
+    return this.repository.updateAgentSettings(input);
+  }
+
+  async listProposals(filter: Parameters<AiAgentRepository["listProposalRecords"]>[0]) {
+    await this.repository.seedResearchAgent();
+    return this.repository.listProposalRecords(filter);
+  }
+
+  async listRuns(filter: Parameters<AiAgentRepository["listRunRecords"]>[0]) {
+    await this.repository.seedResearchAgent();
+    return this.repository.listRunRecords(filter);
+  }
+
   async rollbackVersion(input: { agentId: string; sourceVersion: number; note?: string }) {
     await this.repository.seedResearchAgent();
     return this.repository.createVersionFromVersion(input);

@@ -254,6 +254,46 @@ export class WorkerRuntime {
     return scheduler.deleteMemory(input);
   }
 
+  async createAgent(input: Parameters<AgentScheduler["createAgent"]>[0]) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.createAgent(input);
+  }
+
+  async updateAgentSettings(input: Parameters<AgentScheduler["updateAgentSettings"]>[0]) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.updateAgentSettings(input);
+  }
+
+  async listAgentProposals(filter: Parameters<AgentScheduler["listProposals"]>[0]) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.listProposals(filter);
+  }
+
+  async listAgentRuns(filter: Parameters<AgentScheduler["listRuns"]>[0]) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.listRuns(filter);
+  }
+
   async dashboardSummary(options: { accountName?: string } = {}): Promise<WorkerDashboardSummary> {
     const [accounts, candidates, dailyReviews] = await Promise.all([
       db

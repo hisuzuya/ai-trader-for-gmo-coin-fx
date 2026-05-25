@@ -2,6 +2,7 @@ import type { UTCTimestamp } from "lightweight-charts";
 import Link from "next/link";
 import { type CandlePoint, CandlestickChart } from "@/components/CandlestickChart";
 import { PnlChart, type PnlPoint } from "@/components/PnlChart";
+import { CrewPanelSection } from "@/components/agents/CrewPanelSection";
 import { appRouter } from "@/server/trpc/root";
 
 export const dynamic = "force-dynamic";
@@ -189,7 +190,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const candleUp = candleChange >= 0;
 
   return (
-    <main className="tv-shell">
+    <>
+      <CrewPanelSection />
+      <main className="tv-shell">
       <Sidebar />
       <TopBar healthOk={health.ok} healthService={health.service} timestamp={health.timestamp} />
       <TickerStrip
@@ -515,6 +518,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         candidates={dashboard.candidates.length}
       />
     </main>
+    </>
   );
 }
 

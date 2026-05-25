@@ -320,6 +320,7 @@ function agentRunInput() {
       tokenBudgetPerRun: 200000,
       costBudgetPerRunUsd: 5,
       sharedMemoryEnabled: true,
+      characterId: null,
     },
     contextSummary: "No active candidates.",
     version: 1,

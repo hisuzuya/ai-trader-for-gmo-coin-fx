@@ -181,6 +181,7 @@ export const aiAgents = pgTable(
       .default("5"),
     pausedReason: text("paused_reason"),
     sharedMemoryEnabled: boolean("shared_memory_enabled").notNull().default(false),
+    characterId: text("character_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
