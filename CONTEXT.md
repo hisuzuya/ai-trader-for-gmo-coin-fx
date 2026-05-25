@@ -4,6 +4,16 @@ AI Tradeは、live tradingへ進む前にUSD/JPY FX戦略をpaper tradingで検�
 
 ## Language
 
+## Pull Request Operations
+
+PRのタイトル、本文、担当者は次のルールで統一する。
+
+- PR titleは英語と日本語を併記し、`English title / 日本語タイトル` の形式にする。
+- PR titleに`[codex]` prefixを付けない。
+- PR bodyは日本語で書く。見出しは原則として `## 概要` と `## 検証` を使い、必要に応じて `## 補足`、`## スコープ`、`## 注意` を追加する。
+- PRには必ずassigneeを設定する。個人作業では原則としてPR author本人をassignする。
+- 既存PRのタイトル、本文、assigneeがこのルールから外れている場合は、見つけた時点で修正する。
+
 ### Strategy Evaluation
 
 **Baseline Strategy**:
