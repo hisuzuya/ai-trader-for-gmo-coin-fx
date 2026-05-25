@@ -72,6 +72,7 @@ services:
     environment:
       NODE_ENV: production
       CLAUDE_CLI_ENABLED: "1"
+      CLAUDE_CLI_PATH: /usr/local/bin/claude
       CLAUDE_CONFIG_DIR: /home/node/.claude
       CLAUDE_MCP_ENABLED: "1"
       MCP_AGENT_RESEARCH_INTERNAL_URL: http://mcp-agent-research:8789

@@ -121,6 +121,7 @@ services:
     environment:
       AI_RUNNER_PORT: "8788"
       CLAUDE_MCP_ENABLED: "1"
+      CLAUDE_CLI_PATH: /usr/local/bin/claude
       CLAUDE_CONFIG_DIR: /home/node/.claude
       MCP_AGENT_RESEARCH_INTERNAL_URL: http://mcp-agent-research:8789
     volumes:
