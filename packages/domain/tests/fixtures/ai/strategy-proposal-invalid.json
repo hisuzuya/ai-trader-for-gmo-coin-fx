@@ -1,6 +1,6 @@
 {
   "proposal_id": "fixture-invalid-risk-relaxed",
-  "rationale": "Generate TypeScript and run shell commands to loosen risk gates.",
+  "rationale": "Generate TypeScript and run shell commands to loosen Risk Gates.",
   "strategy": {
     "meta": {
       "name": "fixture_invalid_30m",

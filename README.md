@@ -9,8 +9,8 @@ advice, investment advice, or a recommendation to trade.
 
 `ai-trader-for-gmo-coin-fx` is an AI-assisted FX trading research system for GMO
 Coin FX USD/JPY. The current implementation collects public market data,
-normalizes ticks and candles, runs baseline paper trading, generates AI candidate
-and daily-review JSON through the isolated AI runner, and shows the operational
+normalizes ticks and candles, runs Baseline Strategy Paper Trading, generates AI
+Proposal and Daily Review JSON through the isolated AI Runner, and shows the operational
 state through a Next.js dashboard.
 
 Current status: MVP paper-trading implementation through Phase 4. The current
@@ -27,15 +27,15 @@ clear job:
 
 - `next-web`: Next.js dashboard for system status, research UI, and tRPC routes.
 - `worker`: Hono API for health checks, readiness checks, status endpoints,
-  market-data collection, paper trading, AI tuning, daily reviews, and manual
-  job triggers.
+  market-data collection, Paper Trading, AI tuning, Daily Review, and manual
+  run triggers.
 - `ai-runner`: isolated service boundary for Claude CLI strategy proposal and
-  daily review workflows, plus AI agent tool-loop execution.
-- `mcp-agent-research`: read-only research tool API used by AI agents for
-  market data, candidate performance, rejection history, and memory recall.
+  Daily Review workflows, plus AI Agent tool-loop execution.
+- `mcp-agent-research`: read-only research tool API used by AI Agents for
+  market data, Candidate Strategy performance, rejection history, and memory recall.
 - `timescaledb`: PostgreSQL/TimescaleDB storage for candles, features, paper
-  trading records, strategy candidates, AI invocations, daily reviews, and AI
-  agent state.
+  trading records, Candidate Strategies, AI invocations, Daily Reviews, and AI
+  Agent state.
 
 Market data flows from the GMO Coin FX public API into the worker, through the
 normalization and aggregation pipeline, then into TimescaleDB. The dashboard
@@ -47,8 +47,8 @@ reads stored data and worker health/status to show the current system state.
 - `apps/worker`: Hono worker API, health endpoints, readiness checks, and
   background jobs.
 - `apps/ai-runner`: isolated Claude CLI runner used by the worker over the
-  internal Docker network for strategy proposal, review, and AI agent workflows.
-- `apps/mcp-agent-research`: read-only Hono API for AI agent research tools.
+  internal Docker network for strategy proposal, review, and AI Agent workflows.
+- `apps/mcp-agent-research`: read-only Hono API for AI Agent research tools.
 - `packages/domain`: market-data clients, tick/candle normalization,
   aggregation, strategy DSL types, schemas, and validation.
 - `packages/db`: Drizzle schema, database client, repositories, migrations, and
@@ -147,7 +147,7 @@ Required repository secrets:
 pnpm dev:web       # Next.js dashboard
 pnpm dev:worker    # Worker Hono API
 pnpm dev:ai-runner # AI Runner Hono API
-pnpm dev:mcp-agent-research # Read-only AI agent research tool API
+pnpm dev:mcp-agent-research # Read-only AI Agent research tool API
 pnpm db:generate   # Generate Drizzle migrations from schema
 pnpm db:migrate    # Apply Drizzle migrations
 pnpm lint

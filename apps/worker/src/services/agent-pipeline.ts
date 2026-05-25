@@ -268,7 +268,7 @@ export class AgentScheduler implements WorkerService {
         : agents.find((candidate) => candidate.status === "active");
 
     if (!agent) {
-      throw new Error("No runnable AI agent was found.");
+      throw new Error("No runnable AI Agent was found.");
     }
 
     const contextSummary = await this.contextBuilder.build(agent);

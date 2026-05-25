@@ -2,39 +2,39 @@
 
 ## 目的と背景
 
-既存のAI関与は、hourly tunerがStrategy Definition候補を生成し、daily reviewerがpaper trading成績をレビューするbatch jobとして設計されている。この設計は安全境界が明確で、AIは直接paper accountやorderを変更しない。
+既存のAI関与は、hourly tunerがStrategy Definition候補を生成し、Daily ReviewがPaper Trading成績をレビューするbatch処理として設計されている。この設計は安全境界が明確で、AIは直接Paper AccountやPaper Orderを変更しない。
 
-今後のAI agentは、この安全境界を維持したまま、継続的に市場、候補戦略、過去の失敗理由を観察し、Strategy Definitionの改善仮説と候補レビューを蓄積する **Research + Evaluation Agent** として導入する。
+今後のAI Agentは、この安全境界を維持したまま、継続的に市場、Candidate Strategy、過去の失敗理由を観察し、Strategy Definitionの改善仮説とCandidate Reviewを蓄積する **Research + Evaluation Agent** として導入する。
 
-agentは取引執行者ではない。paper order、position close、baseline昇格、candidate停止は、worker/domain pipelineだけが実行する。baseline昇格はAdoption GateとDaily Review `confidence: high`のANDで自動適用し、candidate停止はDaily Review `confidence: high`で自動適用する。
+AI Agentは取引執行者ではない。Paper Order、position close、Baseline Strategy昇格、Candidate Strategy停止は、worker/domain pipelineだけが実行する。Baseline Strategy昇格はAdoption GateとDaily Review `confidence: high`のANDで自動適用し、Candidate Strategy停止はDaily Review `confidence: high`で自動適用する。
 
 ## Goals
 
-- AI agentを第一級のresearch entityとしてdomain modelに追加する。
-- agentはpersona、system prompt、tool allowlist、memoryを持つ。
-- agentは市場データ、指標、候補成績、reject履歴、memoryをread-only toolで参照できる。
-- agentはStrategy Definition候補、候補レビュー、観察、memory write intentを構造化出力する。
-- 出力は用途別のlifecycleに分解し、host側でschema validation、risk validation、永続化、paper投入を行う。
-- agentのsystem promptとtool構成はweb UIから編集でき、version履歴を残す。
+- AI Agentを第一級のresearch entityとしてdomain modelに追加する。
+- AI Agentはpersona、system prompt、tool allowlist、memoryを持つ。
+- AI Agentは市場データ、指標、Candidate Strategy成績、reject履歴、memoryをread-only toolで参照できる。
+- AI AgentはStrategy Definition候補、Candidate Review、Observation、memory write intentを構造化出力する。
+- 出力は用途別のlifecycleに分解し、host側でschema validation、Risk Gate validation、永続化、Paper Trading投入を行う。
+- AI Agentのsystem promptとtool構成はweb UIから編集でき、version履歴を残す。
 - 最初は1体だけ動かすが、schemaとrunnerはN体対応にする。
 
 ## Non-Goals
 
 - live tradingへの自動反映。
-- agentがpaper orderやpositionを直接変更すること。
-- agentがDB、filesystem、shell、GMO Private API secretへ直接アクセスすること。
-- agentがrisk gateを緩和すること。
+- AI AgentがPaper Orderやpositionを直接変更すること。
+- AI AgentがDB、filesystem、shell、GMO Private API secretへ直接アクセスすること。
+- AI AgentがRisk Gateを緩和すること。
 - 既存Strategy DSLを外れた任意コード生成や実行。
-- semantic memory search。Phase 1ではtag + full-textに限定する。
+- embedding/vector-based memory recall。Phase 1ではtag + full-textに限定する。
 
 ## Core Decision
 
-Phase 1のagentは **Research + Evaluation Agent** とする。
+Phase 1のAI Agentは **Research + Evaluation Agent** とする。
 
 ```text
 AgentScheduler
   -> AgentContextBuilder
-      -> deterministic summary
+      -> deterministic context summary
       -> read-only tool allowlist
   -> AiAgentRunner
       -> LLM tool loop
@@ -46,30 +46,30 @@ AgentScheduler
       -> validate memory writes
   -> StrategyEvaluationPipeline
       -> proposal validation
-      -> candidate paper account
-      -> paper evaluation
-      -> candidate slot management
-      -> adoption gate
-      -> baseline auto-promotion / auto-retirement
-      -> shadow baseline run / rollback
+      -> Candidate Strategy用Paper Account
+      -> Paper Trading evaluation
+      -> Candidate Slot management
+      -> Adoption Gate
+      -> Baseline Strategy auto-promotion / Candidate Strategy auto-retirement
+      -> Shadow Baseline Run / Baseline Rollback
 ```
 
-agentが行うこと:
+AI Agentが行うこと:
 
-- 市場状態と候補成績を観察する。
-- 過去のrejection、candidate review、memoryを参照する。
+- 市場状態とCandidate Strategy成績を観察する。
+- 過去のrejection、Candidate Review、memoryを参照する。
 - 新しいStrategy Definition候補を提案する。
-- 評価中candidateの継続、停止、昇格に関する推薦を出す。
+- 評価中Candidate Strategyの継続、停止、昇格に関するCandidate Reviewを出す。
 - 自分の仮説、失敗学習、提案レビューをmemory write intentとして出す。
-- 70%は現Baselineまたは有望Candidateのparameter refinement、30%はentry / exit / regime構造のexplorationを目安に提案する。
+- Agent Proposal Cadence内の提案比率は、70%を現Baseline Strategyまたは有望Candidate Strategyのparameter refinement、30%をentry / exit / regime構造のexplorationを目安にする。
 
-agentが行わないこと:
+AI Agentが行わないこと:
 
 - `place_paper_order`や`close_position`を呼ぶ。
-- paper accountのbalance、position、order、tradeを直接更新する。
-- baseline昇格やcandidate停止を直接適用する。これらはworker/domain pipelineが適用する。
+- Paper Accountのbalance、position、Paper Order、Paper Tradeを直接更新する。
+- Baseline Strategy昇格やCandidate Strategy停止を直接適用する。これらはworker/domain pipelineが適用する。
 - DBへ直接writeする。
-- risk gateを緩和する。
+- Risk Gateを緩和する。
 
 ## Concept Model
 
@@ -91,7 +91,7 @@ AIAgent
   - sharedMemoryEnabled
 ```
 
-agentはpaper accountを直接所有しない。agentが提案したStrategy Definitionがvalidationを通過した場合、StrategyEvaluationPipelineがcandidate Strategy RunとPaper Accountを作る。
+AI AgentはPaper Accountを直接所有しない。AI Agentが提案したStrategy Definitionがvalidationを通過した場合、StrategyEvaluationPipelineがCandidate Strategy用のStrategy RunとPaper Accountを作る。
 
 提案と評価の対応は `agent_strategy_proposals.agent_id`、`strategy_runs.source_agent_id`、`strategy_runs.source_proposal_id` で追跡する。
 
@@ -137,7 +137,7 @@ type StrategyProposal = {
 
 ### CandidateReview
 
-評価中candidateの継続、停止、昇格に関する推薦。`promote`はAdoption Gate通過と`confidence: high`を満たす場合だけ自動昇格に使う。`retire`は`confidence: high`の場合に自動停止に使う。`confidence: medium / low`は保存するが自動適用しない。
+評価中Candidate Strategyの継続、停止、昇格に関するCandidate Review。`promote`はAdoption Gate通過と`confidence: high`を満たす場合だけBaseline Strategy昇格に使う。`retire`は`confidence: high`の場合にCandidate Strategy停止へ使う。`confidence: medium / low`は保存するが自動適用しない。
 
 ```ts
 type CandidateReview = {
@@ -151,7 +151,7 @@ type CandidateReview = {
 
 ### AgentMemoryWrite
 
-agentが保存したい学習内容。toolとして直接保存させず、host側がvalidationして保存する。
+AI Agentが保存したい学習内容。toolとして直接保存させず、host側がvalidationして保存する。
 
 ```ts
 type AgentMemoryWrite = {
@@ -164,18 +164,18 @@ type AgentMemoryWrite = {
 
 ## Observation Input
 
-agent入力は **deterministic summary + read-only tool access** にする。
+AI Agent入力は **deterministic context summary + read-only tool access** にする。
 
 AgentContextBuilderは、LLM呼び出し前に以下を要約する。
 
-- 現在のbaseline/candidate一覧。
-- 評価中candidateの直近PnL、trade count、drawdown、status。
-- 直近のAI proposal rejection理由。
+- 現在のBaseline Strategy / Candidate Strategy一覧。
+- 評価中Candidate Strategyの直近PnL、trade count、drawdown、status。
+- 直近のAI Proposal rejection理由。
 - 直近のDaily Review summary。
-- market status、最新candle時刻、spread状態。
+- market status、最新Canonical Candle時刻、spread状態。
 - memory recallの初期結果。
 
-agentは必要な場合だけread-only toolを呼ぶ。
+AI Agentは必要な場合だけread-only toolを呼ぶ。
 
 Phase 1のtool allowlist:
 
@@ -191,7 +191,7 @@ write toolは持たせない。`save_memory` は存在させず、`memoryWrites`
 
 ## Tool Runtime
 
-`apps/ai-runner` はLLM実行とtool loopだけを担当する。DB接続、repository、paper account更新、risk decisionは持たない。
+`apps/ai-runner` はLLM実行とtool loopだけを担当する。DB接続、repository、Paper Account更新、Risk Gate decisionは持たない。
 
 read-only toolsはMCP互換のtool serverとして分離する。
 
@@ -208,22 +208,22 @@ Phase 1では、process数を抑えるためにread-only MCP serverを1つの `m
 
 ## Strategy Evaluation Pipeline
 
-agentが出したStrategyProposalは、以下の順に処理する。
+AI Agentが出したStrategyProposalは、以下の順に処理する。
 
 ```text
 JSON parse
-  -> agent output schema validation
+  -> AI Agent output schema validation
   -> validateAiStrategyProposal
   -> forbidden capability scan
-  -> risk gate cannot be relaxed
-  -> candidate similarity check
-  -> candidate slot check
-  -> candidate Strategy Run作成
-  -> candidate Paper Account作成
+  -> Risk Gate cannot be relaxed
+  -> Candidate Similarity Check
+  -> Candidate Slot check
+  -> Candidate Strategy用Strategy Run作成
+  -> Candidate Strategy用Paper Account作成
   -> PaperTraderServiceで評価
   -> Adoption Gate
   -> Daily Review confidence check
-  -> baseline auto-promotion or candidate auto-retirement
+  -> Baseline Strategy auto-promotion or Candidate Strategy auto-retirement
   -> Shadow Baseline Run
   -> Baseline Rollback if regression is detected
 ```
@@ -236,24 +236,24 @@ CandidateReviewの扱い:
 
 Adoption Gate:
 
-- net profit after costが同じtimeframeの現Baselineを5%以上上回る。
+- net profit after costが同じtimeframeの現Baseline Strategyを5%以上上回る。
 - trade countが1mは20件、5mは12件、15mは6件以上。
-- max drawdownが現Baseline以下、かつ15%以下。
+- max drawdownが現Baseline Strategy以下、かつ15%以下。
 - spread/slippage stressで極端に崩れない。
 - validationがtrainより極端に悪くない。
-- risk gateを緩和していない。
-- candidateとbaselineのtimeframeが一致している。
+- Risk Gateを緩和していない。
+- Candidate StrategyとBaseline Strategyのtimeframeが一致している。
 
 Candidate Slot:
 
-- active candidateはtimeframeごとに最大3本。
-- 枠が埋まっている状態で新Candidateがschema/risk validationを通過した場合は保留せず即投入する。
+- active Candidate Strategyはtimeframeごとに最大3本。
+- 枠が埋まっている状態で新Candidate Strategyがschema/Risk Gate validationを通過した場合は保留せず即投入する。
 - 押し出し対象は、停止推薦があるもの、Adoption Gateの最低条件から最も遠いもの、validation windowを終えた最古のものの順で選ぶ。
 
 Shadow Baseline Run:
 
-- 新Baseline昇格後、旧Baselineはtimeframe別validation window 1回分だけ継続評価する。
-- Shadow Baseline Runが新Baselineより明確に良い場合、旧Baselineを同じtimeframeの現役Baselineへ自動rollbackする。
+- 新Baseline Strategy昇格後、旧Baseline Strategyはtimeframe別validation window 1回分だけ継続評価する。
+- Shadow Baseline Runが新Baseline Strategyより明確に良い場合、旧Baseline Strategyを同じtimeframeの現役Baseline Strategyへ自動rollbackする。
 
 ## Existing AI Tuner / Daily Reviewer
 
@@ -263,24 +263,24 @@ Phase 1:
 
 - 既存tuner / daily reviewerは残す。
 - 新しいAgent Pipelineは別serviceとして導入する。
-- agent proposalも既存と同じStrategy DSL validationを通す。
+- AI Proposalも既存と同じStrategy DSL validationを通す。
 
 Phase 2:
 
-- hourly tunerのmanual jobはResearch Agent pipelineを優先実行する。旧 `AiTunerService` はfallback serviceとして残す。
-- daily reviewerのmanual jobはactive agentを横断実行し、CandidateReview数とpromotion/retirement推薦数を集計する。旧 `AiDailyReviewerService` はfallback serviceとして残す。
+- hourly tunerのmanual run triggerはResearch Agent pipelineを優先実行する。旧 `AiTunerService` はfallback serviceとして残す。
+- daily reviewerのmanual run triggerはactive AI Agentを横断実行し、CandidateReview数とpromotion/retirement Candidate Review数を集計する。旧 `AiDailyReviewerService` はfallback serviceとして残す。
 - Agent proposal cadenceは1mが1時間、5mが3時間、15mが12時間を初期値にする。
-- agent runにはtoken/cost budget、consecutive failure tracking、auto-pauseを持たせる。
-- memory recallはagent memoryと `shared_memory` tag付きmemory shelfを対象にし、PostgreSQL full-text + fallback substring searchを使う。
-- 既存 `ai_invocations` は後方互換のため維持し、agent run logを主ログとして扱う。
+- AI Agent Runにはtoken/cost budget、consecutive failure tracking、auto-pauseを持たせる。
+- memory recallはAI Agent memoryと `shared_memory` tag付きmemory shelfを対象にし、PostgreSQL full-text + fallback substring searchを使う。
+- 既存 `ai_invocations` は後方互換のため維持し、AI Agent Run logを主ログとして扱う。
 
 Phase 3:
 
-- seedは複数agentを作成する。初期構成は `Research Agent 01` と `Research Agent 1H`。
-- agent一覧はproposal/runの成功・失敗件数を返し、比較UIの最小入力にする。
+- seedは複数AI Agentを作成する。初期構成は `Research Agent 01` と `Research Agent 1H`。
+- AI Agent一覧はproposal/runの成功・失敗件数を返し、比較UIの最小入力にする。
 - `Research Agent 1H` はcontext buildingで1h candleを使う。
 - shared memory shelfは `shared_memory` tagで表現する。Phase 3では独立tableを追加しない。
-- live tradingへの反映は実装しない。live trading向けには人間承認ゲートを別設計し、agent outputは直接live order pathへ接続しない。
+- live tradingへの反映は実装しない。live trading向けには人間承認ゲートを別設計し、AI Agent outputは直接live order pathへ接続しない。
 
 ## Data Model
 
@@ -372,7 +372,7 @@ ai_agent_candidate_reviews
   created_at: timestamptz
 ```
 
-既存 `paper_accounts` はagentに直接紐づけない。candidateのpaper accountはStrategyEvaluationPipelineが作成し、source proposalを辿れるようにする。
+既存 `paper_accounts` はAI Agentに直接紐づけない。Candidate Strategy用Paper AccountはStrategyEvaluationPipelineが作成し、source proposalを辿れるようにする。
 
 ## Web UI
 
@@ -380,15 +380,15 @@ ai_agent_candidate_reviews
 
 ```text
 /agents
-  - agent一覧
+  - AI Agent一覧
   - name, persona, status, model, latest run, proposal count
 
 /agents/[id]
-  - overview: latest observations, proposals, candidate review summary
+  - overview: latest observations, proposals, Candidate Review summary
   - prompt: systemPrompt編集、tool allowlist編集
   - memories: 検索、一覧、削除
   - proposals: validation結果、paper投入状況、関連Strategy Run
-  - reviews: continue / retire / promote推薦とdeterministic gate結果
+  - reviews: continue / retire / promote Candidate Reviewとdeterministic gate結果
   - runs: tool calls、token usage、output validation結果
   - versions: prompt/tool構成の履歴とrollback
 ```
@@ -403,11 +403,11 @@ Phase 1では1体だけseedする。
 name: "Research Agent 01"
 persona: "USD/JPY paper strategy researcher"
 systemPrompt:
-  あなたはUSD/JPYのpaper trading戦略を研究するAI agentです。
-  あなたは注文、決済、baseline昇格、candidate停止を直接実行してはいけません。
+  あなたはUSD/JPYのPaper Trading戦略を研究するAI Agentです。
+  あなたはPaper Order、決済、Baseline Strategy昇格、Candidate Strategy停止を直接実行してはいけません。
   あなたの役割は、市場状態、候補成績、過去の失敗理由、自分のmemoryを観察し、
   Strategy Definition候補、Candidate Review、Observation、Memory WriteをJSONで出力することです。
-  Strategy Definitionは許可済みDSLだけを使い、risk gateを緩和してはいけません。
+  Strategy Definitionは許可済みDSLだけを使い、Risk Gateを緩和してはいけません。
 allowedTools:
   - read_bars
   - calc_indicator
@@ -421,8 +421,8 @@ status: active
 
 ## Security / Guardrails
 
-- agentはwrite toolを持たない。
-- agent outputは用途別schemaでvalidationする。
+- AI Agentはwrite toolを持たない。
+- AI Agent outputは用途別schemaでvalidationする。
 - StrategyProposalは既存Strategy DSL validatorとrisk validatorを通す。
 - CandidateReviewの`promote`はAdoption Gateなしに適用しない。`retire`は`confidence: high`の場合に自動停止へ使える。
 - `apps/ai-runner` はDB credential、repository write mount、GMO Private API secretを持たない。
@@ -439,20 +439,20 @@ Phase 1
   - read-only research tools実装
   - AiAgentRunner実装
   - AgentScheduler / AgentContextBuilder / AgentOutputProcessor実装
-  - StrategyEvaluationPipelineにagent source proposalを接続
-  - /agents UI追加
-  - seed agent 1体投入
+- StrategyEvaluationPipelineにAI Agent source proposalを接続
+- /agents UI追加
+- seed AI Agent 1体投入
 
 Phase 2
   - existing hourly tunerをAgent Pipelineへ統合
-  - daily reviewerをcandidate review / cross-agent reviewへ統合
+  - daily reviewerをCandidate Review / cross-agent reviewへ統合
   - token usage / cost budget UI
   - consecutive failure auto-pause
   - memory full-text search改善
 
 Phase 3
-  - 複数agent
-  - agent間比較
+  - 複数AI Agent
+  - AI Agent間比較
   - shared memory shelfの検討
   - 1h timeframe
   - live trading向け人間承認ゲートの別設計
@@ -460,16 +460,16 @@ Phase 3
 
 ## Relation To PR #37
 
-PR #37の「AI agentを第一級概念にする」「system promptとtool構成をversion管理する」「read-only indicator / memory toolを使う」方向は採用する。
+PR #37の「AI Agentを第一級概念にする」「system promptとtool構成をversion管理する」「read-only indicator / memory toolを使う」方向は採用する。
 
 一方で、以下はPhase 1から外す。
 
 - `mcp-trading.place_paper_order`
 - `mcp-trading.close_position`
-- 1 agent = 1 paper account
-- agentが直接paper取引を行う常駐trader model
+- AI Agent と Paper Account を1対1に固定する設計
+- AI Agentが直接Paper Tradingを行う常駐execution runtime
 
-agentはtraderではなく、Strategy DSL候補と候補レビューを改善し続けるresearch entityとして扱う。
+AI Agentはexecution runtimeではなく、Strategy DSL候補とCandidate Reviewを改善し続けるresearch entityとして扱う。
 
 ## 関連ドキュメント
 

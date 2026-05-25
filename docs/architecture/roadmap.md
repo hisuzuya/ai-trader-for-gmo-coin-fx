@@ -2,7 +2,7 @@
 
 ## 実装状況
 
-初期MVPの骨格、market data、paper trading、AI candidate tuning、daily review、AI Agentの最小実行経路は実装済み。今後はProduction Paper Runの運用安定化と、Agent Pipelineを既存hourly tuner / daily reviewerへ段階的に統合する。
+初期MVPの骨格、market data、Paper Trading、AI Candidate Strategy tuning、Daily Review、AI Agentの最小実行経路は実装済み。今後はProduction Paper Runの運用安定化と、Agent Pipelineを既存hourly tuner / daily reviewerへ段階的に統合する。
 
 完了済みの初期実装:
 
@@ -16,10 +16,10 @@
 7. WebSocket collectorでUSD_JPY tickerを購読する。
 8. 1m candle builderと5m/15m aggregatorを実装する。
 9. paper execution modelを実装する。entryは次足open、SL/TP/trailingは1m intrabar判定で実装する。
-10. strategy DSLとbaseline strategyを実装する。
+10. Strategy DSLとBaseline Strategyを実装する。
 11. ai-runnerのClaudeCliProviderとworker側AiProvider clientを実装する。
 12. hourly tuningとcandidate並走を実装する。
-13. dashboardでsystem status / paper accounts / strategy comparison / daily reviewを表示する。
+13. dashboardでsystem status / Paper Accounts / strategy comparison / Daily Reviewを表示する。
 14. Research + Evaluation Agent、read-only research tool API、agent設定UI、agent memoryを実装する。
 ```
 
@@ -67,15 +67,15 @@ done:
 
 ```text
 goal:
-  - AIなしでbaseline strategyをpaper実行できる
+  - AIなしでBaseline StrategyをPaper Trading実行できる
 
 done:
   - 1m / 5m / 15m baselineが並走する
   - fixed quantity 1,000でpaper tradesが記録される
-  - 各paper accountは最大1ポジションで動く
+  - 各Paper Accountは最大1ポジションで動く
   - spread/slippage込み損益が表示される
   - SL/TP/trailingが1m intrabarで保守的に判定される
-  - risk gateでentryが止まる
+  - Risk Gateでentryが止まる
 ```
 
 ### Phase 3: AI Candidate Tuning
@@ -96,12 +96,12 @@ done:
 
 ```text
 goal:
-  - AI daily reviewで運用判断を補助する
+  - Daily Reviewで運用判断を補助する
 
 done:
-  - daily reviewが保存される
-  - baseline昇格候補が表示される
-  - candidate停止候補が表示される
+  - Daily Reviewが保存される
+  - Baseline Strategy昇格候補が表示される
+  - Candidate Strategy停止候補が表示される
   - warningが表示される
 ```
 

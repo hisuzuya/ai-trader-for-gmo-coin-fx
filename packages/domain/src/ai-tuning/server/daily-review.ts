@@ -78,7 +78,7 @@ const parseReviewJson = (
       reason: {
         code: "invalid_json",
         path: "$",
-        message: error instanceof Error ? error.message : "daily review is not valid JSON",
+        message: error instanceof Error ? error.message : "Daily Review is not valid JSON",
       },
     };
   }

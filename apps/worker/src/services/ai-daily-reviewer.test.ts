@@ -112,7 +112,7 @@ describe("InMemoryDailyReviewDecisionExecutor", () => {
 });
 
 describe("evaluateAdoptionGateSnapshot", () => {
-  it("accepts a candidate that beats the current baseline without relaxing risk gates", () => {
+  it("accepts a Candidate Strategy that beats the current Baseline Strategy without relaxing Risk Gates", () => {
     const baseline = BASELINE_STRATEGIES["5m"];
     const candidate = {
       ...baseline,

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { validateAiDailyReview } from "../../../../src/ai-tuning/index.js";
 
 describe("validateAiDailyReview", () => {
-  it("accepts a structured daily review", () => {
+  it("accepts a structured Daily Review", () => {
     const result = validateAiDailyReview({
       review_date: "2026-05-24",
       summary: "Paper trading is stable.",
@@ -16,7 +16,7 @@ describe("validateAiDailyReview", () => {
     expect(result.status).toBe("accepted");
   });
 
-  it("rejects invalid daily review JSON", () => {
+  it("rejects invalid Daily Review JSON", () => {
     const result = validateAiDailyReview("{");
 
     expect(result).toMatchObject({
@@ -25,7 +25,7 @@ describe("validateAiDailyReview", () => {
     });
   });
 
-  it("accepts a daily review inside a JSON code fence", () => {
+  it("accepts a Daily Review inside a JSON code fence", () => {
     const result = validateAiDailyReview(`\`\`\`json
 {
   "review_date": "2026-05-24",

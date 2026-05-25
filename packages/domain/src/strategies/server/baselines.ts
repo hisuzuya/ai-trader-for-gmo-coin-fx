@@ -138,7 +138,7 @@ const modeByTimeframe: Record<StrategyTimeframe, StrategyDefinition["entry"]["mo
 const buildBaseline = (timeframe: StrategyTimeframe): StrategyDefinition => ({
   meta: {
     name: `baseline_${timeframe}`,
-    description: `Initial ${timeframe} USD/JPY paper-trading baseline.`,
+    description: `Initial ${timeframe} USD/JPY Paper Trading Baseline Strategy.`,
     symbol: "USD_JPY",
     timeframe,
     enabled: true,

@@ -5,7 +5,7 @@ import {
   toAiDailyReviewInsertRow,
 } from "../../../../src/repositories/ai-daily-review-repository.js";
 
-describe("AI daily review repository helpers", () => {
+describe("Daily Review repository helpers", () => {
   it("maps accepted reviews to a persisted row", () => {
     const row = toAiDailyReviewInsertRow(acceptedReview());
 
