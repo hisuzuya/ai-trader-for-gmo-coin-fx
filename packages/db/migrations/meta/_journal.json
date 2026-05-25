@@ -43,6 +43,13 @@
       "when": 1779704825469,
       "tag": "0005_big_karnak",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779711902678,
+      "tag": "0006_young_omega_flight",
+      "breakpoints": true
     }
   ]
 }

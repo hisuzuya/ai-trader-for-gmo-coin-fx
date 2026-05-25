@@ -11,12 +11,22 @@ type AgentSummary = {
   runIntervalSec: number;
   model: string;
   allowedTools: string[];
+  maxConsecutiveFailures: number;
+  consecutiveFailures: number;
+  tokenBudgetPerRun: number;
+  costBudgetPerRunUsd: number;
+  pausedReason?: string;
+  sharedMemoryEnabled: boolean;
   latestRun: {
     status: string;
     startedAt: string;
     finishedAt: string | null;
   } | null;
   proposalCount: number;
+  acceptedProposalCount: number;
+  rejectedProposalCount: number;
+  succeededRunCount: number;
+  failedRunCount: number;
 };
 
 async function getAgents(): Promise<AgentSummary[]> {
@@ -78,12 +88,31 @@ export default async function AgentsPage() {
                 </div>
                 <div>
                   <dt>Proposals</dt>
-                  <dd>{agent.proposalCount}</dd>
+                  <dd>
+                    {agent.acceptedProposalCount}/{agent.proposalCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Runs</dt>
+                  <dd>
+                    {agent.succeededRunCount}/{agent.succeededRunCount + agent.failedRunCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Failures</dt>
+                  <dd>
+                    {agent.consecutiveFailures}/{agent.maxConsecutiveFailures}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Budget</dt>
+                  <dd>${agent.costBudgetPerRunUsd}</dd>
                 </div>
               </dl>
               <p className="agent-model">
                 Latest run: {agent.latestRun ? agent.latestRun.status : "none"}
               </p>
+              {agent.pausedReason ? <p className="agent-model">{agent.pausedReason}</p> : null}
               <p className="agent-model">{agent.model}</p>
             </Link>
           ))

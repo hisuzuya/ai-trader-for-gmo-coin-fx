@@ -167,6 +167,20 @@ export const aiAgents = pgTable(
     currentVersion: numeric("current_version", { precision: 10, scale: 0 }).notNull().default("1"),
     runIntervalSec: numeric("run_interval_sec", { precision: 10, scale: 0 }).notNull(),
     model: text("model").notNull(),
+    maxConsecutiveFailures: numeric("max_consecutive_failures", { precision: 10, scale: 0 })
+      .notNull()
+      .default("3"),
+    consecutiveFailures: numeric("consecutive_failures", { precision: 10, scale: 0 })
+      .notNull()
+      .default("0"),
+    tokenBudgetPerRun: numeric("token_budget_per_run", { precision: 10, scale: 0 })
+      .notNull()
+      .default("200000"),
+    costBudgetPerRunUsd: numeric("cost_budget_per_run_usd", { precision: 12, scale: 6 })
+      .notNull()
+      .default("5"),
+    pausedReason: text("paused_reason"),
+    sharedMemoryEnabled: boolean("shared_memory_enabled").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
