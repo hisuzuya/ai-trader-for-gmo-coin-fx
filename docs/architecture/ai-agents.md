@@ -6,7 +6,7 @@
 
 今後のAI agentは、この安全境界を維持したまま、継続的に市場、候補戦略、過去の失敗理由を観察し、Strategy Definitionの改善仮説と候補レビューを蓄積する **Research + Evaluation Agent** として導入する。
 
-agentは取引執行者ではない。paper order、position close、baseline昇格、candidate停止は、deterministicなworker/domain pipelineだけが実行する。
+agentは取引執行者ではない。paper order、position close、baseline昇格、candidate停止は、worker/domain pipelineだけが実行する。baseline昇格はAdoption GateとDaily Review `confidence: high`のANDで自動適用し、candidate停止はDaily Review `confidence: high`で自動適用する。
 
 ## Goals
 
@@ -48,7 +48,10 @@ AgentScheduler
       -> proposal validation
       -> candidate paper account
       -> paper evaluation
-      -> deterministic promote / retire gate
+      -> candidate slot management
+      -> adoption gate
+      -> baseline auto-promotion / auto-retirement
+      -> shadow baseline run / rollback
 ```
 
 agentが行うこと:
@@ -58,13 +61,15 @@ agentが行うこと:
 - 新しいStrategy Definition候補を提案する。
 - 評価中candidateの継続、停止、昇格に関する推薦を出す。
 - 自分の仮説、失敗学習、提案レビューをmemory write intentとして出す。
+- 70%は現Baselineまたは有望Candidateのparameter refinement、30%はentry / exit / regime構造のexplorationを目安に提案する。
 
 agentが行わないこと:
 
 - `place_paper_order`や`close_position`を呼ぶ。
 - paper accountのbalance、position、order、tradeを直接更新する。
-- baseline昇格やcandidate停止を直接適用する。
+- baseline昇格やcandidate停止を直接適用する。これらはworker/domain pipelineが適用する。
 - DBへ直接writeする。
+- risk gateを緩和する。
 
 ## Concept Model
 
@@ -132,7 +137,7 @@ type StrategyProposal = {
 
 ### CandidateReview
 
-評価中candidateの継続、停止、昇格に関する推薦。推薦はそのまま適用しない。deterministic gateが最終判断する。
+評価中candidateの継続、停止、昇格に関する推薦。`promote`はAdoption Gate通過と`confidence: high`を満たす場合だけ自動昇格に使う。`retire`は`confidence: high`の場合に自動停止に使う。`confidence: medium / low`は保存するが自動適用しない。
 
 ```ts
 type CandidateReview = {
@@ -211,24 +216,44 @@ JSON parse
   -> validateAiStrategyProposal
   -> forbidden capability scan
   -> risk gate cannot be relaxed
+  -> candidate similarity check
+  -> candidate slot check
   -> candidate Strategy Run作成
   -> candidate Paper Account作成
   -> PaperTraderServiceで評価
-  -> deterministic promotion / retirement gate
+  -> Adoption Gate
+  -> Daily Review confidence check
+  -> baseline auto-promotion or candidate auto-retirement
+  -> Shadow Baseline Run
+  -> Baseline Rollback if regression is detected
 ```
 
-CandidateReviewはdeterministic gateの入力にできるが、単独では適用しない。
+CandidateReviewの扱い:
 
-昇格または停止の初期条件:
+- `promote + confidence: high` はAdoption Gate通過時だけ自動昇格に使う。
+- `retire + confidence: high` はAdoption Gateを待たず自動停止に使う。
+- `medium / low` はUIと次回context building用に保存し、自動適用しない。
 
-- `confidence: high`
-- net profit after costがpositive。
-- trade countがtimeframe別minimum以上。
-- max drawdownが閾値以下。
+Adoption Gate:
+
+- net profit after costが同じtimeframeの現Baselineを5%以上上回る。
+- trade countが1mは20件、5mは12件、15mは6件以上。
+- max drawdownが現Baseline以下、かつ15%以下。
 - spread/slippage stressで極端に崩れない。
-- baselineより一定以上改善している。
+- validationがtrainより極端に悪くない。
+- risk gateを緩和していない。
+- candidateとbaselineのtimeframeが一致している。
 
-これらを満たさない推薦はUIには表示するが、自動適用しない。
+Candidate Slot:
+
+- active candidateはtimeframeごとに最大3本。
+- 枠が埋まっている状態で新Candidateがschema/risk validationを通過した場合は保留せず即投入する。
+- 押し出し対象は、停止推薦があるもの、Adoption Gateの最低条件から最も遠いもの、validation windowを終えた最古のものの順で選ぶ。
+
+Shadow Baseline Run:
+
+- 新Baseline昇格後、旧Baselineはtimeframe別validation window 1回分だけ継続評価する。
+- Shadow Baseline Runが新Baselineより明確に良い場合、旧Baselineを同じtimeframeの現役Baselineへ自動rollbackする。
 
 ## Existing AI Tuner / Daily Reviewer
 
@@ -244,6 +269,7 @@ Phase 2:
 
 - hourly tunerのmanual jobはResearch Agent pipelineを優先実行する。旧 `AiTunerService` はfallback serviceとして残す。
 - daily reviewerのmanual jobはactive agentを横断実行し、CandidateReview数とpromotion/retirement推薦数を集計する。旧 `AiDailyReviewerService` はfallback serviceとして残す。
+- Agent proposal cadenceは1mが1時間、5mが3時間、15mが12時間を初期値にする。
 - agent runにはtoken/cost budget、consecutive failure tracking、auto-pauseを持たせる。
 - memory recallはagent memoryと `shared_memory` tag付きmemory shelfを対象にし、PostgreSQL full-text + fallback substring searchを使う。
 - 既存 `ai_invocations` は後方互換のため維持し、agent run logを主ログとして扱う。
@@ -398,7 +424,7 @@ status: active
 - agentはwrite toolを持たない。
 - agent outputは用途別schemaでvalidationする。
 - StrategyProposalは既存Strategy DSL validatorとrisk validatorを通す。
-- CandidateReviewは推薦として保存し、deterministic gateなしに適用しない。
+- CandidateReviewの`promote`はAdoption Gateなしに適用しない。`retire`は`confidence: high`の場合に自動停止へ使える。
 - `apps/ai-runner` はDB credential、repository write mount、GMO Private API secretを持たない。
 - read-only MCP serverにはwrite SQL、mutation repository、paper execution APIを置かない。
 - prompt、tool args、tool resultはredactしてrun logへ保存する。

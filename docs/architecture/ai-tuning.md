@@ -103,7 +103,8 @@ daily review
   - 1m / 5m / 15mの成績比較
   - baseline昇格候補を推薦
   - candidate停止候補を推薦
-  - 人間レビュー対象にする
+  - Adoption Gateを通過した`confidence: high`の昇格推薦を自動適用する
+  - `confidence: high`の停止推薦を自動適用する
 
 weekly review
   - ロジック構造の変更
@@ -112,26 +113,51 @@ weekly review
   - live適用候補の承認
 ```
 
-hourly tuningの検証窓:
+Agent proposal cadence:
+
+```text
+1m:
+  - proposal cadence: 1h
+
+5m:
+  - proposal cadence: 3h
+
+15m:
+  - proposal cadence: 12h
+```
+
+提案配分:
+
+```text
+refinement:
+  - 70%
+  - 現Baselineまたは有望Candidateのparameter refinement
+
+exploration:
+  - 30%
+  - entry / exit / regime構造を変える探索
+```
+
+検証窓:
 
 ```text
 1m
   - train: 24h
   - validation: 6h
-  - min_trade_count: 5
+  - min_trade_count_for_promotion: 20
 
 5m
   - train: 72h
   - validation: 24h
-  - min_trade_count: 5
+  - min_trade_count_for_promotion: 12
 
 15m
   - train: 14d
   - validation: 3d
-  - min_trade_count: 5
+  - min_trade_count_for_promotion: 6
 ```
 
-採用判定はgate + scoreで行う。
+採用判定はAdoption GateとDaily ReviewのANDで行う。Adoption Gate単独、Daily Review単独ではbaseline昇格しない。
 
 重視する指標:
 
@@ -149,11 +175,19 @@ emergency_retire_drawdown_pct: 20
 
 20,000円口座では、10%は2,000円、15%は3,000円、20%は4,000円に相当する。10%到達で日次レビュー警告、15%超過でcandidate採用拒否、20%到達でcandidate即停止候補とする。
 
-gate例:
+Adoption Gate:
 
-- `net_profit_after_cost > 0`
-- `trade_count >= min_trade_count`
-- `max_drawdown <= max_drawdown_limit`
+- `net_profit_after_cost` が同じtimeframeの現Baselineを5%以上上回る。
+- `trade_count >= min_trade_count_for_promotion`。
+- `max_drawdown_pct <= baseline.max_drawdown_pct`。
+- `max_drawdown_pct <= 15`。
 - spread / slippage stressで大きく崩れない。
 - validationがtrainより極端に悪くない。
-- baselineより一定以上改善している。
+- risk gateを緩和していない。
+- candidateとbaselineのtimeframeが一致している。
+
+Daily Review適用:
+
+- `baseline_promotion_candidates` は、Adoption Gate通過かつ`confidence: high`の場合だけ自動昇格する。
+- `candidate_retirement_candidates` は、`confidence: high`の場合に自動停止する。
+- `confidence: medium / low` は自動適用せず、運用確認対象として保存する。
