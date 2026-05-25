@@ -1,0 +1,102 @@
+name: Production Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_agent:
+        description: "Run one production agent execution smoke test"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            --output /tmp/cloudflared.deb \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i /tmp/cloudflared.deb
+
+      - name: Configure SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CLOUDFLARE_ACCESS_SERVICE_TOKEN_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_SERVICE_TOKEN_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$TUNNEL_SERVICE_TOKEN_ID"
+          test -n "$TUNNEL_SERVICE_TOKEN_SECRET"
+          cat >> ~/.ssh/config <<EOF
+          Host ai-trade-production
+            HostName $DEPLOY_HOST
+            Port $DEPLOY_PORT
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking accept-new
+            ProxyCommand cloudflared access ssh --hostname %h
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Run production smoke checks
+        env:
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CLOUDFLARE_ACCESS_SERVICE_TOKEN_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_SERVICE_TOKEN_SECRET }}
+          RUN_AGENT: ${{ inputs.run_agent }}
+        run: |
+          set -euo pipefail
+          {
+            printf '#!/usr/bin/env bash\n'
+            printf 'RUN_AGENT=%q\n' "$RUN_AGENT"
+            cat <<'REMOTE'
+          set -euo pipefail
+
+          cd /opt/ai-trade
+
+          COMPOSE_ENV_ARGS=()
+          if [ -f .env.production ]; then
+            COMPOSE_ENV_ARGS=(--env-file .env.production)
+          fi
+          COMPOSE_FILE_ARGS=(-f docker/compose.yml)
+
+          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" ps
+          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T next-web node -e 'void (async () => { const response = await fetch("http://127.0.0.1:3000/api/trpc/health"); const body = await response.text(); console.log(`next-web health ${response.status}: ${body}`); if (!response.ok) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
+          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T worker node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8787/ready"); const body = await response.json(); console.log(`worker ready ${response.status}: ${JSON.stringify(body)}`); if (!response.ok || !body.ok) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
+          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T worker node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8787/agents"); const body = await response.json(); console.log(`agents ${response.status}: ${JSON.stringify({ ok: body.ok, count: body.agents?.length ?? 0 })}`); if (!response.ok || !body.ok || !Array.isArray(body.agents) || body.agents.length < 1) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
+          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T mcp-agent-research node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8789/health"); const body = await response.json(); console.log(`mcp-agent-research health ${response.status}: ${JSON.stringify(body)}`); if (!response.ok || !body.ok) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
+          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T ai-runner node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8788/invoke", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: "Return JSON only: {\"ok\":true}", timeoutMs: 30000 }) }); const body = await response.json(); console.log(`ai-runner invoke ${response.status}: ${JSON.stringify({ ok: body.ok, stdout: body.stdout, error: body.error ?? null })}`); if (!response.ok || !body.ok || !String(body.stdout ?? "").includes("\"ok\"")) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
+
+          if [ "$RUN_AGENT" = "true" ]; then
+            if ! docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T worker node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8787/jobs/agent-run", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); const body = await response.json(); console.log(`agent-run ${response.status}: ${JSON.stringify({ ok: body.ok, status: body.result?.status, error: body.error ?? body.result?.error ?? null })}`); if (!response.ok || body.ok !== true) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'; then
+              docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" logs --tail=120 ai-runner worker
+              exit 1
+            fi
+          fi
+          REMOTE
+          } | ssh ai-trade-production
