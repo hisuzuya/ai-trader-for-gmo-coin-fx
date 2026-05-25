@@ -10,6 +10,7 @@ Live tradingは将来スコープとして設計には含めるが、MVP build�
 - [Data Architecture](./architecture/data.md): market data、candle schema、feature schema、TimescaleDB policy。
 - [Trading Design](./architecture/trading.md): Strategy DSL、trade gates、paper execution、paper account。
 - [AI Tuning](./architecture/ai-tuning.md): AI Runner、Claude CLI実行、tuning cadence、candidate採用。
+- [AI Agents](./architecture/ai-agents.md): Research + Evaluation Agent、read-only tool、memory、candidate review。
 - [Operations](./architecture/operations.md): live trading future scope、dashboard、testing、deployment、backup、secrets。
 - [Roadmap](./architecture/roadmap.md): 未決事項、初期実装順、MVP phases。
 
@@ -30,9 +31,11 @@ Live tradingは将来スコープとして設計には含めるが、MVP build�
 - Next.jsはstandalone buildをDocker serviceとしてVM上で動かす。
 - Claude CLIはworkerではなく`ai-runner` container内で実行し、workerから内部APIで呼び出す。
 - `ai-runner`はDB接続、repository write mount、GMO Private API secretを持たない。
+- AI agentはpaper orderを直接出さず、Strategy Definition候補、候補レビュー、観察、memory write intentだけを出力する。
 
 ## Context And Decisions
 
 - Domain glossary: [CONTEXT.md](../CONTEXT.md)
 - ADR: [0001 Claude CLIはAI Runnerで隔離実行する](./adr/0001-run-claude-cli-in-ai-runner.md)
 - ADR: [0002 appsとpackagesの境界を固定する](./adr/0002-use-app-and-package-boundaries.md)
+- ADR: [0003 Research + Evaluation Agentを導入する](./adr/0003-introduce-research-evaluation-ai-agents.md)
