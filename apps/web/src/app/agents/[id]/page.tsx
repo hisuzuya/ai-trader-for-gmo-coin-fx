@@ -1,8 +1,7 @@
+import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import { AGENT_RESEARCH_TOOL_NAMES } from "@ai-trade/domain/ai-agents/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
-import { AGENT_RESEARCH_TOOL_NAMES } from "@ai-trade/domain/ai-agents/types";
-import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
 
 import { CharacterHero } from "@/components/agents/CharacterHero";
 
@@ -39,8 +38,22 @@ type AgentDetail = {
   pausedReason?: string;
   sharedMemoryEnabled: boolean;
   characterId?: string | null;
-  observations: { id: string; kind: string; summary: string; evidence: unknown; tags: string[]; createdAt: string }[];
-  memories: { id: string; type: string; content: string; tags: string[]; sourceRefs: unknown; createdAt: string }[];
+  observations: {
+    id: string;
+    kind: string;
+    summary: string;
+    evidence: unknown;
+    tags: string[];
+    createdAt: string;
+  }[];
+  memories: {
+    id: string;
+    type: string;
+    content: string;
+    tags: string[];
+    sourceRefs: unknown;
+    createdAt: string;
+  }[];
   proposals: {
     id: string;
     strategyName: string;
@@ -137,7 +150,9 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
           {rolledBack ? <span className="panel-toast">Rolled back</span> : null}
           {memoryDeleted ? <span className="panel-toast">Memory deleted</span> : null}
           {warningSecret ? (
-            <span className="panel-toast warn">シークレットを検出。削除してから保存してください</span>
+            <span className="panel-toast warn">
+              シークレットを検出。削除してから保存してください
+            </span>
           ) : null}
           {errorEmpty ? <span className="panel-toast warn">Prompt is empty</span> : null}
           {errorSave ? <span className="panel-toast warn">保存に失敗しました</span> : null}
@@ -178,18 +193,12 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
       </nav>
 
       {activeTab === "overview" ? <OverviewPanel agent={agent} /> : null}
-      {activeTab === "prompt" ? (
-        <PromptPanel agent={agent} action={saveAction} />
-      ) : null}
-      {activeTab === "memory" ? (
-        <MemoryPanel agent={agent} action={deleteMemoryAction} />
-      ) : null}
+      {activeTab === "prompt" ? <PromptPanel agent={agent} action={saveAction} /> : null}
+      {activeTab === "memory" ? <MemoryPanel agent={agent} action={deleteMemoryAction} /> : null}
       {activeTab === "proposals" ? <ProposalsPanel agent={agent} /> : null}
       {activeTab === "reviews" ? <ReviewsPanel agent={agent} /> : null}
       {activeTab === "runs" ? <RunsPanel agent={agent} /> : null}
-      {activeTab === "versions" ? (
-        <VersionsPanel agent={agent} action={rollbackAction} />
-      ) : null}
+      {activeTab === "versions" ? <VersionsPanel agent={agent} action={rollbackAction} /> : null}
     </section>
   );
 }
@@ -397,9 +406,7 @@ function ReviewsPanel({ agent }: { agent: AgentDetail }) {
           <span className="activity-row-status">{r.confidence}</span>
         </div>
       ))}
-      {agent.reviews.length === 0 ? (
-        <p style={{ color: "var(--muted)" }}>No reviews yet.</p>
-      ) : null}
+      {agent.reviews.length === 0 ? <p style={{ color: "var(--muted)" }}>No reviews yet.</p> : null}
     </section>
   );
 }
@@ -415,9 +422,7 @@ function RunsPanel({ agent }: { agent: AgentDetail }) {
       </div>
       {agent.runs.map((run) => (
         <div key={run.id} className="activity-row">
-          <span
-            className={`status-pill ${run.status === "succeeded" ? "active" : "paused"}`}
-          >
+          <span className={`status-pill ${run.status === "succeeded" ? "active" : "paused"}`}>
             {run.status}
           </span>
           <div>
@@ -427,9 +432,7 @@ function RunsPanel({ agent }: { agent: AgentDetail }) {
           <span className="activity-row-status">{run.error ? "error" : "ok"}</span>
         </div>
       ))}
-      {agent.runs.length === 0 ? (
-        <p style={{ color: "var(--muted)" }}>No runs yet.</p>
-      ) : null}
+      {agent.runs.length === 0 ? <p style={{ color: "var(--muted)" }}>No runs yet.</p> : null}
     </section>
   );
 }
@@ -455,7 +458,10 @@ function VersionsPanel({
           {version.note ? (
             <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>{version.note}</p>
           ) : null}
-          <pre>{version.systemPrompt.slice(0, 300)}{version.systemPrompt.length > 300 ? "..." : ""}</pre>
+          <pre>
+            {version.systemPrompt.slice(0, 300)}
+            {version.systemPrompt.length > 300 ? "..." : ""}
+          </pre>
           <form action={action}>
             <input type="hidden" name="sourceVersion" value={version.version} />
             <button type="submit" disabled={version.version === agent.currentVersion}>

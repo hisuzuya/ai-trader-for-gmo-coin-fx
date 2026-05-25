@@ -1,5 +1,5 @@
-import Image from "next/image";
 import type { AgentCharacter } from "@ai-trade/domain/ai-agents/characters";
+import Image from "next/image";
 
 type Size = "xs" | "sm" | "md" | "lg";
 
@@ -26,6 +26,7 @@ export function CharacterAvatar({
       <span
         className={`character-avatar size-${size} placeholder`}
         style={{ width: pixels, height: pixels }}
+        role="img"
         aria-label={ariaLabel ?? "Unassigned character"}
       >
         ?
@@ -41,6 +42,7 @@ export function CharacterAvatar({
         height: pixels,
         ["--character-color" as string]: character.themeColor,
       }}
+      role="img"
       aria-label={ariaLabel ?? `${character.name} avatar`}
       data-character-id={character.id}
     >

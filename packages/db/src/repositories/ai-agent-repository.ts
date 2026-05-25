@@ -447,7 +447,8 @@ export class AiAgentRepository {
   > {
     const conditions = [] as ReturnType<typeof eq>[];
     if (filter.agentId) conditions.push(eq(aiAgentStrategyProposals.agentId, filter.agentId));
-    if (filter.status) conditions.push(eq(aiAgentStrategyProposals.validationStatus, filter.status));
+    if (filter.status)
+      conditions.push(eq(aiAgentStrategyProposals.validationStatus, filter.status));
 
     const limit = Math.min(Math.max(filter.limit ?? 50, 1), 200);
     const baseQuery = this.database

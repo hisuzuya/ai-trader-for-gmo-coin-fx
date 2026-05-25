@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import Link from "next/link";
 
 import { CharacterAvatar } from "@/components/agents/CharacterAvatar";
 
@@ -30,10 +29,7 @@ async function fetchRuns(filter: {
   status?: RunRow["status"];
   limit?: number;
 }): Promise<RunRow[]> {
-  const url = new URL(
-    "/agents/runs",
-    process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787",
-  );
+  const url = new URL("/agents/runs", process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787");
   if (filter.agentId) url.searchParams.set("agentId", filter.agentId);
   if (filter.status) url.searchParams.set("status", filter.status);
   if (filter.limit) url.searchParams.set("limit", String(filter.limit));
@@ -127,11 +123,7 @@ export default async function RunsPage({ searchParams }: PageProps) {
           const agent = agentMap.get(run.agentId);
           const character = getCharacter(agent?.characterId);
           return (
-            <Link
-              key={run.id}
-              href={`/agents/${run.agentId}?tab=runs`}
-              className="activity-row"
-            >
+            <Link key={run.id} href={`/agents/${run.agentId}?tab=runs`} className="activity-row">
               <CharacterAvatar character={character} size="sm" />
               <div>
                 <div className="activity-row-title">
@@ -142,9 +134,7 @@ export default async function RunsPage({ searchParams }: PageProps) {
                   {run.error ? ` · ${run.error.slice(0, 60)}` : ""}
                 </div>
               </div>
-              <span
-                className={`status-pill ${run.status === "succeeded" ? "active" : "paused"}`}
-              >
+              <span className={`status-pill ${run.status === "succeeded" ? "active" : "paused"}`}>
                 {run.status}
               </span>
             </Link>

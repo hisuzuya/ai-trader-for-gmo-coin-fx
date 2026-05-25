@@ -102,12 +102,8 @@
           "name": "ai_agent_candidate_reviews_run_id_ai_agent_runs_id_fk",
           "tableFrom": "ai_agent_candidate_reviews",
           "tableTo": "ai_agent_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -115,12 +111,8 @@
           "name": "ai_agent_candidate_reviews_agent_id_ai_agents_id_fk",
           "tableFrom": "ai_agent_candidate_reviews",
           "tableTo": "ai_agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -246,12 +238,8 @@
           "name": "ai_agent_memories_agent_id_ai_agents_id_fk",
           "tableFrom": "ai_agent_memories",
           "tableTo": "ai_agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -325,12 +313,8 @@
           "name": "ai_agent_observations_run_id_ai_agent_runs_id_fk",
           "tableFrom": "ai_agent_observations",
           "tableTo": "ai_agent_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -338,12 +322,8 @@
           "name": "ai_agent_observations_agent_id_ai_agents_id_fk",
           "tableFrom": "ai_agent_observations",
           "tableTo": "ai_agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -456,12 +436,8 @@
           "name": "ai_agent_runs_agent_id_ai_agents_id_fk",
           "tableFrom": "ai_agent_runs",
           "tableTo": "ai_agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -469,14 +445,8 @@
           "name": "ai_agent_runs_agent_version_fk",
           "tableFrom": "ai_agent_runs",
           "tableTo": "ai_agent_versions",
-          "columnsFrom": [
-            "agent_id",
-            "agent_version"
-          ],
-          "columnsTo": [
-            "agent_id",
-            "version"
-          ],
+          "columnsFrom": ["agent_id", "agent_version"],
+          "columnsTo": ["agent_id", "version"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -592,12 +562,8 @@
           "name": "ai_agent_strategy_proposals_run_id_ai_agent_runs_id_fk",
           "tableFrom": "ai_agent_strategy_proposals",
           "tableTo": "ai_agent_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -605,12 +571,8 @@
           "name": "ai_agent_strategy_proposals_agent_id_ai_agents_id_fk",
           "tableFrom": "ai_agent_strategy_proposals",
           "tableTo": "ai_agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -698,12 +660,8 @@
           "name": "ai_agent_versions_agent_id_ai_agents_id_fk",
           "tableFrom": "ai_agent_versions",
           "tableTo": "ai_agents",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -988,12 +946,8 @@
           "name": "ai_daily_reviews_invocation_id_ai_invocations_id_fk",
           "tableFrom": "ai_daily_reviews",
           "tableTo": "ai_invocations",
-          "columnsFrom": [
-            "invocation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["invocation_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1237,12 +1191,8 @@
           "name": "ai_tuning_proposals_invocation_id_ai_invocations_id_fk",
           "tableFrom": "ai_tuning_proposals",
           "tableTo": "ai_invocations",
-          "columnsFrom": [
-            "invocation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["invocation_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1611,12 +1561,8 @@
           "name": "paper_accounts_strategy_run_id_strategy_runs_id_fk",
           "tableFrom": "paper_accounts",
           "tableTo": "strategy_runs",
-          "columnsFrom": [
-            "strategy_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["strategy_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1773,12 +1719,8 @@
           "name": "paper_orders_account_id_paper_accounts_id_fk",
           "tableFrom": "paper_orders",
           "tableTo": "paper_accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1786,12 +1728,8 @@
           "name": "paper_orders_strategy_run_id_strategy_runs_id_fk",
           "tableFrom": "paper_orders",
           "tableTo": "strategy_runs",
-          "columnsFrom": [
-            "strategy_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["strategy_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1799,12 +1737,8 @@
           "name": "paper_orders_position_id_paper_positions_id_fk",
           "tableFrom": "paper_orders",
           "tableTo": "paper_positions",
-          "columnsFrom": [
-            "position_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["position_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1975,12 +1909,8 @@
           "name": "paper_positions_account_id_paper_accounts_id_fk",
           "tableFrom": "paper_positions",
           "tableTo": "paper_accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1988,12 +1918,8 @@
           "name": "paper_positions_strategy_run_id_strategy_runs_id_fk",
           "tableFrom": "paper_positions",
           "tableTo": "strategy_runs",
-          "columnsFrom": [
-            "strategy_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["strategy_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2142,12 +2068,8 @@
           "name": "paper_trades_account_id_paper_accounts_id_fk",
           "tableFrom": "paper_trades",
           "tableTo": "paper_accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2155,12 +2077,8 @@
           "name": "paper_trades_strategy_run_id_strategy_runs_id_fk",
           "tableFrom": "paper_trades",
           "tableTo": "strategy_runs",
-          "columnsFrom": [
-            "strategy_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["strategy_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2168,12 +2086,8 @@
           "name": "paper_trades_position_id_paper_positions_id_fk",
           "tableFrom": "paper_trades",
           "tableTo": "paper_positions",
-          "columnsFrom": [
-            "position_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["position_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2181,12 +2095,8 @@
           "name": "paper_trades_entry_order_id_paper_orders_id_fk",
           "tableFrom": "paper_trades",
           "tableTo": "paper_orders",
-          "columnsFrom": [
-            "entry_order_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["entry_order_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2194,12 +2104,8 @@
           "name": "paper_trades_exit_order_id_paper_orders_id_fk",
           "tableFrom": "paper_trades",
           "tableTo": "paper_orders",
-          "columnsFrom": [
-            "exit_order_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["exit_order_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2290,12 +2196,8 @@
           "name": "strategy_runs_source_agent_id_ai_agents_id_fk",
           "tableFrom": "strategy_runs",
           "tableTo": "ai_agents",
-          "columnsFrom": [
-            "source_agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["source_agent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2303,12 +2205,8 @@
           "name": "strategy_runs_source_proposal_id_ai_agent_strategy_proposals_id_fk",
           "tableFrom": "strategy_runs",
           "tableTo": "ai_agent_strategy_proposals",
-          "columnsFrom": [
-            "source_proposal_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["source_proposal_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2324,20 +2222,12 @@
     "public.ai_agent_candidate_confidence": {
       "name": "ai_agent_candidate_confidence",
       "schema": "public",
-      "values": [
-        "low",
-        "medium",
-        "high"
-      ]
+      "values": ["low", "medium", "high"]
     },
     "public.ai_agent_candidate_recommendation": {
       "name": "ai_agent_candidate_recommendation",
       "schema": "public",
-      "values": [
-        "continue",
-        "retire",
-        "promote"
-      ]
+      "values": ["continue", "retire", "promote"]
     },
     "public.ai_agent_memory_type": {
       "name": "ai_agent_memory_type",
@@ -2352,152 +2242,87 @@
     "public.ai_agent_observation_kind": {
       "name": "ai_agent_observation_kind",
       "schema": "public",
-      "values": [
-        "market",
-        "candidate_performance",
-        "risk",
-        "operations"
-      ]
+      "values": ["market", "candidate_performance", "risk", "operations"]
     },
     "public.ai_agent_proposal_validation_status": {
       "name": "ai_agent_proposal_validation_status",
       "schema": "public",
-      "values": [
-        "accepted",
-        "rejected"
-      ]
+      "values": ["accepted", "rejected"]
     },
     "public.ai_agent_run_status": {
       "name": "ai_agent_run_status",
       "schema": "public",
-      "values": [
-        "succeeded",
-        "failed",
-        "timeout",
-        "rejected_output"
-      ]
+      "values": ["succeeded", "failed", "timeout", "rejected_output"]
     },
     "public.ai_agent_status": {
       "name": "ai_agent_status",
       "schema": "public",
-      "values": [
-        "active",
-        "paused"
-      ]
+      "values": ["active", "paused"]
     },
     "public.ai_daily_review_status": {
       "name": "ai_daily_review_status",
       "schema": "public",
-      "values": [
-        "accepted",
-        "rejected",
-        "failed"
-      ]
+      "values": ["accepted", "rejected", "failed"]
     },
     "public.ai_invocation_status": {
       "name": "ai_invocation_status",
       "schema": "public",
-      "values": [
-        "succeeded",
-        "failed",
-        "timeout"
-      ]
+      "values": ["succeeded", "failed", "timeout"]
     },
     "public.ai_tuning_proposal_status": {
       "name": "ai_tuning_proposal_status",
       "schema": "public",
-      "values": [
-        "accepted",
-        "rejected",
-        "failed"
-      ]
+      "values": ["accepted", "rejected", "failed"]
     },
     "public.candle_price_type": {
       "name": "candle_price_type",
       "schema": "public",
-      "values": [
-        "bid",
-        "ask",
-        "mid"
-      ]
+      "values": ["bid", "ask", "mid"]
     },
     "public.candle_source": {
       "name": "candle_source",
       "schema": "public",
-      "values": [
-        "websocket",
-        "rest_klines",
-        "derived"
-      ]
+      "values": ["websocket", "rest_klines", "derived"]
     },
     "public.job_run_status": {
       "name": "job_run_status",
       "schema": "public",
-      "values": [
-        "running",
-        "succeeded",
-        "failed",
-        "skipped"
-      ]
+      "values": ["running", "succeeded", "failed", "skipped"]
     },
     "public.paper_account_status": {
       "name": "paper_account_status",
       "schema": "public",
-      "values": [
-        "active",
-        "stopped"
-      ]
+      "values": ["active", "stopped"]
     },
     "public.paper_order_action": {
       "name": "paper_order_action",
       "schema": "public",
-      "values": [
-        "entry",
-        "exit"
-      ]
+      "values": ["entry", "exit"]
     },
     "public.paper_order_side": {
       "name": "paper_order_side",
       "schema": "public",
-      "values": [
-        "BUY",
-        "SELL"
-      ]
+      "values": ["BUY", "SELL"]
     },
     "public.paper_order_status": {
       "name": "paper_order_status",
       "schema": "public",
-      "values": [
-        "filled",
-        "rejected"
-      ]
+      "values": ["filled", "rejected"]
     },
     "public.paper_position_side": {
       "name": "paper_position_side",
       "schema": "public",
-      "values": [
-        "long",
-        "short"
-      ]
+      "values": ["long", "short"]
     },
     "public.paper_position_status": {
       "name": "paper_position_status",
       "schema": "public",
-      "values": [
-        "open",
-        "closed"
-      ]
+      "values": ["open", "closed"]
     },
     "public.strategy_run_status": {
       "name": "strategy_run_status",
       "schema": "public",
-      "values": [
-        "proposed",
-        "validated",
-        "running_paper",
-        "promoted_to_baseline",
-        "retired"
-      ]
+      "values": ["proposed", "validated", "running_paper", "promoted_to_baseline", "retired"]
     }
   },
   "schemas": {},

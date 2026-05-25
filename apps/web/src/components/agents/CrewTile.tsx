@@ -1,6 +1,6 @@
+import type { AgentCharacter } from "@ai-trade/domain/ai-agents/characters";
 import Image from "next/image";
 import Link from "next/link";
-import type { AgentCharacter } from "@ai-trade/domain/ai-agents/characters";
 
 export type CrewAgentSummary = {
   id: string;

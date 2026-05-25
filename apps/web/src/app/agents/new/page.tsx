@@ -1,8 +1,7 @@
+import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import { AGENT_RESEARCH_TOOL_NAMES } from "@ai-trade/domain/ai-agents/types";
 import Image from "next/image";
 import Link from "next/link";
-
-import { AGENT_RESEARCH_TOOL_NAMES } from "@ai-trade/domain/ai-agents/types";
-import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
 
 import { createAgent } from "../actions";
 
@@ -36,9 +35,7 @@ export default async function NewAgentPage({ searchParams }: PageProps) {
       <section className="panel">
         <div className="panel-title">
           <h2>Step 1 — キャラクターを選ぶ</h2>
-          {selected ? (
-            <span className="panel-toast">Selected: {selected.nameJa}</span>
-          ) : null}
+          {selected ? <span className="panel-toast">Selected: {selected.nameJa}</span> : null}
         </div>
         <div className="wizard-grid">
           {AGENT_CHARACTERS.map((character) => {
@@ -142,20 +139,11 @@ export default async function NewAgentPage({ searchParams }: PageProps) {
             </label>
             <label>
               <span>Model</span>
-              <input
-                type="text"
-                name="model"
-                defaultValue={selected.defaultModel}
-                required
-              />
+              <input type="text" name="model" defaultValue={selected.defaultModel} required />
             </label>
             <label className="col-span-2">
               <span>System prompt</span>
-              <textarea
-                name="systemPrompt"
-                defaultValue={selected.defaultSystemPrompt}
-                required
-              />
+              <textarea name="systemPrompt" defaultValue={selected.defaultSystemPrompt} required />
             </label>
             <fieldset className="col-span-2" style={{ border: "none", padding: 0, margin: 0 }}>
               <legend
@@ -183,7 +171,10 @@ export default async function NewAgentPage({ searchParams }: PageProps) {
                 ))}
               </div>
             </fieldset>
-            <label className="col-span-2" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <label
+              className="col-span-2"
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
               <input type="checkbox" name="sharedMemoryEnabled" />
               <span style={{ letterSpacing: "normal", textTransform: "none" }}>
                 Shared memory を有効化（他エージェントのメモリも参照）

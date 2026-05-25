@@ -1,9 +1,9 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { getCharacter, isCharacterId } from "@ai-trade/domain/ai-agents/characters";
 
 import { AGENT_RESEARCH_TOOL_NAMES } from "@ai-trade/domain/ai-agents/types";
-import { getCharacter, isCharacterId } from "@ai-trade/domain/ai-agents/characters";
+import { redirect } from "next/navigation";
 
 const SECRET_LIKE_PATTERN =
   /(sk-[A-Za-z0-9_-]{16,}|[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY)[A-Z0-9_]*\s*[:=]\s*["']?[^"',\s}]+)/;
@@ -144,7 +144,8 @@ export async function createAgent(formData: FormData) {
       headers: authorizedJsonHeaders(),
       body: JSON.stringify({
         name,
-        persona: persona.length > 0 ? persona : (getCharacter(characterIdRaw)?.defaultPersona ?? name),
+        persona:
+          persona.length > 0 ? persona : (getCharacter(characterIdRaw)?.defaultPersona ?? name),
         systemPrompt,
         allowedTools: allowedTools.length > 0 ? allowedTools : [...AGENT_RESEARCH_TOOL_NAMES],
         runIntervalSec: runIntervalRaw,

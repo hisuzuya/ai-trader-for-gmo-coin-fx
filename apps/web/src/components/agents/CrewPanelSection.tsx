@@ -1,8 +1,7 @@
+import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import Link from "next/link";
 
-import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
-
-import { CrewTile, type CrewAgentSummary } from "./CrewTile";
+import { type CrewAgentSummary, CrewTile } from "./CrewTile";
 
 type AgentSummaryRaw = {
   id: string;
@@ -106,7 +105,9 @@ export async function CrewPanelSection() {
             </div>
             <div className="kpi-card">
               <dt>Unassigned</dt>
-              <dd>{AGENT_CHARACTERS.length - agents.filter((a) => getCharacter(a.characterId)).length}</dd>
+              <dd>
+                {AGENT_CHARACTERS.length - agents.filter((a) => getCharacter(a.characterId)).length}
+              </dd>
               <p className="kpi-card-trend">未配属のキャラ</p>
             </div>
           </dl>

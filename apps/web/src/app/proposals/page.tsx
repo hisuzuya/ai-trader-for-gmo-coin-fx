@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import Link from "next/link";
 
 import { CharacterAvatar } from "@/components/agents/CharacterAvatar";
 
@@ -78,10 +77,7 @@ export default async function ProposalsPage({ searchParams }: PageProps) {
           <h1>Proposals</h1>
         </div>
         <div className="page-actions">
-          <Link
-            href="/proposals"
-            className={!status ? "btn-secondary" : "btn-ghost"}
-          >
+          <Link href="/proposals" className={!status ? "btn-secondary" : "btn-ghost"}>
             All
           </Link>
           <Link

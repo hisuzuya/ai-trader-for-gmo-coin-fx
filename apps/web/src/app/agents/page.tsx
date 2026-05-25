@@ -1,8 +1,7 @@
+import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import Link from "next/link";
 
-import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
-
-import { CrewTile, type CrewAgentSummary } from "@/components/agents/CrewTile";
+import { type CrewAgentSummary, CrewTile } from "@/components/agents/CrewTile";
 
 export const dynamic = "force-dynamic";
 
@@ -124,7 +123,8 @@ export default async function AgentsPage({ searchParams }: PageProps) {
             <h2>キャラ未設定のエージェント ({unassignedAgents.length})</h2>
           </div>
           <p style={{ color: "var(--muted)", marginBottom: 12 }}>
-            既存のエージェントにキャラが未割り当てです。詳細画面の Edit からキャラを選択してください。
+            既存のエージェントにキャラが未割り当てです。詳細画面の Edit
+            からキャラを選択してください。
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {unassignedAgents.map((agent) => (

@@ -1,8 +1,7 @@
+import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
-import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
 
 import { updateAgentSettings } from "../../actions";
 

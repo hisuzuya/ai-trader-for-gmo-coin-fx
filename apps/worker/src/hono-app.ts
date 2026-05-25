@@ -32,8 +32,7 @@ export function createWorkerApp(runtime: WorkerRuntime) {
   app.get("/agents/proposals", async (c) => {
     const agentId = c.req.query("agentId");
     const statusRaw = c.req.query("status");
-    const status =
-      statusRaw === "accepted" || statusRaw === "rejected" ? statusRaw : undefined;
+    const status = statusRaw === "accepted" || statusRaw === "rejected" ? statusRaw : undefined;
     const limitRaw = c.req.query("limit");
     const limit = limitRaw ? Number(limitRaw) : undefined;
 
@@ -550,7 +549,11 @@ function isUpdateAgentBody(body: unknown): body is UpdateAgentBody {
   if (b.sharedMemoryEnabled !== undefined && typeof b.sharedMemoryEnabled !== "boolean") {
     return false;
   }
-  if (b.pausedReason !== undefined && b.pausedReason !== null && typeof b.pausedReason !== "string") {
+  if (
+    b.pausedReason !== undefined &&
+    b.pausedReason !== null &&
+    typeof b.pausedReason !== "string"
+  ) {
     return false;
   }
   return true;

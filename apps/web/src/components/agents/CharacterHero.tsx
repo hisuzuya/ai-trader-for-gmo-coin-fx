@@ -1,5 +1,5 @@
-import Image from "next/image";
 import type { AgentCharacter } from "@ai-trade/domain/ai-agents/characters";
+import Image from "next/image";
 
 export function CharacterHero({
   character,
