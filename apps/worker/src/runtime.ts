@@ -7,6 +7,7 @@ import {
   db,
   type JobRunRecorder,
   paperAccounts,
+  paperPositions,
   paperTrades,
   type RecentCandle,
   runRecordedJob,
@@ -136,28 +137,21 @@ export class WorkerRuntime {
     return dailyReviewer.runOnce();
   }
 
-  async dashboardSummary(): Promise<WorkerDashboardSummary> {
-    const [accounts, trades, candidates, dailyReviews] = await Promise.all([
+  async dashboardSummary(options: { accountName?: string } = {}): Promise<WorkerDashboardSummary> {
+    const [accounts, candidates, dailyReviews] = await Promise.all([
       db
         .select({
+          id: paperAccounts.id,
+          strategyRunId: paperAccounts.strategyRunId,
           name: paperAccounts.name,
           balanceJpy: paperAccounts.balanceJpy,
+          initialBalanceJpy: paperAccounts.initialBalanceJpy,
           status: paperAccounts.status,
           updatedAt: paperAccounts.updatedAt,
         })
         .from(paperAccounts)
         .orderBy(desc(paperAccounts.updatedAt))
-        .limit(6),
-      db
-        .select({
-          symbol: paperTrades.symbol,
-          side: paperTrades.side,
-          pnlJpy: paperTrades.pnlJpy,
-          closedAt: paperTrades.closedAt,
-        })
-        .from(paperTrades)
-        .orderBy(desc(paperTrades.closedAt))
-        .limit(6),
+        .limit(20),
       db
         .select({
           id: aiTuningProposals.id,
@@ -189,9 +183,42 @@ export class WorkerRuntime {
         .limit(3),
     ]);
 
+    const selectedAccount =
+      options.accountName !== undefined
+        ? (accounts.find((account) => account.name === options.accountName) ?? null)
+        : null;
+
+    const trades = await (selectedAccount
+      ? db
+          .select({
+            symbol: paperTrades.symbol,
+            side: paperTrades.side,
+            pnlJpy: paperTrades.pnlJpy,
+            closedAt: paperTrades.closedAt,
+          })
+          .from(paperTrades)
+          .where(eq(paperTrades.accountId, selectedAccount.id))
+          .orderBy(desc(paperTrades.closedAt))
+          .limit(20)
+      : db
+          .select({
+            symbol: paperTrades.symbol,
+            side: paperTrades.side,
+            pnlJpy: paperTrades.pnlJpy,
+            closedAt: paperTrades.closedAt,
+          })
+          .from(paperTrades)
+          .orderBy(desc(paperTrades.closedAt))
+          .limit(6));
+
+    const accountDetail = selectedAccount ? await this.loadAccountDetail(selectedAccount) : null;
+
     return {
+      selectedAccountName: selectedAccount?.name ?? null,
       accounts: accounts.map((account) => ({
-        ...account,
+        name: account.name,
+        balanceJpy: account.balanceJpy,
+        status: account.status,
         updatedAt: account.updatedAt.toISOString(),
       })),
       trades: trades.map((trade) => ({
@@ -206,6 +233,77 @@ export class WorkerRuntime {
         ...review,
         createdAt: review.createdAt.toISOString(),
       })),
+      accountDetail,
+    };
+  }
+
+  private async loadAccountDetail(account: {
+    id: string;
+    strategyRunId: string | null;
+    name: string;
+    balanceJpy: string;
+    initialBalanceJpy: string;
+  }): Promise<AccountDetail> {
+    const [openPositions, strategyRun] = await Promise.all([
+      db
+        .select({
+          symbol: paperPositions.symbol,
+          side: paperPositions.side,
+          quantity: paperPositions.quantity,
+          entryPrice: paperPositions.entryPrice,
+          stopLossPrice: paperPositions.stopLossPrice,
+          takeProfitPrice: paperPositions.takeProfitPrice,
+          openedAt: paperPositions.openedAt,
+          bestPriceSinceOpen: paperPositions.bestPriceSinceOpen,
+          spreadPips: paperPositions.spreadPips,
+        })
+        .from(paperPositions)
+        .where(and(eq(paperPositions.accountId, account.id), eq(paperPositions.status, "open")))
+        .orderBy(desc(paperPositions.openedAt))
+        .limit(5),
+      account.strategyRunId
+        ? db
+            .select({
+              id: strategyRuns.id,
+              strategyName: strategyRuns.strategyName,
+              symbol: strategyRuns.symbol,
+              timeframe: strategyRuns.timeframe,
+              status: strategyRuns.status,
+              strategyDefinition: strategyRuns.strategyDefinition,
+              startedAt: strategyRuns.startedAt,
+            })
+            .from(strategyRuns)
+            .where(eq(strategyRuns.id, account.strategyRunId))
+            .limit(1)
+        : Promise.resolve([] as AccountStrategyRow[]),
+    ]);
+
+    return {
+      name: account.name,
+      balanceJpy: account.balanceJpy,
+      initialBalanceJpy: account.initialBalanceJpy,
+      openPositions: openPositions.map((position) => ({
+        symbol: position.symbol,
+        side: position.side,
+        quantity: position.quantity,
+        entryPrice: position.entryPrice,
+        stopLossPrice: position.stopLossPrice,
+        takeProfitPrice: position.takeProfitPrice,
+        bestPriceSinceOpen: position.bestPriceSinceOpen,
+        spreadPips: position.spreadPips,
+        openedAt: position.openedAt.toISOString(),
+      })),
+      strategyRun: strategyRun[0]
+        ? {
+            id: strategyRun[0].id,
+            strategyName: strategyRun[0].strategyName,
+            symbol: strategyRun[0].symbol,
+            timeframe: strategyRun[0].timeframe,
+            status: strategyRun[0].status,
+            startedAt: strategyRun[0].startedAt.toISOString(),
+            strategyDefinition: strategyRun[0].strategyDefinition,
+          }
+        : null,
     };
   }
 
@@ -302,6 +400,7 @@ export class WorkerRuntime {
 }
 
 export type WorkerDashboardSummary = {
+  selectedAccountName: string | null;
   accounts: {
     name: string;
     balanceJpy: string;
@@ -332,6 +431,43 @@ export type WorkerDashboardSummary = {
     nextActions: unknown;
     createdAt: string;
   }[];
+  accountDetail: AccountDetail | null;
+};
+
+export type AccountDetail = {
+  name: string;
+  balanceJpy: string;
+  initialBalanceJpy: string;
+  openPositions: {
+    symbol: string;
+    side: string;
+    quantity: string;
+    entryPrice: string;
+    stopLossPrice: string;
+    takeProfitPrice: string;
+    bestPriceSinceOpen: string;
+    spreadPips: string;
+    openedAt: string;
+  }[];
+  strategyRun: {
+    id: string;
+    strategyName: string;
+    symbol: string;
+    timeframe: string;
+    status: string;
+    startedAt: string;
+    strategyDefinition: unknown;
+  } | null;
+};
+
+type AccountStrategyRow = {
+  id: string;
+  strategyName: string;
+  symbol: string;
+  timeframe: string;
+  status: string;
+  strategyDefinition: unknown;
+  startedAt: Date;
 };
 
 export type RecentCandlesQuery = {

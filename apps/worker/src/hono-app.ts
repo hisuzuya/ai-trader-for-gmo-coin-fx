@@ -12,10 +12,16 @@ export function createWorkerApp(runtime: WorkerRuntime) {
   });
   app.get("/status", async (c) => c.json(await runtime.status()));
   app.get("/dashboard", async (c) => {
+    const accountQuery = c.req.query("account");
+    const accountName =
+      typeof accountQuery === "string" && accountQuery.trim().length > 0
+        ? accountQuery.trim()
+        : undefined;
+
     try {
       return c.json({
         ok: true,
-        summary: await runtime.dashboardSummary(),
+        summary: await runtime.dashboardSummary(accountName !== undefined ? { accountName } : {}),
       });
     } catch (error) {
       return c.json(
