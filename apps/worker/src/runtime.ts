@@ -19,6 +19,7 @@ import {
   type HistoricalImportResult,
   StubHistoricalImporter,
 } from "./jobs/historical-importer.js";
+import type { AgentScheduler } from "./services/agent-pipeline.js";
 import type { AiDailyReviewerService, DailyReviewRunResult } from "./services/ai-daily-reviewer.js";
 import type { AiTunerService, AiTuningRunResult } from "./services/ai-tuner.js";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "./types.js";
@@ -136,6 +137,41 @@ export class WorkerRuntime {
     }
 
     return dailyReviewer.runOnce();
+  }
+
+  async listAgents() {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.listAgents();
+  }
+
+  async runAgent(agentId?: string) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.runOnce(agentId);
+  }
+
+  async createAgentVersion(input: {
+    agentId: string;
+    systemPrompt: string;
+    allowedTools: string[];
+    note?: string;
+  }) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.createVersion(input);
   }
 
   async dashboardSummary(options: { accountName?: string } = {}): Promise<WorkerDashboardSummary> {
@@ -539,4 +575,8 @@ function isAiTunerService(service: WorkerService): service is AiTunerService {
 
 function isAiDailyReviewerService(service: WorkerService): service is AiDailyReviewerService {
   return service.name === "ai-daily-reviewer" && "runOnce" in service;
+}
+
+function isAgentScheduler(service: WorkerService): service is AgentScheduler {
+  return service.name === "agent-scheduler" && "listAgents" in service && "runOnce" in service;
 }

@@ -1,3 +1,4 @@
+import { env } from "@ai-trade/config";
 import { Hono } from "hono";
 
 import type { WorkerRuntime } from "./runtime.js";
@@ -11,6 +12,61 @@ export function createWorkerApp(runtime: WorkerRuntime) {
     return c.json(ready, ready.ok ? 200 : 503);
   });
   app.get("/status", async (c) => c.json(await runtime.status()));
+  app.get("/agents", async (c) => {
+    try {
+      return c.json({
+        ok: true,
+        agents: await runtime.listAgents(),
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Agent listing failed.",
+        },
+        500,
+      );
+    }
+  });
+  app.post("/agents/:id/versions", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
+    const agentId = c.req.param("id");
+    const body = await c.req.json().catch(() => null);
+
+    if (!isAgentVersionBody(body)) {
+      return c.json(
+        {
+          ok: false,
+          error:
+            "Request body must be { systemPrompt: string, allowedTools: string[], note?: string }.",
+        },
+        400,
+      );
+    }
+
+    try {
+      return c.json({
+        ok: true,
+        ...(await runtime.createAgentVersion({
+          agentId,
+          systemPrompt: body.systemPrompt,
+          allowedTools: body.allowedTools,
+          note: body.note,
+        })),
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Agent version creation failed.",
+        },
+        500,
+      );
+    }
+  });
   app.get("/dashboard", async (c) => {
     const accountQuery = c.req.query("account");
     const accountName =
@@ -129,6 +185,33 @@ export function createWorkerApp(runtime: WorkerRuntime) {
     }
   });
 
+  app.post("/jobs/agent-run", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const agentId =
+      typeof body === "object" &&
+      body !== null &&
+      "agentId" in body &&
+      typeof body.agentId === "string"
+        ? body.agentId
+        : undefined;
+
+    try {
+      const result = await runtime.runAgent(agentId);
+      return c.json({
+        ok: result.ok,
+        result,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Agent run failed.",
+        },
+        500,
+      );
+    }
+  });
+
   app.post("/paper-decisions", async (c) => {
     const body = await c.req.json().catch(() => null);
 
@@ -167,6 +250,30 @@ function isHistoricalImportBody(body: unknown): body is { date: string } {
     "date" in body &&
     typeof body.date === "string" &&
     /^\d{8}$/.test(body.date)
+  );
+}
+
+function isAuthorizedInternalRequest(authorization: string | undefined) {
+  if (!env.WORKER_INTERNAL_TOKEN) {
+    return env.NODE_ENV !== "production";
+  }
+
+  return authorization === `Bearer ${env.WORKER_INTERNAL_TOKEN}`;
+}
+
+function isAgentVersionBody(
+  body: unknown,
+): body is { systemPrompt: string; allowedTools: string[]; note?: string } {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "systemPrompt" in body &&
+    "allowedTools" in body &&
+    typeof body.systemPrompt === "string" &&
+    body.systemPrompt.trim().length > 0 &&
+    Array.isArray(body.allowedTools) &&
+    body.allowedTools.every((tool) => typeof tool === "string") &&
+    (!("note" in body) || body.note === undefined || typeof body.note === "string")
   );
 }
 

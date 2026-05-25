@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
+    "./repositories/ai-agent-repository": "./src/repositories/ai-agent-repository.ts",
     "./repositories/ai-daily-review-repository": "./src/repositories/ai-daily-review-repository.ts",
     "./repositories/ai-tuning-repository": "./src/repositories/ai-tuning-repository.ts",
     "./repositories/candle-repository": "./src/repositories/candle-repository.ts",

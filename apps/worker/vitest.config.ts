@@ -9,6 +9,9 @@ export default defineConfig({
         new URL("../../packages/config/src/index.ts", import.meta.url),
       ),
       "@ai-trade/db": fileURLToPath(new URL("../../packages/db/src/index.ts", import.meta.url)),
+      "@ai-trade/domain/ai-agents": fileURLToPath(
+        new URL("../../packages/domain/src/ai-agents/index.ts", import.meta.url),
+      ),
       "@ai-trade/domain/ai-tuning": fileURLToPath(
         new URL("../../packages/domain/src/ai-tuning/index.ts", import.meta.url),
       ),
