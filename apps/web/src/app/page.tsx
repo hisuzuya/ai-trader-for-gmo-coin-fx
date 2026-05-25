@@ -1,12 +1,9 @@
-import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import type { UTCTimestamp } from "lightweight-charts";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  type AgentSummaryRaw,
-  CrewPanelSection,
-  fetchAgentSummaries,
-} from "@/components/agents/CrewPanelSection";
+import { type AgentSummaryRaw, fetchAgentSummaries } from "@/components/agents/CrewPanelSection";
+import { CrewTile } from "@/components/agents/CrewTile";
 import { type CandlePoint, CandlestickChart } from "@/components/CandlestickChart";
 import { PnlChart, type PnlPoint } from "@/components/PnlChart";
 import { appRouter } from "@/server/trpc/root";
@@ -155,6 +152,28 @@ type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
+const SECTION_CLS = "flex flex-col gap-3.5";
+const SECTION_HEAD_CLS = "flex flex-wrap items-end justify-between gap-4";
+const KICKER_CLS =
+  "inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted before:inline-block before:h-px before:w-[18px] before:bg-accent-strong before:content-['']";
+const SECTION_TITLE_CLS = "text-lg font-semibold text-text-strong tracking-tight";
+const SECTION_DESC_CLS = "max-w-[64ch] text-xs leading-relaxed text-muted";
+const CARD_CLS =
+  "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-bg-elevated";
+const CARD_HEAD_CLS =
+  "flex items-center justify-between gap-2 border-b border-line bg-linear-to-b from-surface to-bg-elevated px-4 py-3";
+const CARD_HEAD_TITLE_CLS =
+  "inline-flex items-center gap-2 text-xs font-bold tracking-wide text-text-strong before:h-3.5 before:w-[3px] before:rounded-sm before:bg-accent before:content-['']";
+const CARD_HEAD_META_CLS =
+  "inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-wide text-muted";
+const META_CHIP_CLS = "rounded-full bg-surface px-2 py-0.5 text-text";
+const CARD_BODY_CLS = "flex min-h-0 flex-col gap-3 p-4";
+const KPI_LABEL_CLS = "text-[10px] font-bold uppercase tracking-[0.1em] text-muted";
+const KPI_VALUE_CLS =
+  "truncate font-mono text-[22px] font-semibold tracking-tight text-text-strong tabular-nums";
+const EMPTY_CLS =
+  "grid min-h-[160px] place-items-center rounded-xl border border-dashed border-line p-5 text-center text-xs text-muted";
+
 export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const rawAccount = params.account;
@@ -182,10 +201,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     0,
   );
   const totalUnrealizedPnl = totalBalance - totalInitialBalance;
+  const totalUnrealizedPnlPct =
+    totalInitialBalance > 0 ? (totalUnrealizedPnl / totalInitialBalance) * 100 : 0;
   const totalOpenPositions = agentSummaries.reduce(
     (sum, agent) => sum + (agent.paperAccount?.openPositionCount ?? 0),
     0,
   );
+  const activeAgents = agentSummaries.filter((agent) => agent.status === "active").length;
   const totalPnl = dashboard.trades.reduce((sum, trade) => sum + Number(trade.pnlJpy), 0);
   const winningTrades = dashboard.trades.filter((trade) => Number(trade.pnlJpy) > 0).length;
   const winRate = dashboard.trades.length > 0 ? (winningTrades / dashboard.trades.length) * 100 : 0;
@@ -201,332 +223,715 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       ? (candleChange / firstCandle.open) * 100
       : 0;
   const candleUp = candleChange >= 0;
+  const topPerformers = [...agentSummaries]
+    .filter((agent) => agent.paperAccount !== null)
+    .sort((a, b) => (b.paperAccount?.pnlJpy ?? 0) - (a.paperAccount?.pnlJpy ?? 0))
+    .slice(0, 3);
+  const topMaxBalance = Math.max(...topPerformers.map((a) => a.paperAccount?.balanceJpy ?? 0), 1);
 
   return (
-    <>
-      <CrewPanelSection agents={agentSummaries} />
-      <main className="tv-shell">
-        <Sidebar />
-        <TopBar healthOk={health.ok} healthService={health.service} timestamp={health.timestamp} />
-        <TickerStrip
-          balance={totalBalance}
-          unrealizedPnl={totalUnrealizedPnl}
-          realizedPnl={totalPnl}
-          winRate={winRate}
-          trades={dashboard.trades.length}
-          openPositions={totalOpenPositions}
-        />
-
-        <div className="tv-main">
-          <div className="tv-col tv-col-left">
-            <section className="tv-panel" aria-label="エージェント口座">
-              <PanelHeader
-                title="エージェント口座 / Agent Accounts"
-                meta={`${agentSummaries.length}`}
-              />
-              <div className="tv-panel-body">
-                {agentSummaries.length === 0 ? (
-                  <EmptyState text="エージェントがまだ配属されていません" />
-                ) : (
-                  <>
-                    <div className="tv-watchlist-head">
-                      <span>エージェント</span>
-                      <span className="text-right">残高 / PnL</span>
-                    </div>
-                    <Link
-                      href="/"
-                      scroll={false}
-                      className={`tv-watchlist-row tv-watchlist-row-link ${
-                        isAccountView ? "" : "active"
-                      }`}
-                    >
-                      <div className="tv-watchlist-name">
-                        <span className="tv-watchlist-symbol">クルー合計</span>
-                        <span className="tv-watchlist-sub">
-                          <span className="tv-tag">ALL</span>
-                          <span>{agentSummaries.length} agents</span>
-                        </span>
-                      </div>
-                      <div className="tv-watchlist-balance">
-                        {formatJpy(totalBalance)}
-                        <small
-                          className={
-                            totalUnrealizedPnl > 0
-                              ? "tv-pnl profit"
-                              : totalUnrealizedPnl < 0
-                                ? "tv-pnl loss"
-                                : undefined
-                          }
-                        >
-                          {formatJpySigned(totalUnrealizedPnl)}
-                        </small>
-                      </div>
-                    </Link>
-                    {agentSummaries.map((agent) => (
-                      <AgentAccountRow key={agent.id} agent={agent} />
-                    ))}
-                  </>
-                )}
-              </div>
-            </section>
+    <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-7 px-4 pt-6 pb-14 sm:px-6 lg:px-9">
+      {/* === Hero =========================================================== */}
+      <section
+        aria-label="ダッシュボード概要"
+        className="relative grid grid-cols-1 gap-4 overflow-hidden rounded-2xl border border-accent/30 bg-linear-to-b from-surface to-bg-elevated p-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 0% 0%, rgb(41 98 255 / 0.22), transparent 55%), radial-gradient(circle at 100% 0%, rgb(38 166 154 / 0.14), transparent 55%), linear-gradient(180deg, var(--color-surface) 0%, var(--color-bg-elevated) 100%)",
+        }}
+      >
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className={KICKER_CLS}>AI Crew Overview · USD/JPY · Paper</p>
+            <div className="inline-flex items-center gap-3.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-muted px-2.5 py-1 text-[11px] text-muted">
+                <span className={`tv-status-dot ${health.ok ? "live" : "danger"}`} />
+                <span>Worker</span>
+                <strong className={health.ok ? "text-profit-strong" : "text-loss-strong"}>
+                  {health.ok ? "CONNECTED" : "DEGRADED"}
+                </strong>
+              </span>
+              <span className="font-mono text-[11px] text-muted">
+                {formatDateTime(health.timestamp)}
+              </span>
+            </div>
           </div>
 
-          <div className="tv-col tv-col-center">
-            <section
-              className="tv-panel tv-chart-panel tv-chart-panel-price"
-              aria-label="価格チャート"
-            >
-              <PanelHeader
-                title={`${formatSymbol(recentCandles.symbol)} · ${recentCandles.timeframe.toUpperCase()} · ${recentCandles.priceType.toUpperCase()}`}
-                meta={`${candleSeries.length} bars`}
-              />
-              <div className="tv-panel-body">
-                <div className="tv-chart-summary">
-                  <div className="tv-chart-headline">
-                    <span className="tv-chart-headline-label">終値 / Last</span>
-                    <span className={`tv-chart-headline-value ${candleUp ? "profit" : "loss"}`}>
-                      {lastCandle ? lastCandle.close.toFixed(3) : "—"}
-                      {lastCandle && firstCandle ? (
-                        <span className="tv-chart-headline-delta">
-                          {candleUp ? "▲" : "▼"} {Math.abs(candleChange).toFixed(3)} (
-                          {candleChangePct >= 0 ? "+" : "−"}
-                          {Math.abs(candleChangePct).toFixed(2)}%)
-                        </span>
-                      ) : null}
-                    </span>
-                  </div>
-                  <div className="tv-chart-stats">
-                    <div className="tv-chart-stat">
-                      <span className="tv-chart-stat-label">高値 / High</span>
-                      <span className="tv-chart-stat-value">
-                        {lastCandle ? lastCandle.high.toFixed(3) : "—"}
-                      </span>
-                    </div>
-                    <div className="tv-chart-stat">
-                      <span className="tv-chart-stat-label">安値 / Low</span>
-                      <span className="tv-chart-stat-value">
-                        {lastCandle ? lastCandle.low.toFixed(3) : "—"}
-                      </span>
-                    </div>
-                    <div className="tv-chart-stat">
-                      <span className="tv-chart-stat-label">本数 / Bars</span>
-                      <span className="tv-chart-stat-value">
-                        {candleSeries.length.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+          <div>
+            <h1 className="text-[clamp(22px,2.4vw,30px)] font-semibold leading-tight tracking-tight text-text-strong">
+              本日の{" "}
+              <strong className="bg-linear-to-r from-accent-strong to-profit-strong bg-clip-text font-bold text-transparent">
+                AIクルー
+              </strong>{" "}
+              全体ステータス
+            </h1>
+            <p className="mt-2 max-w-[56ch] text-[13px] leading-relaxed text-muted">
+              {agentSummaries.length}体のクルーがUSD/JPYのペーパー取引を運用中。
+              残高・確定損益・候補戦略・AI日次レビューを一画面で確認できます。
+            </p>
+          </div>
 
-                {candleSeries.length > 0 ? (
-                  <CandlestickChart
-                    data={candleSeries}
-                    query={{
-                      symbol: recentCandles.symbol,
-                      timeframe: recentCandles.timeframe,
-                      priceType: recentCandles.priceType,
-                    }}
-                    initialLimit={1000}
-                  />
-                ) : (
-                  <div className="tv-chart-empty">
-                    USD/JPYのMIDキャンドルが取得できていません(worker未起動 / データ未蓄積)
-                  </div>
-                )}
-              </div>
-            </section>
+          <dl className="mt-auto grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCell
+              label="Crew Equity"
+              value={formatJpy(totalBalance)}
+              foot={`Initial ${formatJpy(totalInitialBalance)}`}
+            />
+            <KpiCell
+              label="Unrealized PnL"
+              value={formatJpySigned(totalUnrealizedPnl)}
+              tone={totalUnrealizedPnl > 0 ? "profit" : totalUnrealizedPnl < 0 ? "loss" : undefined}
+              spark={`${totalUnrealizedPnlPct >= 0 ? "+" : "−"}${Math.abs(
+                totalUnrealizedPnlPct,
+              ).toFixed(2)}%`}
+              sparkTone={totalUnrealizedPnl >= 0 ? "profit" : "loss"}
+            />
+            <KpiCell
+              label="Realized PnL"
+              value={formatJpySigned(totalPnl)}
+              tone={totalPnl > 0 ? "profit" : totalPnl < 0 ? "loss" : undefined}
+              foot={`${dashboard.trades.length} fills · ${
+                dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"
+              } win`}
+            />
+            <KpiCell
+              label="Active Agents"
+              value={`${activeAgents} / ${AGENT_CHARACTERS.length}`}
+              tone="accent"
+              foot={`${totalOpenPositions} open positions`}
+            />
+          </dl>
+        </div>
 
-            <section
-              className="tv-panel tv-chart-panel tv-chart-panel-compact"
-              aria-label="累積損益"
-            >
-              <PanelHeader
-                title={`累積損益 / Cumulative PnL${selectedAccountName ? ` (${selectedAccountName})` : ""}`}
-                meta={dashboard.trades.length > 0 ? `${dashboard.trades.length} fills` : "0 fills"}
-              />
-              <div className="tv-panel-body">
-                <div className="tv-chart-summary tv-chart-summary-compact">
-                  <div className="tv-chart-headline">
-                    <span className="tv-chart-headline-label">確定損益 / Realized</span>
+        {/* Hero right column: Top Crew */}
+        <aside
+          aria-label="トップ成績エージェント"
+          className="flex min-w-0 flex-col gap-2.5 rounded-xl border border-line bg-bg/60 p-4"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-text-strong before:inline-block before:size-1.5 before:rounded-full before:bg-accent-strong before:shadow-[0_0_8px_var(--color-accent-strong)] before:content-['']">
+              Top Crew
+            </span>
+            <Link className="btn-ghost" href="/agents">
+              管理 →
+            </Link>
+          </div>
+          {topPerformers.length === 0 ? (
+            <p className="text-xs text-muted">
+              ペーパー口座を持つエージェントがまだいません。
+              <br />
+              <Link className="text-accent-strong" href="/agents#picker">
+                ＋ クルーを配属する →
+              </Link>
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {topPerformers.map((agent) => {
+                const pnl = agent.paperAccount?.pnlJpy ?? 0;
+                const balance = agent.paperAccount?.balanceJpy ?? 0;
+                const initial = agent.paperAccount?.initialBalanceJpy ?? 0;
+                const pct = (balance / topMaxBalance) * 100;
+                const fillGradient =
+                  pnl < 0
+                    ? "linear-gradient(90deg, var(--color-warning) 0%, var(--color-loss-strong) 100%)"
+                    : pnl === 0
+                      ? "var(--color-surface-strong)"
+                      : "linear-gradient(90deg, var(--color-accent) 0%, var(--color-profit-strong) 100%)";
+                return (
+                  <Link
+                    key={agent.id}
+                    href={`/agents/${agent.id}`}
+                    className="grid grid-cols-[80px_1fr_auto] items-center gap-2.5 text-[11px] hover:text-text-strong"
+                    aria-label={`${agent.name} の口座`}
+                  >
+                    <span className="text-muted">{agent.name}</span>
                     <span
-                      className={`tv-chart-headline-value tv-chart-headline-value-sm ${pnlPositive ? "profit" : "loss"}`}
+                      aria-hidden
+                      className="relative h-1 overflow-hidden rounded-full bg-surface-muted"
                     >
-                      {formatJpySigned(totalPnl)}
-                      <span className="tv-chart-headline-delta">
-                        勝率 {dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"} ·{" "}
-                        {dashboard.trades.length} trades
-                      </span>
+                      <span
+                        className="absolute inset-0 origin-left rounded-full"
+                        style={{
+                          transform: `scaleX(${(pct / 100).toFixed(3)})`,
+                          background: fillGradient,
+                        }}
+                      />
                     </span>
-                  </div>
+                    <span className="font-mono text-[11px] tabular-nums text-text-strong">
+                      {pnl >= 0 ? "+" : "−"}
+                      {formatCompactJpy(Math.abs(pnl))} ·{" "}
+                      {initial > 0 ? `${((pnl / initial) * 100).toFixed(1)}%` : "—"}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </aside>
+      </section>
+
+      {/* === AI Crew Tiles ================================================ */}
+      <section aria-label="AI Crew" className={SECTION_CLS}>
+        <header className={SECTION_HEAD_CLS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className={KICKER_CLS}>AI Crew</p>
+            <h2 className={SECTION_TITLE_CLS}>エージェント・クルー</h2>
+            <p className={SECTION_DESC_CLS}>
+              各キャラクターは独自のペルソナを持ち、専用のペーパー口座で戦略を運用します。タイルから個別の詳細画面に遷移できます。
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1.5">
+            <Link href="/agents#picker" className="btn-primary">
+              ＋ New Agent
+            </Link>
+            <Link href="/agents" className="btn-secondary">
+              一覧へ
+            </Link>
+          </div>
+        </header>
+        <div className="crew-grid">
+          {AGENT_CHARACTERS.map((character) => {
+            const agent = agentSummaries.find((a) => a.characterId === character.id) ?? null;
+            const summary = agent
+              ? {
+                  id: agent.id,
+                  name: agent.name,
+                  status: agent.status,
+                  currentVersion: agent.currentVersion,
+                  acceptedProposalCount: agent.acceptedProposalCount,
+                  proposalCount: agent.proposalCount,
+                  succeededRunCount: agent.succeededRunCount,
+                  failedRunCount: agent.failedRunCount,
+                  latestRunStatus: agent.latestRun?.status ?? null,
+                  balanceJpy: agent.paperAccount?.balanceJpy ?? null,
+                  initialBalanceJpy: agent.paperAccount?.initialBalanceJpy ?? null,
+                  pnlJpy: agent.paperAccount?.pnlJpy ?? null,
+                  openPositionCount: agent.paperAccount?.openPositionCount ?? null,
+                }
+              : null;
+            return <CrewTile key={character.id} character={character} agent={summary} />;
+          })}
+        </div>
+      </section>
+
+      {/* === Market ====================================================== */}
+      <section aria-label="Market" className={SECTION_CLS}>
+        <header className={SECTION_HEAD_CLS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className={KICKER_CLS}>Market · USD/JPY</p>
+            <h2 className={SECTION_TITLE_CLS}>マーケット & プライス</h2>
+            <p className={SECTION_DESC_CLS}>
+              内部蓄積のローソク足からダッシュボード用のスナップショットを表示。詳細な時間足/BID-ASK切替は
+              Market 画面で。
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1.5">
+            <Link href="/market" className="btn-primary">
+              📈 フルチャートを開く
+            </Link>
+          </div>
+        </header>
+
+        <div className={CARD_CLS}>
+          <div className={CARD_HEAD_CLS}>
+            <span className={CARD_HEAD_TITLE_CLS}>
+              {formatSymbol(recentCandles.symbol)} · {recentCandles.timeframe.toUpperCase()} ·{" "}
+              {recentCandles.priceType.toUpperCase()}
+            </span>
+            <span className={CARD_HEAD_META_CLS}>
+              <span className={META_CHIP_CLS}>{candleSeries.length} bars</span>
+              <Link href="/market" className={`${META_CHIP_CLS} hover:text-text-strong`}>
+                Market →
+              </Link>
+            </span>
+          </div>
+          <div className={CARD_BODY_CLS}>
+            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-line-soft pb-2.5">
+              <div className="flex items-baseline gap-3">
+                <span
+                  className={`font-mono text-[30px] font-semibold tabular-nums tracking-tight ${
+                    candleUp ? "text-profit-strong" : "text-loss-strong"
+                  }`}
+                >
+                  {lastCandle ? lastCandle.close.toFixed(3) : "—"}
+                </span>
+                {lastCandle && firstCandle ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-sm font-semibold ${
+                      candleUp
+                        ? "bg-profit-soft text-profit-strong"
+                        : "bg-loss-soft text-loss-strong"
+                    }`}
+                  >
+                    {candleUp ? "▲" : "▼"} {Math.abs(candleChange).toFixed(3)}
+                    <span className="opacity-75">
+                      ({candleChangePct >= 0 ? "+" : "−"}
+                      {Math.abs(candleChangePct).toFixed(2)}%)
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+              <div className="ml-auto flex gap-5">
+                <StatBlock label="High" value={lastCandle ? lastCandle.high.toFixed(3) : "—"} />
+                <StatBlock label="Low" value={lastCandle ? lastCandle.low.toFixed(3) : "—"} />
+                <StatBlock label="Bars" value={candleSeries.length.toLocaleString()} />
+              </div>
+            </div>
+            <div className="flex min-h-[360px] flex-1 flex-col">
+              {candleSeries.length > 0 ? (
+                <CandlestickChart
+                  data={candleSeries}
+                  query={{
+                    symbol: recentCandles.symbol,
+                    timeframe: recentCandles.timeframe,
+                    priceType: recentCandles.priceType,
+                  }}
+                  initialLimit={1000}
+                />
+              ) : (
+                <div className="grid min-h-[280px] place-items-center rounded-xl border border-dashed border-line p-6 text-center text-xs leading-relaxed text-muted">
+                  USD/JPYのMIDキャンドルが取得できていません
+                  <br />
+                  (worker未起動 / データ未蓄積)
+                  <br />
+                  <Link href="/market" className="text-accent-strong">
+                    Market画面で公開APIのレートを確認 →
+                  </Link>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
-                {pnlSeries.length > 0 ? (
-                  <PnlChart data={pnlSeries} positive={pnlPositive} />
-                ) : (
-                  <div className="tv-chart-empty tv-chart-empty-compact">
-                    確定取引が記録され次第、ここに累積損益が描画されます
-                  </div>
-                )}
-              </div>
-            </section>
+      {/* === Performance ================================================= */}
+      <section aria-label="Performance" className={SECTION_CLS}>
+        <header className={SECTION_HEAD_CLS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className={KICKER_CLS}>Performance</p>
+            <h2 className={SECTION_TITLE_CLS}>パフォーマンス</h2>
+            <p className={SECTION_DESC_CLS}>
+              確定済みのペーパー取引から累積損益と直近の約定を集計。クルー別の口座状況も切り替え可能です。
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1.5">
+            <Link href="/activity?kind=runs" className="btn-ghost">
+              実行履歴 →
+            </Link>
+          </div>
+        </header>
 
-            <section className="tv-panel" aria-label="直近の確定取引">
-              <PanelHeader
-                title={`直近の確定取引 / Recent Fills${selectedAccountName ? ` (${selectedAccountName})` : ""}`}
-                meta={`${dashboard.trades.length}`}
-              />
-              <div className="tv-panel-body scroll-x">
-                {dashboard.trades.length === 0 ? (
-                  <EmptyState text="確定済みのペーパー取引はまだありません" />
-                ) : (
-                  <table className="tv-table">
-                    <thead>
-                      <tr>
-                        <th>通貨ペア</th>
-                        <th>売買</th>
-                        <th className="num">損益 (JPY)</th>
-                        <th className="num">決済日時</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dashboard.trades.map((trade) => {
-                        const pnl = Number(trade.pnlJpy);
-                        const sideClass = trade.side.toLowerCase();
-                        return (
-                          <tr key={`${trade.symbol}-${trade.closedAt}`}>
-                            <td>
-                              <span className="tv-symbol">{formatSymbol(trade.symbol)}</span>
-                            </td>
-                            <td>
-                              <span className={`tv-side ${sideClass}`}>
-                                {translateSide(trade.side)}
-                              </span>
-                            </td>
-                            <td className="num">
-                              <span className={`tv-pnl ${pnl >= 0 ? "profit" : "loss"}`}>
-                                {formatJpySigned(pnl)}
-                              </span>
-                            </td>
-                            <td className="num">
-                              <span className="tv-time">{formatDateTime(trade.closedAt)}</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className={CARD_CLS}>
+            <div className={CARD_HEAD_CLS}>
+              <span className={CARD_HEAD_TITLE_CLS}>
+                累積損益 / Cumulative PnL
+                {selectedAccountName ? ` · ${selectedAccountName}` : ""}
+              </span>
+              <span className={CARD_HEAD_META_CLS}>
+                <span className={META_CHIP_CLS}>{dashboard.trades.length} fills</span>
+              </span>
+            </div>
+            <div className={CARD_BODY_CLS}>
+              <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-line-soft pb-2.5">
+                <div className="flex items-baseline gap-3">
+                  <span
+                    className={`font-mono text-2xl font-semibold tabular-nums ${
+                      pnlPositive ? "text-profit-strong" : "text-loss-strong"
+                    }`}
+                  >
+                    {formatJpySigned(totalPnl)}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-sm font-semibold ${
+                      pnlPositive
+                        ? "bg-profit-soft text-profit-strong"
+                        : "bg-loss-soft text-loss-strong"
+                    }`}
+                  >
+                    勝率 {dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"}
+                  </span>
+                </div>
               </div>
-            </section>
-
-            <section className="tv-panel" aria-label="AI日次レビュー">
-              <PanelHeader
-                title="AI日次レビュー / Daily Review"
-                meta={latestReview ? formatDate(latestReview.reviewDate) : "—"}
-              />
-              <div className="tv-panel-body">
-                {dashboard.dailyReviews.length === 0 ? (
-                  <EmptyState text="AI日次レビューはまだ記録されていません" />
-                ) : (
-                  <div className="tv-review-stack">
-                    {dashboard.dailyReviews.map((review) => (
-                      <article
-                        className="tv-review-card"
-                        key={`${review.reviewDate}-${review.createdAt}`}
-                      >
-                        <header className="tv-review-head">
-                          <div className="tv-review-head-left">
-                            <span className="tv-review-date">{formatDate(review.reviewDate)}</span>
-                            <span className={`tv-tag ${normalizeStatus(review.status)}`}>
-                              {translateStatus(review.status)}
-                            </span>
-                          </div>
-                          <span className="tv-review-time">{formatDateTime(review.createdAt)}</span>
-                        </header>
-                        <p className="tv-review-summary">
-                          {review.summary ?? "レビューは却下、または要約が返されませんでした。"}
-                        </p>
-                        <div className="tv-review-columns">
-                          <ReviewList
-                            title="採用候補"
-                            items={formatRecommendationItems(review.baselinePromotionCandidates)}
-                          />
-                          <ReviewList
-                            title="停止候補"
-                            items={formatRecommendationItems(review.candidateRetirementCandidates)}
-                          />
-                          <ReviewList title="警告" items={formatWarningItems(review.warnings)} />
-                          <ReviewList
-                            title="次の対応"
-                            items={formatStringItems(review.nextActions)}
-                          />
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
+              {pnlSeries.length > 0 ? (
+                <PnlChart data={pnlSeries} positive={pnlPositive} />
+              ) : (
+                <div className={EMPTY_CLS}>
+                  確定取引が記録され次第、ここに累積損益が描画されます
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="tv-col tv-col-right">
-            {dashboard.accountDetail ? (
-              <>
-                <AccountStrategyPanel detail={dashboard.accountDetail} />
-                <PositionsPanel detail={dashboard.accountDetail} />
-              </>
-            ) : null}
-            <section className="tv-panel" aria-label="候補戦略">
-              <PanelHeader title="候補戦略 / Candidates" meta={`${dashboard.candidates.length}`} />
-              <div className="tv-panel-body">
-                {dashboard.candidates.length === 0 ? (
-                  <EmptyState text="AI候補戦略はまだ承認されていません" />
-                ) : (
-                  dashboard.candidates.map((candidate) => {
-                    const status = candidate.strategyRunStatus ?? candidate.status;
-                    return (
-                      <article
-                        className="tv-strategy-row tv-strategy-row-readonly"
-                        key={candidate.id}
+          <div className={CARD_CLS}>
+            <div className={CARD_HEAD_CLS}>
+              <span className={CARD_HEAD_TITLE_CLS}>エージェント口座 / Agents</span>
+              <span className={CARD_HEAD_META_CLS}>
+                <span className={META_CHIP_CLS}>{agentSummaries.length} crew</span>
+              </span>
+            </div>
+            <div className="flex max-h-[360px] min-h-0 flex-col overflow-auto">
+              {agentSummaries.length === 0 ? (
+                <div className="m-4">
+                  <div className={EMPTY_CLS}>
+                    エージェントがまだ配属されていません
+                    <br />
+                    <Link href="/agents#picker" className="text-accent-strong">
+                      ＋ クルーを配属する →
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  <WatchlistRow
+                    href="/"
+                    scroll={false}
+                    avatar={
+                      <span
+                        aria-hidden
+                        className="grid size-9 place-items-center rounded-lg border border-line bg-surface text-[11px] font-bold text-text-strong"
                       >
-                        <div className="tv-strategy-meta">
-                          <span className="tv-strategy-name">
-                            {candidate.candidateStrategyName ?? candidate.id}
-                          </span>
-                          <span className="tv-strategy-source">
-                            ← {candidate.sourceStrategyName}
-                          </span>
-                          <span className="tv-strategy-tags">
-                            <span className="tv-tag">{candidate.timeframe}</span>
-                            <span className={`tv-tag ${normalizeStatus(status)}`}>
-                              {translateStatus(status)}
-                            </span>
-                          </span>
-                        </div>
-                        <div className="tv-strategy-status">
-                          <span className="tv-strategy-status-label">自動審査</span>
-                          <span className="tv-strategy-status-value">
-                            {describeAutoStatus(status)}
-                          </span>
-                        </div>
-                      </article>
-                    );
-                  })
-                )}
-              </div>
-            </section>
+                        Σ
+                      </span>
+                    }
+                    name="クルー合計"
+                    sub={
+                      <>
+                        <span className="tv-tag">ALL</span>
+                        {agentSummaries.length} agents
+                      </>
+                    }
+                    balance={formatJpy(totalBalance)}
+                    delta={formatJpySigned(totalUnrealizedPnl)}
+                    deltaTone={
+                      totalUnrealizedPnl > 0
+                        ? "profit"
+                        : totalUnrealizedPnl < 0
+                          ? "loss"
+                          : undefined
+                    }
+                    active={!isAccountView}
+                  />
+                  {agentSummaries.map((agent) => (
+                    <AgentAccountRow key={agent.id} agent={agent} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <StatusBar
-          healthOk={health.ok}
-          healthService={health.service}
-          balance={totalBalance}
-          pnl={totalPnl}
-          accounts={dashboard.accounts.length}
-          candidates={dashboard.candidates.length}
-        />
-      </main>
-    </>
+        <div className={CARD_CLS}>
+          <div className={CARD_HEAD_CLS}>
+            <span className={CARD_HEAD_TITLE_CLS}>
+              直近の確定取引 / Recent Fills
+              {selectedAccountName ? ` · ${selectedAccountName}` : ""}
+            </span>
+            <span className={CARD_HEAD_META_CLS}>
+              <span className={META_CHIP_CLS}>{dashboard.trades.length} fills</span>
+            </span>
+          </div>
+          <div className="flex min-h-0 flex-col">
+            {dashboard.trades.length === 0 ? (
+              <div className="m-4">
+                <div className={EMPTY_CLS}>確定済みのペーパー取引はまだありません</div>
+              </div>
+            ) : (
+              <div className="overflow-auto">
+                <table className="w-full border-collapse text-xs">
+                  <thead>
+                    <tr>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-3.5 py-2 text-left text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                        通貨ペア
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-3.5 py-2 text-left text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                        売買
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-3.5 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        損益 (JPY)
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-3.5 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        決済日時
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.trades.slice(0, 12).map((trade) => {
+                      const pnl = Number(trade.pnlJpy);
+                      const sideClass = trade.side.toLowerCase();
+                      return (
+                        <tr
+                          key={`${trade.symbol}-${trade.closedAt}`}
+                          className="border-b border-line-soft transition-colors last:border-b-0 hover:bg-surface-muted"
+                        >
+                          <td className="px-3.5 py-2.5">
+                            <span className="tv-symbol">{formatSymbol(trade.symbol)}</span>
+                          </td>
+                          <td className="px-3.5 py-2.5">
+                            <span className={`tv-side ${sideClass}`}>
+                              {translateSide(trade.side)}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">
+                            <span className={`tv-pnl ${pnl >= 0 ? "profit" : "loss"}`}>
+                              {formatJpySigned(pnl)}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">
+                            <span className="tv-time">{formatDateTime(trade.closedAt)}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {dashboard.accountDetail ? (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+            <AccountStrategyPanel detail={dashboard.accountDetail} />
+            <PositionsPanel detail={dashboard.accountDetail} />
+          </div>
+        ) : null}
+      </section>
+
+      {/* === AI Insights =================================================== */}
+      <section aria-label="AI Insights" className={SECTION_CLS}>
+        <header className={SECTION_HEAD_CLS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className={KICKER_CLS}>AI Insights</p>
+            <h2 className={SECTION_TITLE_CLS}>AIインサイト</h2>
+            <p className={SECTION_DESC_CLS}>
+              AIの日次レビューと審査中の候補戦略を要約。詳細は Activity 画面で時系列に確認できます。
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1.5">
+            <Link href="/activity?kind=proposals" className="btn-ghost">
+              提案を見る →
+            </Link>
+            <Link href="/activity?kind=runs" className="btn-ghost">
+              実行を見る →
+            </Link>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className={CARD_CLS}>
+            <div className={CARD_HEAD_CLS}>
+              <span className={CARD_HEAD_TITLE_CLS}>AI日次レビュー / Daily Review</span>
+              <span className={CARD_HEAD_META_CLS}>
+                <span className={META_CHIP_CLS}>
+                  {latestReview ? formatDate(latestReview.reviewDate) : "—"}
+                </span>
+              </span>
+            </div>
+            <div className={CARD_BODY_CLS}>
+              {dashboard.dailyReviews.length === 0 ? (
+                <div className={EMPTY_CLS}>AI日次レビューはまだ記録されていません</div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {dashboard.dailyReviews.slice(0, 2).map((review) => (
+                    <article
+                      key={`${review.reviewDate}-${review.createdAt}`}
+                      className="flex flex-col gap-3 rounded-xl border border-line bg-linear-to-b from-accent-soft to-surface-muted p-3.5"
+                    >
+                      <header className="flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="inline-flex items-center gap-2.5">
+                          <span className="font-mono text-sm font-bold text-text-strong">
+                            {formatDate(review.reviewDate)}
+                          </span>
+                          <span className={`tv-tag ${normalizeStatus(review.status)}`}>
+                            {translateStatus(review.status)}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[10px] text-subtle">
+                          {formatDateTime(review.createdAt)}
+                        </span>
+                      </header>
+                      <p className="text-xs leading-relaxed text-text">
+                        {review.summary ?? "レビューは却下、または要約が返されませんでした。"}
+                      </p>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <ReviewCol
+                          title="採用候補"
+                          items={formatRecommendationItems(review.baselinePromotionCandidates)}
+                        />
+                        <ReviewCol
+                          title="停止候補"
+                          items={formatRecommendationItems(review.candidateRetirementCandidates)}
+                        />
+                        <ReviewCol title="警告" items={formatWarningItems(review.warnings)} />
+                        <ReviewCol title="次の対応" items={formatStringItems(review.nextActions)} />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className={CARD_CLS}>
+            <div className={CARD_HEAD_CLS}>
+              <span className={CARD_HEAD_TITLE_CLS}>候補戦略 / Candidates</span>
+              <span className={CARD_HEAD_META_CLS}>
+                <span className={META_CHIP_CLS}>{dashboard.candidates.length} 件</span>
+              </span>
+            </div>
+            <div className="flex max-h-[360px] min-h-0 flex-col overflow-auto">
+              {dashboard.candidates.length === 0 ? (
+                <div className="m-4">
+                  <div className={EMPTY_CLS}>AI候補戦略はまだ承認されていません</div>
+                </div>
+              ) : (
+                dashboard.candidates.map((candidate) => {
+                  const status = candidate.strategyRunStatus ?? candidate.status;
+                  return (
+                    <article
+                      key={candidate.id}
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 border-b border-line-soft px-3.5 py-3 last:border-b-0"
+                    >
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <span className="truncate text-[13px] font-semibold text-text-strong">
+                          {candidate.candidateStrategyName ?? candidate.id}
+                        </span>
+                        <span className="truncate font-mono text-[10px] text-muted">
+                          ← {candidate.sourceStrategyName}
+                        </span>
+                        <span className="mt-1 inline-flex flex-wrap gap-1">
+                          <span className="tv-tag">{candidate.timeframe}</span>
+                          <span className={`tv-tag ${normalizeStatus(status)}`}>
+                            {translateStatus(status)}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-end gap-0.5 text-right whitespace-nowrap">
+                        <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted">
+                          自動審査
+                        </span>
+                        <span className="max-w-[200px] font-mono text-[11px] leading-snug font-semibold whitespace-normal text-text-strong">
+                          {describeAutoStatus(status)}
+                        </span>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function KpiCell({
+  label,
+  value,
+  tone,
+  foot,
+  spark,
+  sparkTone,
+}: {
+  label: string;
+  value: string;
+  tone?: "profit" | "loss" | "accent";
+  foot?: string;
+  spark?: string;
+  sparkTone?: "profit" | "loss";
+}) {
+  const toneClass =
+    tone === "profit"
+      ? "text-profit-strong"
+      : tone === "loss"
+        ? "text-loss-strong"
+        : tone === "accent"
+          ? "text-accent-strong"
+          : "text-text-strong";
+  const sparkClass =
+    sparkTone === "profit"
+      ? "bg-profit-soft text-profit-strong"
+      : sparkTone === "loss"
+        ? "bg-loss-soft text-loss-strong"
+        : "bg-surface-muted text-muted";
+  return (
+    <div className="relative flex min-w-0 flex-col gap-1.5 bg-bg-elevated p-4 transition-colors hover:bg-surface">
+      <span className={KPI_LABEL_CLS}>{label}</span>
+      <span className={`${KPI_VALUE_CLS} ${toneClass}`}>{value}</span>
+      {(foot || spark) && (
+        <span className="flex items-center gap-1.5 text-[11px] text-muted">
+          {spark ? (
+            <span
+              className={`inline-flex items-center gap-1 rounded font-mono text-[10px] px-1.5 py-0.5 ${sparkClass}`}
+            >
+              {spark}
+            </span>
+          ) : null}
+          {foot ? <span>{foot}</span> : null}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function StatBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">{label}</span>
+      <span className="font-mono text-[13px] tabular-nums text-text-strong">{value}</span>
+    </div>
+  );
+}
+
+function WatchlistRow({
+  href,
+  scroll,
+  avatar,
+  name,
+  sub,
+  balance,
+  delta,
+  deltaTone,
+  active,
+}: {
+  href: string;
+  scroll?: boolean;
+  avatar: React.ReactNode;
+  name: string;
+  sub: React.ReactNode;
+  balance: string;
+  delta: string;
+  deltaTone?: "profit" | "loss";
+  active?: boolean;
+}) {
+  const deltaClass =
+    deltaTone === "profit"
+      ? "text-profit-strong"
+      : deltaTone === "loss"
+        ? "text-loss-strong"
+        : "text-muted";
+  return (
+    <Link
+      href={href}
+      scroll={scroll}
+      className={`relative grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-line-soft px-3.5 py-2.5 transition-colors last:border-b-0 hover:bg-surface-muted ${
+        active
+          ? "bg-accent-soft before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-r-sm before:bg-accent-strong before:content-['']"
+          : ""
+      }`}
+    >
+      {avatar}
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="truncate text-[13px] font-semibold text-text-strong">{name}</span>
+        <span className="inline-flex items-center gap-1.5 text-[10px] text-muted">{sub}</span>
+      </span>
+      <span className="flex flex-col items-end gap-0.5">
+        <span className="font-mono text-xs font-bold tabular-nums text-text-strong">{balance}</span>
+        <span className={`font-mono text-[11px] tabular-nums ${deltaClass}`}>{delta}</span>
+      </span>
+    </Link>
   );
 }
 
@@ -535,307 +940,66 @@ function AgentAccountRow({ agent }: { agent: AgentSummaryRaw }) {
   const account = agent.paperAccount;
   const pnl = account?.pnlJpy ?? 0;
   const balance = account?.balanceJpy ?? 0;
-  const pnlClass = pnl > 0 ? "tv-pnl profit" : pnl < 0 ? "tv-pnl loss" : undefined;
+  const deltaTone: "profit" | "loss" | undefined =
+    pnl > 0 ? "profit" : pnl < 0 ? "loss" : undefined;
   return (
-    <Link
+    <WatchlistRow
       href={`/agents/${agent.id}`}
-      className="tv-watchlist-row tv-watchlist-row-link"
-      data-character-id={character?.id ?? "unassigned"}
-    >
-      <div className="tv-watchlist-name flex items-center gap-2">
-        {character ? (
-          <Image
-            src={character.avatarPath ?? character.imagePath}
-            alt={`${character.name} avatar`}
-            width={28}
-            height={28}
-            className="rounded-md"
-            unoptimized
-          />
-        ) : null}
-        <span className="flex flex-col">
-          <span className="tv-watchlist-symbol">{agent.name}</span>
-          <span className="tv-watchlist-sub">
-            <span className={`tv-tag ${normalizeStatus(agent.status)}`}>
-              {translateStatus(agent.status)}
+      avatar={
+        <span
+          aria-hidden
+          className="grid size-9 overflow-hidden rounded-lg border border-line bg-surface"
+        >
+          {character ? (
+            <Image
+              src={character.avatarPath ?? character.imagePath}
+              alt={`${character.name} avatar`}
+              width={36}
+              height={36}
+              className="size-full object-cover object-top"
+              unoptimized
+            />
+          ) : (
+            <span className="grid place-items-center text-xs font-bold text-text-strong">
+              {agent.name[0] ?? "?"}
             </span>
-            <span>{account ? `${account.openPositionCount} open` : "no account"}</span>
+          )}
+        </span>
+      }
+      name={agent.name}
+      sub={
+        <>
+          <span className={`tv-tag ${normalizeStatus(agent.status)}`}>
+            {translateStatus(agent.status)}
           </span>
-        </span>
-      </div>
-      <div className="tv-watchlist-balance">
-        {account ? formatJpy(balance) : "—"}
-        <small className={pnlClass}>{account ? formatJpySigned(pnl) : ""}</small>
-      </div>
-    </Link>
+          {account ? `${account.openPositionCount} open` : "no account"}
+        </>
+      }
+      balance={account ? formatJpy(balance) : "—"}
+      delta={account ? formatJpySigned(pnl) : ""}
+      deltaTone={deltaTone}
+    />
   );
 }
 
-function Sidebar() {
-  const upcomingTitle = "未実装 (ルート未追加)";
+function ReviewCol({ title, items }: { title: string; items: string[] }) {
   return (
-    <aside className="tv-sidebar" aria-label="メインナビゲーション">
-      <button
-        type="button"
-        className="tv-sidebar-btn active"
-        title="ダッシュボード"
-        aria-label="ダッシュボード"
-        aria-current="page"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 12 L12 3 L21 12" />
-          <path d="M5 10 L5 21 L19 21 L19 10" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="口座 (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="6" width="18" height="13" rx="2" />
-          <path d="M3 10 L21 10" />
-          <path d="M7 15 L11 15" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="チャート (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 20 L9 14 L13 17 L21 8" />
-          <path d="M15 8 L21 8 L21 14" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="戦略 (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="3.5" />
-          <path d="M12 3 L12 6 M12 18 L12 21 M3 12 L6 12 M18 12 L21 12 M5.6 5.6 L7.7 7.7 M16.3 16.3 L18.4 18.4 M5.6 18.4 L7.7 16.3 M16.3 7.7 L18.4 5.6" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="履歴 (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7 L12 12 L15.5 14" />
-        </svg>
-      </button>
-      <div className="tv-sidebar-divider" />
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="AI レビュー (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 3 L13.7 8.5 L19.5 8.5 L14.9 12.1 L16.6 17.5 L12 14 L7.4 17.5 L9.1 12.1 L4.5 8.5 L10.3 8.5 Z" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="アラート (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M6 9 A6 6 0 0 1 18 9 L18 14 L20 17 L4 17 L6 14 Z" />
-          <path d="M10 20 A2 2 0 0 0 14 20" />
-        </svg>
-      </button>
-      <span className="tv-sidebar-spacer" />
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="設定 (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15 A1.65 1.65 0 0 0 19.73 16.81 L19.79 16.87 A2 2 0 0 1 16.96 19.7 L16.9 19.64 A1.65 1.65 0 0 0 15.09 19.31 A1.65 1.65 0 0 0 14.04 20.82 L14.04 21 A2 2 0 0 1 10.04 21 L10.04 20.91 A1.65 1.65 0 0 0 8.96 19.4 A1.65 1.65 0 0 0 7.15 19.73 L7.09 19.79 A2 2 0 0 1 4.26 16.96 L4.32 16.9 A1.65 1.65 0 0 0 4.65 15.09 A1.65 1.65 0 0 0 3.14 14.04 L3 14.04 A2 2 0 0 1 3 10.04 L3.09 10.04 A1.65 1.65 0 0 0 4.6 8.96 A1.65 1.65 0 0 0 4.27 7.15 L4.21 7.09 A2 2 0 0 1 7.04 4.26 L7.1 4.32 A1.65 1.65 0 0 0 8.91 4.65 A1.65 1.65 0 0 0 9.96 3.14 L9.96 3 A2 2 0 0 1 13.96 3 L13.96 3.09 A1.65 1.65 0 0 0 15.04 4.6 A1.65 1.65 0 0 0 16.85 4.27 L16.91 4.21 A2 2 0 0 1 19.74 7.04 L19.68 7.1 A1.65 1.65 0 0 0 19.35 8.91 A1.65 1.65 0 0 0 20.86 9.96 L21 9.96 A2 2 0 0 1 21 13.96 L20.91 13.96 A1.65 1.65 0 0 0 19.4 15 Z" />
-        </svg>
-      </button>
-    </aside>
-  );
-}
-
-function StatusBar({
-  healthOk,
-  healthService,
-  balance,
-  pnl,
-  accounts,
-  candidates,
-}: {
-  healthOk: boolean;
-  healthService: string;
-  balance: number;
-  pnl: number;
-  accounts: number;
-  candidates: number;
-}) {
-  const pnlClass = pnl >= 0 ? "profit" : "loss";
-  return (
-    <footer className="tv-statusbar" role="contentinfo" aria-label="ステータス">
-      <span className="tv-statusbar-item">
-        <span className={`tv-status-dot sm ${healthOk ? "live" : "danger"}`} />
-        <strong>{healthOk ? "CONNECTED" : "DEGRADED"}</strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item">
-        Service <strong>{healthService}</strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item optional">
-        Mode <strong>PAPER</strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item optional">
-        Symbol <strong>USD/JPY</strong>
-      </span>
-      <span className="tv-statusbar-spacer" />
-      <span className="tv-statusbar-item optional">
-        Equity <strong>{formatJpy(balance)}</strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item">
-        PnL{" "}
-        <strong className={pnlClass === "profit" ? "text-profit-strong" : "text-loss-strong"}>
-          {formatJpySigned(pnl)}
-        </strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item">
-        Accounts <strong>{accounts}</strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item">
-        Candidates <strong>{candidates}</strong>
-      </span>
-    </footer>
-  );
-}
-
-function TopBar({
-  healthOk,
-  healthService,
-  timestamp,
-}: {
-  healthOk: boolean;
-  healthService: string;
-  timestamp: string;
-}) {
-  return (
-    <header className="tv-topbar">
-      <div className="tv-topbar-left">
-        <div className="tv-brand">
-          <span className="tv-brand-logo">AT</span>
-          <span className="tv-brand-name">AI Trade</span>
-          <span className="tv-brand-sub">USD/JPY · Paper</span>
-        </div>
-      </div>
-      <div className="tv-topbar-right">
-        <span className="tv-system-pill" title={`Service: ${healthService}`}>
-          <span className={`tv-status-dot ${healthOk ? "live" : "danger"}`} />
-          {healthOk ? "稼働中" : "要確認"}
-        </span>
-        <span className="tv-clock">{formatDateTime(timestamp)}</span>
-      </div>
-    </header>
-  );
-}
-
-function TickerStrip({
-  balance,
-  unrealizedPnl,
-  realizedPnl,
-  winRate,
-  trades,
-  openPositions,
-}: {
-  balance: number;
-  unrealizedPnl: number;
-  realizedPnl: number;
-  winRate: number;
-  trades: number;
-  openPositions: number;
-}) {
-  return (
-    <div className="tv-ticker">
-      <div className="tv-ticker-tile">
-        <span className="tv-ticker-label">
-          <span>クルー総残高</span>
-          <span>Crew Equity</span>
-        </span>
-        <span className="tv-ticker-value">{formatJpy(balance)}</span>
-      </div>
-      <div className="tv-ticker-tile">
-        <span className="tv-ticker-label">
-          <span>含み損益</span>
-          <span>Unrealized PnL</span>
-        </span>
-        <span className={`tv-ticker-value ${unrealizedPnl >= 0 ? "profit" : "loss"}`}>
-          {formatJpySigned(unrealizedPnl)}
-        </span>
-      </div>
-      <div className="tv-ticker-tile">
-        <span className="tv-ticker-label">
-          <span>確定損益 / 勝率</span>
-          <span>Realized / Win Rate</span>
-        </span>
-        <span className={`tv-ticker-value ${realizedPnl >= 0 ? "profit" : "loss"}`}>
-          {formatJpySigned(realizedPnl)}
-          <span className="ml-2 text-[13px] text-muted">
-            {trades > 0 ? `${winRate.toFixed(1)}% (${trades})` : "—"}
-          </span>
-        </span>
-      </div>
-      <div className="tv-ticker-tile">
-        <span className="tv-ticker-label">
-          <span>オープン中</span>
-          <span>Open Positions</span>
-        </span>
-        <span className="tv-ticker-value accent">{openPositions.toLocaleString()}</span>
-      </div>
-    </div>
-  );
-}
-
-function PanelHeader({ title, meta }: { title: string; meta: string }) {
-  return (
-    <div className="tv-panel-header">
-      <div className="tv-panel-title">
-        <span className="tv-panel-title-bar" />
-        {title}
-      </div>
-      <span className="tv-panel-meta">{meta}</span>
-    </div>
-  );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="tv-empty">
-      <span className="tv-empty-icon">∅</span>
-      {text}
+    <div className="flex flex-col gap-1.5 rounded-lg border border-line-soft bg-bg-elevated p-2.5">
+      <h4 className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">{title}</h4>
+      {items.length === 0 ? (
+        <span className="text-[11px] text-subtle">なし</span>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {items.map((item) => (
+            <li
+              key={item}
+              className="relative break-words pl-3 text-[11px] leading-snug text-text before:absolute before:left-0 before:text-accent-strong before:content-['›']"
+            >
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -848,106 +1012,115 @@ function AccountStrategyPanel({ detail }: { detail: AccountDetail }) {
   const pnl = Number.isFinite(balance) && Number.isFinite(initial) ? balance - initial : 0;
   const pnlPositive = pnl >= 0;
   return (
-    <section className="tv-panel" aria-label="戦略詳細">
-      <PanelHeader
-        title={`戦略詳細 / Strategy (${detail.name})`}
-        meta={run ? run.status.toUpperCase() : "—"}
-      />
-      <div className="tv-panel-body">
-        <dl className="tv-detail-grid">
-          <div>
-            <dt>残高 / Balance</dt>
-            <dd>{formatJpy(balance)}</dd>
-          </div>
-          <div>
-            <dt>初期 / Initial</dt>
-            <dd>{formatJpy(initial)}</dd>
-          </div>
-          <div>
-            <dt>変動 / Δ</dt>
-            <dd className={pnlPositive ? "tv-pnl profit" : "tv-pnl loss"}>
-              {formatJpySigned(pnl)}
-            </dd>
-          </div>
-          <div>
-            <dt>戦略名 / Strategy</dt>
-            <dd>{run?.strategyName ?? "—"}</dd>
-          </div>
-          <div>
-            <dt>銘柄 / Symbol</dt>
-            <dd>{run ? formatSymbol(run.symbol) : "—"}</dd>
-          </div>
-          <div>
-            <dt>足種 / TF</dt>
-            <dd>{run?.timeframe ?? "—"}</dd>
-          </div>
-          <div>
-            <dt>開始 / Started</dt>
-            <dd>{run ? formatDateTime(run.startedAt) : "—"}</dd>
-          </div>
+    <div className={CARD_CLS}>
+      <div className={CARD_HEAD_CLS}>
+        <span className={CARD_HEAD_TITLE_CLS}>戦略詳細 / Strategy · {detail.name}</span>
+        <span className={CARD_HEAD_META_CLS}>
+          <span className={META_CHIP_CLS}>{run ? run.status.toUpperCase() : "—"}</span>
+        </span>
+      </div>
+      <div className={CARD_BODY_CLS}>
+        <dl className="grid grid-cols-2 gap-x-5 gap-y-2">
+          <DetailItem label="残高 / Balance" value={formatJpy(balance)} />
+          <DetailItem label="初期 / Initial" value={formatJpy(initial)} />
+          <DetailItem
+            label="変動 / Δ"
+            value={formatJpySigned(pnl)}
+            tone={pnlPositive ? "profit" : "loss"}
+          />
+          <DetailItem label="戦略名 / Strategy" value={run?.strategyName ?? "—"} />
+          <DetailItem label="銘柄 / Symbol" value={run ? formatSymbol(run.symbol) : "—"} />
+          <DetailItem label="足種 / TF" value={run?.timeframe ?? "—"} />
+          <DetailItem label="開始 / Started" value={run ? formatDateTime(run.startedAt) : "—"} />
         </dl>
         {definitionPreview && (
-          <details className="tv-detail-collapsible">
-            <summary>Strategy Definition (JSON)</summary>
-            <pre className="tv-code-block">{definitionPreview}</pre>
+          <details className="border-t border-line-soft px-3 pt-2 pb-3">
+            <summary className="cursor-pointer py-1 text-[11px] font-semibold text-muted hover:text-text-strong">
+              Strategy Definition (JSON)
+            </summary>
+            <pre className="mt-1.5 max-h-60 overflow-auto rounded border border-line-soft bg-bg p-2.5 font-mono text-[11px] leading-normal whitespace-pre-wrap break-words text-text">
+              {definitionPreview}
+            </pre>
           </details>
         )}
       </div>
-    </section>
+    </div>
+  );
+}
+
+function DetailItem({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "profit" | "loss";
+}) {
+  const toneClass =
+    tone === "profit"
+      ? "text-profit-strong"
+      : tone === "loss"
+        ? "text-loss-strong"
+        : "text-text-strong";
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <dt className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted">{label}</dt>
+      <dd className={`m-0 truncate font-mono text-xs font-semibold tabular-nums ${toneClass}`}>
+        {value}
+      </dd>
+    </div>
   );
 }
 
 function PositionsPanel({ detail }: { detail: AccountDetail }) {
   return (
-    <section className="tv-panel" aria-label="保有ポジション">
-      <PanelHeader
-        title={`保有ポジション / Open Positions (${detail.name})`}
-        meta={`${detail.openPositions.length}`}
-      />
-      <div className="tv-panel-body">
+    <div className={CARD_CLS}>
+      <div className={CARD_HEAD_CLS}>
+        <span className={CARD_HEAD_TITLE_CLS}>保有ポジション · {detail.name}</span>
+        <span className={CARD_HEAD_META_CLS}>
+          <span className={META_CHIP_CLS}>{detail.openPositions.length} 件</span>
+        </span>
+      </div>
+      <div className="flex min-h-0 flex-col">
         {detail.openPositions.length === 0 ? (
-          <EmptyState text="現在この口座に保有ポジションはありません" />
+          <div className="m-4">
+            <div className={EMPTY_CLS}>現在この口座に保有ポジションはありません</div>
+          </div>
         ) : (
-          detail.openPositions.map((position) => (
-            <article className="tv-position-row" key={`${position.openedAt}-${position.symbol}`}>
-              <div className="tv-position-head">
-                <span className="tv-symbol">{formatSymbol(position.symbol)}</span>
-                <span className={`tv-side ${position.side.toLowerCase()}`}>
-                  {translateSide(position.side)}
-                </span>
-                <span className="tv-time">{formatDateTime(position.openedAt)}</span>
-              </div>
-              <dl className="tv-position-grid">
-                <div>
-                  <dt>数量</dt>
-                  <dd>{Number(position.quantity).toLocaleString()}</dd>
+          <div className="flex flex-col">
+            {detail.openPositions.map((position) => (
+              <article
+                key={`${position.openedAt}-${position.symbol}`}
+                className="flex flex-col gap-2 border-b border-line-soft px-3.5 py-3 last:border-b-0"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="tv-symbol">{formatSymbol(position.symbol)}</span>
+                  <span className={`tv-side ${position.side.toLowerCase()}`}>
+                    {translateSide(position.side)}
+                  </span>
+                  <span className="tv-time">{formatDateTime(position.openedAt)}</span>
                 </div>
-                <div>
-                  <dt>エントリー</dt>
-                  <dd>{Number(position.entryPrice).toFixed(3)}</dd>
-                </div>
-                <div>
-                  <dt>SL</dt>
-                  <dd>{Number(position.stopLossPrice).toFixed(3)}</dd>
-                </div>
-                <div>
-                  <dt>TP</dt>
-                  <dd>{Number(position.takeProfitPrice).toFixed(3)}</dd>
-                </div>
-                <div>
-                  <dt>最良値</dt>
-                  <dd>{Number(position.bestPriceSinceOpen).toFixed(3)}</dd>
-                </div>
-                <div>
-                  <dt>Spread</dt>
-                  <dd>{Number(position.spreadPips).toFixed(1)} pips</dd>
-                </div>
-              </dl>
-            </article>
-          ))
+                <dl className="grid grid-cols-3 gap-x-5 gap-y-1.5">
+                  <DetailItem label="数量" value={Number(position.quantity).toLocaleString()} />
+                  <DetailItem label="エントリー" value={Number(position.entryPrice).toFixed(3)} />
+                  <DetailItem label="SL" value={Number(position.stopLossPrice).toFixed(3)} />
+                  <DetailItem label="TP" value={Number(position.takeProfitPrice).toFixed(3)} />
+                  <DetailItem
+                    label="最良値"
+                    value={Number(position.bestPriceSinceOpen).toFixed(3)}
+                  />
+                  <DetailItem
+                    label="Spread"
+                    value={`${Number(position.spreadPips).toFixed(1)} pips`}
+                  />
+                </dl>
+              </article>
+            ))}
+          </div>
         )}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -958,23 +1131,6 @@ function formatStrategyDefinitionPreview(value: unknown): string | null {
   } catch {
     return null;
   }
-}
-
-function ReviewList({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className="tv-review-list">
-      <h4>{title}</h4>
-      {items.length === 0 ? (
-        <span className="tv-muted">なし</span>
-      ) : (
-        <ul>
-          {items.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 function buildCandleSeries(candles: RecentCandlesResponse["candles"]): CandlePoint[] {
@@ -1050,6 +1206,13 @@ function formatJpySigned(value: number) {
   return `${sign}${formatJpy(Math.abs(value))}`;
 }
 
+function formatCompactJpy(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 100_000_000) return `¥${(abs / 100_000_000).toFixed(2)}億`;
+  if (abs >= 10_000) return `¥${(abs / 10_000).toFixed(1)}万`;
+  return `¥${Math.round(abs).toLocaleString("ja-JP")}`;
+}
+
 function formatDateTime(value: string) {
   const date = new Date(value);
 
@@ -1110,6 +1273,7 @@ function translateStatus(status: string) {
     failed: "失敗",
     healthy: "正常",
     open: "保有中",
+    paused: "停止",
     proposed: "提案中",
     promoted_to_baseline: "Baseline昇格済み",
     rejected: "却下",
