@@ -19,14 +19,22 @@ COMPOSE_FILE_ARGS=(-f docker/compose.yml)
 
 disable_legacy_compose_overlays() {
   local backup_dir
+  local dest_dir
   local file
 
   backup_dir="deploy-backups/legacy-compose-$(date +%Y%m%d%H%M%S)"
 
-  for file in docker-compose.yml docker-compose.override.yml compose.production.yml compose.runtime.yml; do
+  for file in \
+    docker-compose.yml \
+    docker-compose.override.yml \
+    compose.production.yml \
+    compose.runtime.yml \
+    docker/compose.runtime.yml \
+    docker/compose.override.yml; do
     if [ -f "$file" ]; then
-      mkdir -p "$backup_dir"
-      mv "$file" "$backup_dir/$file"
+      dest_dir="$backup_dir/$(dirname "$file")"
+      mkdir -p "$dest_dir"
+      mv "$file" "$dest_dir/$(basename "$file")"
       echo "disabled legacy compose overlay: $file -> $backup_dir/$file"
     fi
   done
