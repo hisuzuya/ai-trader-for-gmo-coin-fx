@@ -204,8 +204,8 @@ export async function updateAgentSettings(agentId: string, formData: FormData) {
   );
 
   if (!response.ok) {
-    redirect(`/agents/${agentId}/edit?error=update_failed`);
+    redirect(`/agents/${agentId}?tab=settings&error=update_failed`);
   }
 
-  redirect(`/agents/${agentId}?saved=1`);
+  redirect(`/agents/${agentId}?tab=settings&saved=1`);
 }

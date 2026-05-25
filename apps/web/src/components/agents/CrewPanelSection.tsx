@@ -140,10 +140,10 @@ export async function CrewPanelSection({
             </div>
           </dl>
           <div className="mt-3.5 flex flex-wrap gap-1.5">
-            <Link href="/proposals" className="btn-ghost">
+            <Link href="/activity?kind=proposals" className="btn-ghost">
               See all proposals →
             </Link>
-            <Link href="/runs" className="btn-ghost">
+            <Link href="/activity?kind=runs" className="btn-ghost">
               See all runs →
             </Link>
             <span className="text-[11px] text-muted">

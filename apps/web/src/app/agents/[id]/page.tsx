@@ -1,23 +1,32 @@
-import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import { AGENT_RESEARCH_TOOL_NAMES } from "@ai-trade/domain/ai-agents/types";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
 import { CharacterHero } from "@/components/agents/CharacterHero";
+import {
+  hasModelOption,
+  hasRunIntervalOption,
+  MODEL_OPTIONS,
+  RUN_INTERVAL_OPTIONS,
+} from "@/components/agents/form-options";
 
-import { deleteAgentMemory, rollbackAgentVersion, saveAgentVersion } from "../actions";
+import {
+  deleteAgentMemory,
+  rollbackAgentVersion,
+  saveAgentVersion,
+  updateAgentSettings,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "portfolio", label: "Portfolio" },
-  { id: "prompt", label: "Prompt" },
+  { id: "activity", label: "Activity" },
+  { id: "strategy", label: "Strategy Work" },
   { id: "memory", label: "Memory" },
-  { id: "proposals", label: "Proposals" },
-  { id: "reviews", label: "Reviews" },
-  { id: "runs", label: "Runs" },
-  { id: "versions", label: "Versions" },
+  { id: "settings", label: "Settings" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -162,7 +171,11 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
   const saveAction = saveAgentVersion.bind(null, agent.id);
   const rollbackAction = rollbackAgentVersion.bind(null, agent.id);
   const deleteMemoryAction = deleteAgentMemory.bind(null, agent.id);
+  const updateSettingsAction = updateAgentSettings.bind(null, agent.id);
   const character = getCharacter(agent.characterId);
+  const selectedCharacterId =
+    typeof query.character === "string" ? query.character : (agent.characterId ?? "");
+  const selectedCharacter = getCharacter(selectedCharacterId);
 
   const saved = query.saved === "1";
   const created = query.created === "1";
@@ -171,6 +184,7 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
   const warningSecret = query.warning === "secret_like";
   const errorEmpty = query.error === "empty_prompt";
   const errorSave = query.error === "save_failed";
+  const errorUpdate = query.error === "update_failed";
 
   const totalRuns = agent.runs.length;
   const succeededRuns = agent.runs.filter((run) => run.status === "succeeded").length;
@@ -209,8 +223,9 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
           ) : null}
           {errorEmpty ? <span className="panel-toast warn">Prompt is empty</span> : null}
           {errorSave ? <span className="panel-toast warn">保存に失敗しました</span> : null}
-          <Link href={`/agents/${agent.id}/edit`} className="btn-secondary">
-            Edit settings
+          {errorUpdate ? <span className="panel-toast warn">更新に失敗しました</span> : null}
+          <Link href={`/agents/${agent.id}?tab=settings`} className="btn-secondary">
+            Settings
           </Link>
         </div>
       </div>
@@ -252,12 +267,18 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
 
       {activeTab === "overview" ? <OverviewPanel agent={agent} /> : null}
       {activeTab === "portfolio" ? <PortfolioPanel agent={agent} /> : null}
-      {activeTab === "prompt" ? <PromptPanel agent={agent} action={saveAction} /> : null}
+      {activeTab === "activity" ? <RunsPanel agent={agent} /> : null}
+      {activeTab === "strategy" ? <StrategyWorkPanel agent={agent} /> : null}
       {activeTab === "memory" ? <MemoryPanel agent={agent} action={deleteMemoryAction} /> : null}
-      {activeTab === "proposals" ? <ProposalsPanel agent={agent} /> : null}
-      {activeTab === "reviews" ? <ReviewsPanel agent={agent} /> : null}
-      {activeTab === "runs" ? <RunsPanel agent={agent} /> : null}
-      {activeTab === "versions" ? <VersionsPanel agent={agent} action={rollbackAction} /> : null}
+      {activeTab === "settings" ? (
+        <SettingsPanel
+          agent={agent}
+          selectedCharacterId={selectedCharacter?.id ?? ""}
+          updateAction={updateSettingsAction}
+          saveAction={saveAction}
+          rollbackAction={rollbackAction}
+        />
+      ) : null}
     </section>
   );
 }
@@ -268,7 +289,7 @@ function OverviewPanel({ agent }: { agent: AgentDetail }) {
       <section className="panel">
         <div className="panel-title">
           <h2>Latest observations</h2>
-          <Link href={`/agents/${agent.id}?tab=runs`} className="btn-ghost">
+          <Link href={`/agents/${agent.id}?tab=activity`} className="btn-ghost">
             See runs →
           </Link>
         </div>
@@ -290,7 +311,7 @@ function OverviewPanel({ agent }: { agent: AgentDetail }) {
       <section className="panel">
         <div className="panel-title">
           <h2>Recent proposals</h2>
-          <Link href={`/proposals?agentId=${agent.id}`} className="btn-ghost">
+          <Link href={`/activity?kind=proposals&agentId=${agent.id}`} className="btn-ghost">
             See all →
           </Link>
         </div>
@@ -405,12 +426,21 @@ function MemoryPanel({
   );
 }
 
+function StrategyWorkPanel({ agent }: { agent: AgentDetail }) {
+  return (
+    <>
+      <ProposalsPanel agent={agent} />
+      <ReviewsPanel agent={agent} />
+    </>
+  );
+}
+
 function ProposalsPanel({ agent }: { agent: AgentDetail }) {
   return (
     <section className="panel">
       <div className="panel-title">
         <h2>Proposals (latest {agent.proposals.length})</h2>
-        <Link href={`/proposals?agentId=${agent.id}`} className="btn-ghost">
+        <Link href={`/activity?kind=proposals&agentId=${agent.id}`} className="btn-ghost">
           See all →
         </Link>
       </div>
@@ -459,7 +489,7 @@ function RunsPanel({ agent }: { agent: AgentDetail }) {
     <section className="panel">
       <div className="panel-title">
         <h2>Runs (latest {agent.runs.length})</h2>
-        <Link href={`/runs?agentId=${agent.id}`} className="btn-ghost">
+        <Link href={`/activity?kind=runs&agentId=${agent.id}`} className="btn-ghost">
           See all →
         </Link>
       </div>
@@ -477,6 +507,151 @@ function RunsPanel({ agent }: { agent: AgentDetail }) {
       ))}
       {agent.runs.length === 0 ? <p className="text-muted">No runs yet.</p> : null}
     </section>
+  );
+}
+
+function SettingsPanel({
+  agent,
+  selectedCharacterId,
+  updateAction,
+  saveAction,
+  rollbackAction,
+}: {
+  agent: AgentDetail;
+  selectedCharacterId: string;
+  updateAction: (formData: FormData) => void;
+  saveAction: (formData: FormData) => void;
+  rollbackAction: (formData: FormData) => void;
+}) {
+  return (
+    <>
+      <OperationSettingsPanel
+        agent={agent}
+        selectedCharacterId={selectedCharacterId}
+        action={updateAction}
+      />
+      <PromptPanel agent={agent} action={saveAction} />
+      <VersionsPanel agent={agent} action={rollbackAction} />
+    </>
+  );
+}
+
+function OperationSettingsPanel({
+  agent,
+  selectedCharacterId,
+  action,
+}: {
+  agent: AgentDetail;
+  selectedCharacterId: string;
+  action: (formData: FormData) => void;
+}) {
+  const selected = getCharacter(selectedCharacterId);
+
+  return (
+    <>
+      <section className="panel">
+        <div className="panel-title">
+          <h2>Agent settings</h2>
+          <span className="meta-pill subtle">v{agent.currentVersion}</span>
+        </div>
+        <div className="wizard-grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] [&_.wizard-card-portrait]:h-[150px]">
+          {AGENT_CHARACTERS.map((character) => {
+            const isSelected = selected?.id === character.id;
+            return (
+              <Link
+                key={character.id}
+                href={`/agents/${agent.id}?tab=settings&character=${character.id}`}
+                className={`wizard-card character-theme-${character.id}${
+                  isSelected ? " selected" : ""
+                }`}
+                data-character-id={character.id}
+              >
+                <div className="wizard-card-portrait">
+                  <Image
+                    src={character.imagePath}
+                    alt={`${character.name} portrait`}
+                    width={240}
+                    height={220}
+                    unoptimized
+                  />
+                </div>
+                <div className="wizard-card-body">
+                  <span className="wizard-card-name">
+                    {character.nameJa}
+                    <small className="ml-1.5 font-normal text-muted">{character.name}</small>
+                  </span>
+                  <span className="wizard-card-tag">{character.type}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-title">
+          <h2>Operation</h2>
+        </div>
+        <form action={action} className="wizard-form">
+          <input type="hidden" name="characterId" value={selected?.id ?? ""} />
+          <label className="col-span-2">
+            <span>Agent name</span>
+            <input type="text" name="name" defaultValue={agent.name} required />
+          </label>
+          <label className="col-span-2">
+            <span>Persona summary</span>
+            <input type="text" name="persona" defaultValue={agent.persona} />
+          </label>
+          <label>
+            <span>Run interval (sec)</span>
+            <select name="runIntervalSec" defaultValue={agent.runIntervalSec} required>
+              {hasRunIntervalOption(agent.runIntervalSec) ? null : (
+                <option value={agent.runIntervalSec}>Custom ({agent.runIntervalSec} sec)</option>
+              )}
+              {RUN_INTERVAL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Model</span>
+            <select name="model" defaultValue={agent.model} required>
+              {hasModelOption(agent.model) ? null : (
+                <option value={agent.model}>{agent.model}</option>
+              )}
+              {MODEL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Status</span>
+            <select name="status" defaultValue={agent.status}>
+              <option value="active">active</option>
+              <option value="paused">paused</option>
+            </select>
+          </label>
+          <label className="col-span-2 flex-row items-center gap-2 normal-case tracking-normal">
+            <input
+              className="w-auto accent-accent"
+              type="checkbox"
+              name="sharedMemoryEnabled"
+              defaultChecked={agent.sharedMemoryEnabled}
+            />
+            <span>Shared memory を有効化</span>
+          </label>
+          <div className="col-span-2 flex gap-2">
+            <button type="submit" className="btn-primary">
+              Save settings
+            </button>
+          </div>
+        </form>
+      </section>
+    </>
   );
 }
 
