@@ -71,6 +71,13 @@
       "when": 1779900000000,
       "tag": "0009_agent_paper_account",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1779903600000,
+      "tag": "0010_agent_skills",
+      "breakpoints": true
     }
   ]
 }

@@ -5,8 +5,10 @@ import {
   calcIndicator,
   getCandidatePerformance,
   getRejectionHistory,
+  getSkill,
   readBars,
   recallMemory,
+  recallSkills,
 } from "./tools.js";
 
 export const MCP_SERVER_NAME = "agent_research";
@@ -16,6 +18,8 @@ export const MCP_TOOL_NAMES = [
   "get_candidate_performance",
   "get_rejection_history",
   "recall_memory",
+  "recall_skills",
+  "get_skill",
 ] as const;
 
 export function createAgentResearchMcpServer() {
@@ -93,6 +97,35 @@ export function createAgentResearchMcpServer() {
       }),
     },
     async (input) => toToolResult(await recallMemory(input)),
+  );
+
+  server.registerTool(
+    "recall_skills",
+    {
+      title: "Recall Agent Skills",
+      description: "Read matching Japanese private/shared agent skills.",
+      inputSchema: z.object({
+        agentId: z.string().min(1),
+        query: z.string().optional(),
+        scopes: z.array(z.enum(["private", "shared"])).optional(),
+        tags: z.array(z.string()).optional(),
+        limit: z.number().int().positive().max(500).optional(),
+      }),
+    },
+    async (input) => toToolResult(await recallSkills(input)),
+  );
+
+  server.registerTool(
+    "get_skill",
+    {
+      title: "Get Agent Skill",
+      description: "Read one Japanese private/shared agent skill by id.",
+      inputSchema: z.object({
+        agentId: z.string().min(1),
+        skillId: z.string().min(1),
+      }),
+    },
+    async (input) => toToolResult(await getSkill(input)),
   );
 
   return server;

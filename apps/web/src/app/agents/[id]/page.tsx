@@ -26,6 +26,7 @@ const TABS = [
   { id: "activity", label: "Activity" },
   { id: "strategy", label: "Strategy Work" },
   { id: "memory", label: "Memory" },
+  { id: "skills", label: "Skills" },
   { id: "settings", label: "Settings" },
 ] as const;
 
@@ -101,6 +102,21 @@ type AgentDetail = {
     tags: string[];
     sourceRefs: unknown;
     createdAt: string;
+  }[];
+  skills: {
+    id: string;
+    scope: "private" | "shared";
+    title: string;
+    body: string;
+    tags: string[];
+    sourceRefs: unknown;
+    reason: string;
+    status: "draft" | "active" | "archived";
+    version: number;
+    promotedFromSkillId: string | null;
+    createdRunId: string | null;
+    createdAt: string;
+    updatedAt: string;
   }[];
   proposals: {
     id: string;
@@ -270,6 +286,7 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
       {activeTab === "activity" ? <RunsPanel agent={agent} /> : null}
       {activeTab === "strategy" ? <StrategyWorkPanel agent={agent} /> : null}
       {activeTab === "memory" ? <MemoryPanel agent={agent} action={deleteMemoryAction} /> : null}
+      {activeTab === "skills" ? <SkillsPanel agent={agent} /> : null}
       {activeTab === "settings" ? (
         <SettingsPanel
           agent={agent}
@@ -422,6 +439,49 @@ function MemoryPanel({
           </form>
         </article>
       ))}
+    </section>
+  );
+}
+
+function SkillsPanel({ agent }: { agent: AgentDetail }) {
+  const privateSkills = agent.skills.filter((skill) => skill.scope === "private");
+  const sharedSkills = agent.skills.filter((skill) => skill.scope === "shared");
+
+  return (
+    <section className="panel">
+      <div className="panel-title">
+        <h2>Skills ({agent.skills.length})</h2>
+        <span className="meta-pill subtle">
+          private {privateSkills.length} / shared {sharedSkills.length}
+        </span>
+      </div>
+      {agent.skills.length === 0 ? (
+        <p className="text-muted">
+          まだ skills はありません。エージェントが日本語の skillWriteIntents
+          を出すとここに保存されます。
+        </p>
+      ) : null}
+      <div className="skill-grid">
+        {agent.skills.map((skill) => (
+          <article key={skill.id} className="skill-card">
+            <header>
+              <div>
+                <span className={`meta-pill ${skill.scope === "shared" ? "active" : "subtle"}`}>
+                  {skill.scope}
+                </span>
+                <span className="meta-pill subtle">v{skill.version}</span>
+              </div>
+              <span>{skill.updatedAt}</span>
+            </header>
+            <h3>{skill.title}</h3>
+            <p>{skill.body}</p>
+            <footer>
+              <span>{skill.status}</span>
+              <span>{skill.tags.slice(0, 4).join(", ") || "no tags"}</span>
+            </footer>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }

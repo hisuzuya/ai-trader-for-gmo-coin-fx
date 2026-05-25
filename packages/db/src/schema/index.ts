@@ -81,6 +81,14 @@ export const aiAgentMemoryType = pgEnum("ai_agent_memory_type", [
   "rejection_learning",
 ]);
 
+export const aiAgentKnowledgeScope = pgEnum("ai_agent_knowledge_scope", ["private", "shared"]);
+
+export const aiAgentKnowledgeStatus = pgEnum("ai_agent_knowledge_status", [
+  "draft",
+  "active",
+  "archived",
+]);
+
 export const aiAgentObservationKind = pgEnum("ai_agent_observation_kind", [
   "market",
   "candidate_performance",
@@ -290,6 +298,33 @@ export const aiAgentMemories = pgTable(
     index("ai_agent_memories_agent_idx").on(table.agentId),
     index("ai_agent_memories_agent_type_idx").on(table.agentId, table.type),
     index("ai_agent_memories_tags_idx").using("gin", table.tags),
+  ],
+);
+
+export const aiAgentSkills = pgTable(
+  "ai_agent_skills",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => aiAgents.id),
+    scope: aiAgentKnowledgeScope("scope").notNull().default("private"),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+    sourceRefs: jsonb("source_refs_json"),
+    reason: text("reason").notNull(),
+    status: aiAgentKnowledgeStatus("status").notNull().default("active"),
+    version: numeric("version", { precision: 10, scale: 0 }).notNull().default("1"),
+    promotedFromSkillId: uuid("promoted_from_skill_id"),
+    createdRunId: uuid("created_run_id").references(() => aiAgentRuns.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [
+    index("ai_agent_skills_agent_idx").on(table.agentId),
+    index("ai_agent_skills_scope_status_idx").on(table.scope, table.status),
+    index("ai_agent_skills_tags_idx").using("gin", table.tags),
   ],
 );
 

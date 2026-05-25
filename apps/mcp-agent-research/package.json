@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/main.cjs",
+    "build": "esbuild src/main.ts src/mcp-stdio.ts --bundle --platform=node --target=node24 --format=cjs --outdir=dist --out-extension:.js=.cjs",
     "start": "tsx src/main.ts",
+    "start:mcp": "tsx src/mcp-stdio.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
