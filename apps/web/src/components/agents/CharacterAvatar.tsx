@@ -25,7 +25,6 @@ export function CharacterAvatar({
     return (
       <span
         className={`character-avatar size-${size} placeholder`}
-        style={{ width: pixels, height: pixels }}
         role="img"
         aria-label={ariaLabel ?? "Unassigned character"}
       >
@@ -36,12 +35,7 @@ export function CharacterAvatar({
 
   return (
     <span
-      className={`character-avatar size-${size}`}
-      style={{
-        width: pixels,
-        height: pixels,
-        ["--character-color" as string]: character.themeColor,
-      }}
+      className={`character-avatar size-${size} character-theme-${character.id}`}
       role="img"
       aria-label={ariaLabel ?? `${character.name} avatar`}
       data-character-id={character.id}

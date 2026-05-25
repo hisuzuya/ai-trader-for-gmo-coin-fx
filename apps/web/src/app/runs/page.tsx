@@ -115,9 +115,7 @@ export default async function RunsPage({ searchParams }: PageProps) {
           ) : null}
         </div>
 
-        {runs.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>No runs match the current filter.</p>
-        ) : null}
+        {runs.length === 0 ? <p className="text-muted">No runs match the current filter.</p> : null}
 
         {runs.map((run) => {
           const agent = agentMap.get(run.agentId);

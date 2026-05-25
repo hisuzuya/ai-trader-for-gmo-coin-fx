@@ -107,7 +107,7 @@ export default async function AgentsPage({ searchParams }: PageProps) {
           <h2>編成済みエージェント ({assignedAgents.length})</h2>
         </div>
         {assignedAgents.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>
+          <p className="text-muted">
             まだエージェントがいません。下のキャラクターから 1 体選んで編成してください。
           </p>
         ) : (
@@ -138,18 +138,14 @@ export default async function AgentsPage({ searchParams }: PageProps) {
           <div className="panel-title">
             <h2>キャラ未設定のエージェント ({unassignedAgents.length})</h2>
           </div>
-          <p style={{ color: "var(--muted)", marginBottom: 12 }}>
+          <p className="mb-3 text-muted">
             既存のエージェントにキャラが未割り当てです。詳細画面の Edit
             からキャラを選択してください。
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="flex flex-col gap-2">
             {unassignedAgents.map((agent) => (
               <Link key={agent.id} href={`/agents/${agent.id}`} className="activity-row">
-                <span
-                  className="character-avatar placeholder"
-                  style={{ width: 36, height: 36 }}
-                  aria-hidden
-                >
+                <span className="character-avatar size-unassigned placeholder" aria-hidden>
                   ?
                 </span>
                 <div>

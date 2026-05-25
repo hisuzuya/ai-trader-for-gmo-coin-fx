@@ -214,7 +214,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   <>
                     <div className="tv-watchlist-head">
                       <span>口座名</span>
-                      <span style={{ textAlign: "right" }}>残高</span>
+                      <span className="text-right">残高</span>
                     </div>
                     <Link
                       href="/"
@@ -673,7 +673,10 @@ function StatusBar({
       </span>
       <span className="tv-statusbar-sep" />
       <span className="tv-statusbar-item">
-        PnL <strong style={{ color: `var(--${pnlClass}-strong)` }}>{formatJpySigned(pnl)}</strong>
+        PnL{" "}
+        <strong className={pnlClass === "profit" ? "text-profit-strong" : "text-loss-strong"}>
+          {formatJpySigned(pnl)}
+        </strong>
       </span>
       <span className="tv-statusbar-sep" />
       <span className="tv-statusbar-item">
@@ -754,7 +757,7 @@ function TickerStrip({
         </span>
         <span className="tv-ticker-value">
           {trades > 0 ? `${winRate.toFixed(1)}%` : "—"}
-          <span style={{ marginLeft: 8, color: "var(--muted)", fontSize: 13 }}>({trades})</span>
+          <span className="ml-2 text-[13px] text-muted">({trades})</span>
         </span>
       </div>
       <div className="tv-ticker-tile">

@@ -79,11 +79,9 @@ export default async function EditAgentPage({ params, searchParams }: PageProps)
               <Link
                 key={character.id}
                 href={`/agents/${agent.id}/edit?character=${character.id}`}
-                className={`wizard-card${isSelected ? " selected" : ""}`}
-                style={{
-                  ["--character-color" as string]: character.themeColor,
-                  ["--character-accent" as string]: character.accentColor,
-                }}
+                className={`wizard-card character-theme-${character.id}${
+                  isSelected ? " selected" : ""
+                }`}
                 data-character-id={character.id}
               >
                 <div className="wizard-card-portrait">
@@ -98,9 +96,7 @@ export default async function EditAgentPage({ params, searchParams }: PageProps)
                 <div className="wizard-card-body">
                   <span className="wizard-card-name">
                     {character.nameJa}
-                    <small style={{ marginLeft: 6, color: "var(--muted)", fontWeight: 400 }}>
-                      {character.name}
-                    </small>
+                    <small className="ml-1.5 font-normal text-muted">{character.name}</small>
                   </span>
                   <span className="wizard-card-tag">{character.type}</span>
                 </div>
@@ -157,20 +153,15 @@ export default async function EditAgentPage({ params, searchParams }: PageProps)
               <option value="paused">paused</option>
             </select>
           </label>
-          <label
-            className="col-span-2"
-            style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-          >
+          <label className="col-span-2 flex-row items-center gap-2">
             <input
               type="checkbox"
               name="sharedMemoryEnabled"
               defaultChecked={agent.sharedMemoryEnabled}
             />
-            <span style={{ letterSpacing: "normal", textTransform: "none" }}>
-              Shared memory を有効化
-            </span>
+            <span className="normal-case tracking-normal">Shared memory を有効化</span>
           </label>
-          <div className="col-span-2" style={{ display: "flex", gap: 8 }}>
+          <div className="col-span-2 flex gap-2">
             <button type="submit" className="btn-primary">
               Save settings
             </button>

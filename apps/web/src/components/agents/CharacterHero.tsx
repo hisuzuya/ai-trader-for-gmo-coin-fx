@@ -19,16 +19,10 @@ export function CharacterHero({
   pausedReason?: string | null;
 }) {
   const tagline = character?.catchphrase ?? persona;
-  const themeColor = character?.themeColor ?? "#2962ff";
-  const accentColor = character?.accentColor ?? "#5b8aff";
 
   return (
     <section
-      className="character-hero"
-      style={{
-        ["--character-color" as string]: themeColor,
-        ["--character-accent" as string]: accentColor,
-      }}
+      className={`character-hero ${character ? `character-theme-${character.id}` : ""}`}
       data-character-id={character?.id ?? "unassigned"}
     >
       <div className="character-hero-art">
