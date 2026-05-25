@@ -17,6 +17,21 @@ if [ -f .env.production ]; then
 fi
 COMPOSE_FILE_ARGS=(-f docker/compose.yml)
 
+disable_legacy_compose_overlays() {
+  local backup_dir
+  local file
+
+  backup_dir="deploy-backups/legacy-compose-$(date +%Y%m%d%H%M%S)"
+
+  for file in docker-compose.yml docker-compose.override.yml compose.production.yml compose.runtime.yml; do
+    if [ -f "$file" ]; then
+      mkdir -p "$backup_dir"
+      mv "$file" "$backup_dir/$file"
+      echo "disabled legacy compose overlay: $file -> $backup_dir/$file"
+    fi
+  done
+}
+
 wait_service_healthy() {
   local service
   local container_id
@@ -58,6 +73,7 @@ wait_service_healthy() {
 git fetch --prune origin "$BRANCH"
 git checkout "$BRANCH"
 git reset --hard "origin/$BRANCH"
+disable_legacy_compose_overlays
 
 docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" down --remove-orphans
 docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build timescaledb
