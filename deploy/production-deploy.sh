@@ -39,15 +39,19 @@ wait_service_healthy() {
   local attempt
 
   for service in "$@"; do
-    container_id="$(docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" ps -q "$service")"
-
-    if [ -z "$container_id" ]; then
-      echo "missing container for service: $service" >&2
-      exit 1
-    fi
-
     for attempt in $(seq 1 60); do
-      status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")"
+      container_id="$(docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" ps -q "$service")"
+
+      if [ -z "$container_id" ]; then
+        status="missing"
+        sleep 2
+        continue
+      fi
+
+      status="$(
+        docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null ||
+          echo "missing"
+      )"
 
       if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
         break
