@@ -17,13 +17,57 @@ if [ -f .env.production ]; then
 fi
 COMPOSE_FILE_ARGS=(-f docker/compose.yml)
 
+wait_service_healthy() {
+  local service
+  local container_id
+  local status
+  local attempt
+
+  for service in "$@"; do
+    container_id="$(docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" ps -q "$service")"
+
+    if [ -z "$container_id" ]; then
+      echo "missing container for service: $service" >&2
+      exit 1
+    fi
+
+    for attempt in $(seq 1 60); do
+      status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")"
+
+      if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+        break
+      fi
+
+      if [ "$status" = "exited" ] || [ "$status" = "dead" ]; then
+        echo "service $service became $status" >&2
+        docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" logs --tail=120 "$service" >&2
+        exit 1
+      fi
+
+      sleep 2
+    done
+
+    if [ "$status" != "healthy" ] && [ "$status" != "running" ]; then
+      echo "service $service did not become healthy, final status: $status" >&2
+      docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" logs --tail=120 "$service" >&2
+      exit 1
+    fi
+  done
+}
+
 git fetch --prune origin "$BRANCH"
 git checkout "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
 docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" down --remove-orphans
 docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build timescaledb
+wait_service_healthy timescaledb
 docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up --build --abort-on-container-exit --exit-code-from db-migrate db-migrate
-docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build --remove-orphans
+docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build --no-deps ai-runner mcp-agent-research
+wait_service_healthy ai-runner mcp-agent-research
+docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build --no-deps worker
+wait_service_healthy worker
+docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build --no-deps next-web
+wait_service_healthy next-web
 
 docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" ps
