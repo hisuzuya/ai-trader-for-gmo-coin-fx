@@ -32,7 +32,7 @@ services:
       WORKER_INTERNAL_URL: http://worker:8787
       NEXT_TELEMETRY_DISABLED: "1"
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${AI_TRADE_WEB_HOST_BIND:-127.0.0.1}:3000:3000"
     depends_on:
       timescaledb:
         condition: service_healthy

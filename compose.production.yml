@@ -21,7 +21,7 @@ services:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
     ports: !override
-      - "127.0.0.1:3000:3000"
+      - "${AI_TRADE_WEB_HOST_BIND:-127.0.0.1}:3000:3000"
     volumes: !override []
     logging:
       driver: json-file
