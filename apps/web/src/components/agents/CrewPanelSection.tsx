@@ -111,7 +111,7 @@ export async function CrewPanelSection() {
               <p className="kpi-card-trend">未配属のキャラ</p>
             </div>
           </dl>
-          <div style={{ marginTop: 14, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div className="mt-3.5 flex flex-wrap gap-1.5">
             <Link href="/proposals" className="btn-ghost">
               See all proposals →
             </Link>

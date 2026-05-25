@@ -140,11 +140,11 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
 
   return (
     <section className="page-shell">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="flex items-center justify-between">
         <Link href="/agents" className="btn-ghost">
           ← Agents
         </Link>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div className="flex gap-1.5">
           {created ? <span className="panel-toast">Created</span> : null}
           {saved ? <span className="panel-toast">Saved</span> : null}
           {rolledBack ? <span className="panel-toast">Rolled back</span> : null}
@@ -224,7 +224,7 @@ function OverviewPanel({ agent }: { agent: AgentDetail }) {
           </div>
         ))}
         {agent.observations.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>No observations yet.</p>
+          <p className="text-muted">No observations yet.</p>
         ) : null}
       </section>
 
@@ -249,9 +249,7 @@ function OverviewPanel({ agent }: { agent: AgentDetail }) {
             <span className="activity-row-status">{p.strategyRunStatus ?? "-"}</span>
           </div>
         ))}
-        {agent.proposals.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>No proposals yet.</p>
-        ) : null}
+        {agent.proposals.length === 0 ? <p className="text-muted">No proposals yet.</p> : null}
       </section>
 
       <section className="panel">
@@ -268,9 +266,7 @@ function OverviewPanel({ agent }: { agent: AgentDetail }) {
             <span className="activity-row-status">{r.confidence}</span>
           </div>
         ))}
-        {agent.reviews.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>No reviews yet.</p>
-        ) : null}
+        {agent.reviews.length === 0 ? <p className="text-muted">No reviews yet.</p> : null}
       </section>
     </>
   );
@@ -292,15 +288,7 @@ function PromptPanel({
       <form action={action} className="prompt-form">
         <textarea name="systemPrompt" defaultValue={agent.systemPrompt} required />
         <div>
-          <p
-            style={{
-              color: "var(--subtle)",
-              fontSize: 11,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              marginBottom: 6,
-            }}
-          >
+          <p className="mb-1.5 text-[11px] uppercase tracking-[0.08em] text-subtle">
             Allowed tools
           </p>
           <div className="tool-chips">
@@ -318,7 +306,7 @@ function PromptPanel({
           </div>
         </div>
         <input name="note" placeholder="Version note (optional)" />
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex gap-2">
           <button type="submit" className="btn-primary">
             Save new version
           </button>
@@ -340,9 +328,7 @@ function MemoryPanel({
       <div className="panel-title">
         <h2>Memories ({agent.memories.length})</h2>
       </div>
-      {agent.memories.length === 0 ? (
-        <p style={{ color: "var(--muted)" }}>No memories yet.</p>
-      ) : null}
+      {agent.memories.length === 0 ? <p className="text-muted">No memories yet.</p> : null}
       {agent.memories.map((m) => (
         <article key={m.id} className="memory-card">
           <header>
@@ -383,9 +369,7 @@ function ProposalsPanel({ agent }: { agent: AgentDetail }) {
           <span className="activity-row-status">{p.strategyRunStatus ?? "-"}</span>
         </div>
       ))}
-      {agent.proposals.length === 0 ? (
-        <p style={{ color: "var(--muted)" }}>No proposals yet.</p>
-      ) : null}
+      {agent.proposals.length === 0 ? <p className="text-muted">No proposals yet.</p> : null}
     </section>
   );
 }
@@ -406,7 +390,7 @@ function ReviewsPanel({ agent }: { agent: AgentDetail }) {
           <span className="activity-row-status">{r.confidence}</span>
         </div>
       ))}
-      {agent.reviews.length === 0 ? <p style={{ color: "var(--muted)" }}>No reviews yet.</p> : null}
+      {agent.reviews.length === 0 ? <p className="text-muted">No reviews yet.</p> : null}
     </section>
   );
 }
@@ -432,7 +416,7 @@ function RunsPanel({ agent }: { agent: AgentDetail }) {
           <span className="activity-row-status">{run.error ? "error" : "ok"}</span>
         </div>
       ))}
-      {agent.runs.length === 0 ? <p style={{ color: "var(--muted)" }}>No runs yet.</p> : null}
+      {agent.runs.length === 0 ? <p className="text-muted">No runs yet.</p> : null}
     </section>
   );
 }
@@ -455,9 +439,7 @@ function VersionsPanel({
             <strong>v{version.version}</strong>
             <span>{version.createdAt}</span>
           </header>
-          {version.note ? (
-            <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>{version.note}</p>
-          ) : null}
+          {version.note ? <p className="mb-1.5 text-xs text-muted">{version.note}</p> : null}
           <pre>
             {version.systemPrompt.slice(0, 300)}
             {version.systemPrompt.length > 300 ? "..." : ""}

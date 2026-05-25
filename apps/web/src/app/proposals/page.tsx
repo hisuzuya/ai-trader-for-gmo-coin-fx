@@ -106,7 +106,7 @@ export default async function ProposalsPage({ searchParams }: PageProps) {
         </div>
 
         {proposals.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>No proposals match the current filter.</p>
+          <p className="text-muted">No proposals match the current filter.</p>
         ) : null}
 
         {proposals.map((proposal) => {

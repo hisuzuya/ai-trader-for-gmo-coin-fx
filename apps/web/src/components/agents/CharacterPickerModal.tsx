@@ -62,11 +62,7 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
               key={character.id}
               type="button"
               onClick={() => open(character)}
-              className="wizard-card"
-              style={{
-                ["--character-color" as string]: character.themeColor,
-                ["--character-accent" as string]: character.accentColor,
-              }}
+              className={`wizard-card character-theme-${character.id}`}
               data-character-id={character.id}
             >
               <div className="wizard-card-portrait">
@@ -81,18 +77,11 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
               <div className="wizard-card-body">
                 <span className="wizard-card-name">
                   {character.nameJa}
-                  <small style={{ marginLeft: 6, color: "var(--muted)", fontWeight: 400 }}>
-                    {character.name}
-                  </small>
+                  <small className="ml-1.5 font-normal text-muted">{character.name}</small>
                 </span>
                 <span className="wizard-card-tag">{character.type}</span>
-                <span
-                  className="wizard-card-tag"
-                  style={{ fontStyle: "italic", color: "var(--text)" }}
-                >
-                  “{character.catchphrase}”
-                </span>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                <span className="wizard-card-tag text-text italic">“{character.catchphrase}”</span>
+                <div className="flex flex-wrap gap-1">
                   {character.recommendedFocus.map((focus) => (
                     <span key={focus} className="meta-pill subtle">
                       {focus}
@@ -112,13 +101,7 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
         aria-labelledby="character-modal-title"
       >
         {selected ? (
-          <div
-            className="character-modal-content"
-            style={{
-              ["--character-color" as string]: selected.themeColor,
-              ["--character-accent" as string]: selected.accentColor,
-            }}
-          >
+          <div className={`character-modal-content character-theme-${selected.id}`}>
             <header className="character-modal-header">
               <div className="character-modal-portrait">
                 <Image
@@ -133,28 +116,10 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
                 <p className="page-kicker">Create</p>
                 <h2 id="character-modal-title">
                   {selected.nameJa}
-                  <small
-                    style={{
-                      marginLeft: 8,
-                      color: "var(--muted)",
-                      fontWeight: 400,
-                      fontSize: 13,
-                    }}
-                  >
-                    {selected.name}
-                  </small>
+                  <small className="ml-2 text-[13px] font-normal text-muted">{selected.name}</small>
                 </h2>
-                <p style={{ color: "var(--muted)", fontSize: 12 }}>{selected.type}</p>
-                <p
-                  style={{
-                    color: "var(--text)",
-                    fontStyle: "italic",
-                    marginTop: 4,
-                    fontSize: 12,
-                  }}
-                >
-                  “{selected.catchphrase}”
-                </p>
+                <p className="text-xs text-muted">{selected.type}</p>
+                <p className="mt-1 text-xs text-text italic">“{selected.catchphrase}”</p>
               </div>
               <button
                 type="button"
@@ -167,24 +132,16 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
             </header>
 
             {initialError === "missing_fields" ? (
-              <p className="panel-toast warn" style={{ marginBottom: 10 }}>
-                必須項目が未入力です
-              </p>
+              <p className="panel-toast warn mb-2.5">必須項目が未入力です</p>
             ) : null}
             {initialError === "invalid_interval" ? (
-              <p className="panel-toast warn" style={{ marginBottom: 10 }}>
-                実行間隔は 60 秒以上にしてください
-              </p>
+              <p className="panel-toast warn mb-2.5">実行間隔は 60 秒以上にしてください</p>
             ) : null}
             {initialError === "create_failed" ? (
-              <p className="panel-toast warn" style={{ marginBottom: 10 }}>
-                作成に失敗しました。再試行してください
-              </p>
+              <p className="panel-toast warn mb-2.5">作成に失敗しました。再試行してください</p>
             ) : null}
             {initialWarning === "secret_like" ? (
-              <p className="panel-toast warn" style={{ marginBottom: 10 }}>
-                プロンプトにシークレットらしき文字列を検出
-              </p>
+              <p className="panel-toast warn mb-2.5">プロンプトにシークレットらしき文字列を検出</p>
             ) : null}
 
             <form action={createAgent} className="wizard-form">
@@ -248,16 +205,8 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
                   required
                 />
               </label>
-              <fieldset className="col-span-2" style={{ border: "none", padding: 0, margin: 0 }}>
-                <legend
-                  style={{
-                    color: "var(--subtle)",
-                    fontSize: 11,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    marginBottom: 6,
-                  }}
-                >
+              <fieldset className="col-span-2 m-0 border-0 p-0">
+                <legend className="mb-1.5 text-[11px] uppercase tracking-[0.08em] text-subtle">
                   Allowed tools
                 </legend>
                 <div className="tool-chips">
@@ -274,16 +223,13 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
                   ))}
                 </div>
               </fieldset>
-              <label
-                className="col-span-2"
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
+              <label className="col-span-2 flex-row items-center gap-2">
                 <input type="checkbox" name="sharedMemoryEnabled" />
-                <span style={{ letterSpacing: "normal", textTransform: "none" }}>
+                <span className="normal-case tracking-normal">
                   Shared memory を有効化（他エージェントのメモリも参照）
                 </span>
               </label>
-              <div className="col-span-2" style={{ display: "flex", gap: 8 }}>
+              <div className="col-span-2 flex gap-2">
                 <button type="submit" className="btn-primary">
                   Create Agent
                 </button>

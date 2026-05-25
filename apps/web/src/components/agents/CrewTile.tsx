@@ -27,11 +27,7 @@ export function CrewTile({
   return (
     <Link
       href={href}
-      className={`crew-tile${agent ? "" : " unassigned"}`}
-      style={{
-        ["--character-color" as string]: character.themeColor,
-        ["--character-accent" as string]: character.accentColor,
-      }}
+      className={`crew-tile character-theme-${character.id}${agent ? "" : " unassigned"}`}
       data-character-id={character.id}
     >
       <div className="crew-tile-portrait">
@@ -50,9 +46,7 @@ export function CrewTile({
         <div className="crew-tile-head">
           <span className="crew-tile-name">
             {character.nameJa}
-            <small style={{ marginLeft: 6, color: "var(--muted)", fontWeight: 400 }}>
-              {character.name}
-            </small>
+            <small className="ml-1.5 font-normal text-muted">{character.name}</small>
           </span>
           {agent ? (
             <span className={`status-pill ${agent.status}`}>{agent.status}</span>
