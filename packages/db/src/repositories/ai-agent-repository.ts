@@ -17,6 +17,7 @@ import {
   aiAgentMemories,
   aiAgentObservations,
   aiAgentRuns,
+  aiAgentSkills,
   aiAgentStrategyProposals,
   aiAgents,
   aiAgentVersions,
@@ -151,6 +152,21 @@ export type AgentDetail = AgentDefinition & {
     tags: string[];
     sourceRefs: unknown;
     createdAt: string;
+  }[];
+  skills: {
+    id: string;
+    scope: "private" | "shared";
+    title: string;
+    body: string;
+    tags: string[];
+    sourceRefs: unknown;
+    reason: string;
+    status: "draft" | "active" | "archived";
+    version: number;
+    promotedFromSkillId: string | null;
+    createdRunId: string | null;
+    createdAt: string;
+    updatedAt: string;
   }[];
   proposals: {
     id: string;
@@ -296,7 +312,7 @@ export class AiAgentRepository {
       return null;
     }
 
-    const [observations, memories, proposals, reviews, runs, versions, paperAccount] =
+    const [observations, memories, skills, proposals, reviews, runs, versions, paperAccount] =
       await Promise.all([
         this.database
           .select({
@@ -323,6 +339,26 @@ export class AiAgentRepository {
           .from(aiAgentMemories)
           .where(eq(aiAgentMemories.agentId, agentId))
           .orderBy(desc(aiAgentMemories.createdAt))
+          .limit(50),
+        this.database
+          .select({
+            id: aiAgentSkills.id,
+            scope: aiAgentSkills.scope,
+            title: aiAgentSkills.title,
+            body: aiAgentSkills.body,
+            tags: aiAgentSkills.tags,
+            sourceRefs: aiAgentSkills.sourceRefs,
+            reason: aiAgentSkills.reason,
+            status: aiAgentSkills.status,
+            version: aiAgentSkills.version,
+            promotedFromSkillId: aiAgentSkills.promotedFromSkillId,
+            createdRunId: aiAgentSkills.createdRunId,
+            createdAt: aiAgentSkills.createdAt,
+            updatedAt: aiAgentSkills.updatedAt,
+          })
+          .from(aiAgentSkills)
+          .where(eq(aiAgentSkills.agentId, agentId))
+          .orderBy(desc(aiAgentSkills.updatedAt))
           .limit(50),
         this.database
           .select({
@@ -399,6 +435,12 @@ export class AiAgentRepository {
       memories: memories.map((memory) => ({
         ...memory,
         createdAt: memory.createdAt.toISOString(),
+      })),
+      skills: skills.map((skill) => ({
+        ...skill,
+        version: Number(skill.version),
+        createdAt: skill.createdAt.toISOString(),
+        updatedAt: skill.updatedAt.toISOString(),
       })),
       proposals: proposals.map((proposal) => ({
         ...proposal,
@@ -915,11 +957,13 @@ export function toAgentRunInsertRow(input: AgentRunRecordInput) {
 }
 
 export function summarizeAgentOutput(output: AgentRunOutput) {
+  const skillWriteIntents = output.skillWriteIntents ?? [];
   return {
     observations: output.observations.length,
     strategyProposals: output.strategyProposals.length,
     candidateReviews: output.candidateReviews.length,
     memoryWrites: output.memoryWrites.length,
+    skillWriteIntents: skillWriteIntents.length,
   };
 }
 
@@ -970,6 +1014,27 @@ async function recordAcceptedOutput(
         tags: memory.tags,
         sourceRefs: memory.sourceRefs,
         searchVector: memory.content,
+      })),
+    );
+  }
+
+  const skillWriteIntents = output.skillWriteIntents ?? [];
+
+  if (skillWriteIntents.length > 0) {
+    await tx.insert(aiAgentSkills).values(
+      skillWriteIntents.map((skill) => ({
+        agentId,
+        scope: "private" as const,
+        title: skill.title,
+        body: skill.body,
+        tags: skill.tags,
+        sourceRefs: skill.sourceRefs,
+        reason:
+          skill.desiredScope === "shared"
+            ? `${skill.reason}\n\n共有候補: FB Agentの昇格レビュー待ち。`
+            : skill.reason,
+        status: "active" as const,
+        createdRunId: runId,
       })),
     );
   }

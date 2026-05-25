@@ -114,6 +114,7 @@ export class AiAgentRunner implements AgentRunner {
             strategyProposals: validation.output.strategyProposals.length,
             candidateReviews: validation.output.candidateReviews.length,
             memoryWrites: validation.output.memoryWrites.length,
+            skillWriteIntents: validation.output.skillWriteIntents.length,
           },
           toolCalls: toolCalls.map(redactToolCall),
           tokenUsage: buildTokenUsage(totalInputTokens, totalOutputTokens),
@@ -181,10 +182,11 @@ export class AiAgentRunner implements AgentRunner {
     }
 
     try {
+      const args = scopeToolArgsToAgent(request.name, request.args, input.agent.id);
       return {
         name: request.name,
-        argsSummary: request.args,
-        resultSummary: await this.toolClient.call({ name: request.name, args: request.args }),
+        argsSummary: args,
+        resultSummary: await this.toolClient.call({ name: request.name, args }),
       };
     } catch (error) {
       return {
@@ -199,6 +201,22 @@ export class AiAgentRunner implements AgentRunner {
   }
 }
 
+function scopeToolArgsToAgent(
+  name: AgentResearchToolName,
+  args: unknown,
+  agentId: string,
+): unknown {
+  if (name !== "recall_memory" && name !== "recall_skills" && name !== "get_skill") {
+    return args;
+  }
+
+  if (typeof args === "object" && args !== null && !Array.isArray(args)) {
+    return { ...args, agentId };
+  }
+
+  return { agentId };
+}
+
 export function buildAgentPrompt(
   input: AgentRunRequest,
   maxToolHops = DEFAULT_MAX_TOOL_HOPS,
@@ -206,7 +224,7 @@ export function buildAgentPrompt(
 ) {
   return JSON.stringify({
     instruction:
-      'Return JSON only. You are a Research + Evaluation Agent, not an execution-capable trading runtime. Do not create Paper Orders, close positions, write SQL, mutate repositories, access files, call shell commands, or produce live trading instructions. Use only the provided deterministic context and the listed read-only tools. If Claude Code MCP tools are available, call only the allowed mcp__agent_research__* tools to gather additional read-only data before returning the final AgentRunOutput JSON. If MCP tools are unavailable but additional read-only data is required, return {"toolRequests":[{"name":"read_bars|calc_indicator|get_candidate_performance|get_rejection_history|recall_memory","args":{...}}]}. All natural-language text MUST be written in Japanese.',
+      'Return JSON only. You are a Research + Evaluation Agent, not an execution-capable trading runtime. Do not create Paper Orders, close positions, write SQL, mutate repositories, access files, call shell commands, or produce live trading instructions. Use only the provided deterministic context and the listed read-only tools. If Claude Code MCP tools are available, call only the allowed mcp__agent_research__* tools to gather additional read-only data before returning the final AgentRunOutput JSON. If MCP tools are unavailable but additional read-only data is required, return {"toolRequests":[{"name":"read_bars|calc_indicator|get_candidate_performance|get_rejection_history|recall_memory|recall_skills|get_skill","args":{...}}]}. All natural-language text MUST be written in Japanese. Any skillWriteIntents MUST be Japanese reusable instructions.',
     agent: {
       id: input.agent.id,
       name: input.agent.name,
@@ -233,6 +251,8 @@ export function buildAgentPrompt(
         "array of { strategyName, recommendation: continue|retire|promote, confidence: low|medium|high, reason, evidence: string[] }",
       memoryWrites:
         "array of { type: market_observation|strategy_hypothesis|proposal_review|rejection_learning, content, tags: string[], sourceRefs: string[] }",
+      skillWriteIntents:
+        "array of { title: Japanese string, body: Japanese reusable instruction, tags: string[], sourceRefs: string[], reason: Japanese string, desiredScope: private|shared }. Write skills in Japanese. Shared requests are review intents only.",
     },
   });
 }

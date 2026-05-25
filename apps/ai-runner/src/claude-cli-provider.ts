@@ -344,6 +344,8 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
       "mcp__agent_research__get_candidate_performance",
       "mcp__agent_research__get_rejection_history",
       "mcp__agent_research__recall_memory",
+      "mcp__agent_research__recall_skills",
+      "mcp__agent_research__get_skill",
     ];
 
     return [

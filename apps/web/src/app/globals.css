@@ -2259,6 +2259,59 @@
   border-color: var(--loss);
 }
 
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.skill-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  background: var(--surface-muted);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.skill-card header,
+.skill-card footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.skill-card header > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.skill-card h3 {
+  margin: 12px 0 8px;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.skill-card p {
+  flex: 1;
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.skill-card footer {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
 /* ==================================================================
  * Character Picker Modal (HTML <dialog>)
  * ================================================================ */

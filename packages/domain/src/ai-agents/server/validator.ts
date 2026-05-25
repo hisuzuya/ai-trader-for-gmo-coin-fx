@@ -51,12 +51,32 @@ const memoryWriteSchema = z
   })
   .strict();
 
+const japaneseTextSchema = z
+  .string()
+  .min(1)
+  .max(4000)
+  .refine((value) => /[\u3040-\u30ff\u3400-\u9fff]/.test(value), {
+    message: "Skill text must be written in Japanese.",
+  });
+
+const skillWriteIntentSchema = z
+  .object({
+    title: japaneseTextSchema.max(120),
+    body: japaneseTextSchema,
+    tags: tagArraySchema,
+    sourceRefs: textArraySchema,
+    reason: japaneseTextSchema.max(1000),
+    desiredScope: z.enum(["private", "shared"]),
+  })
+  .strict();
+
 const agentRunOutputSchema = z
   .object({
     observations: z.array(observationSchema).max(20),
     strategyProposals: z.array(strategyProposalSchema).max(5),
     candidateReviews: z.array(candidateReviewSchema).max(20),
     memoryWrites: z.array(memoryWriteSchema).max(20),
+    skillWriteIntents: z.array(skillWriteIntentSchema).max(10).default([]),
   })
   .strict();
 

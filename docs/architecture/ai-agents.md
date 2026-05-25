@@ -12,8 +12,8 @@ AI Agentは取引執行者ではない。Paper Order、position close、Baseline
 
 - AI Agentを第一級のresearch entityとしてdomain modelに追加する。
 - AI Agentはpersona、system prompt、tool allowlist、memoryを持つ。
-- AI Agentは市場データ、指標、Candidate Strategy成績、reject履歴、memoryをread-only toolで参照できる。
-- AI AgentはStrategy Definition候補、Candidate Review、Observation、memory write intentを構造化出力する。
+- AI Agentは市場データ、指標、Candidate Strategy成績、reject履歴、memory、skillsをread-only toolで参照できる。
+- AI AgentはStrategy Definition候補、Candidate Review、Observation、memory write intent、skill write intentを構造化出力する。
 - 出力は用途別のlifecycleに分解し、host側でschema validation、Risk Gate validation、永続化、Paper Trading投入を行う。
 - AI Agentのsystem promptとtool構成はweb UIから編集でき、version履歴を残す。
 - 最初は1体だけ動かすが、schemaとrunnerはN体対応にする。
@@ -91,6 +91,8 @@ AIAgent
   - sharedMemoryEnabled
 ```
 
+AI Agentは個別のprivate skillsを持つ。再利用価値のあるskillsは、日次または週次のFeedback Agentがrun log、proposal validation、reject履歴、Candidate Strategy成績を見た上でshared skillsへ昇格する。通常Agentが `desiredScope: "shared"` を希望しても、直接sharedには保存せず、host側がprivate skillとして保存して昇格レビュー対象にする。
+
 AI AgentはPaper Accountを直接所有しない。AI Agentが提案したStrategy Definitionがvalidationを通過した場合、StrategyEvaluationPipelineがCandidate Strategy用のStrategy RunとPaper Accountを作る。
 
 提案と評価の対応は `agent_strategy_proposals.agent_id`、`strategy_runs.source_agent_id`、`strategy_runs.source_proposal_id` で追跡する。
@@ -105,6 +107,7 @@ type AgentRunOutput = {
   strategyProposals: StrategyProposal[]
   candidateReviews: CandidateReview[]
   memoryWrites: AgentMemoryWrite[]
+  skillWriteIntents: AgentSkillWriteIntent[]
 }
 ```
 
@@ -162,6 +165,21 @@ type AgentMemoryWrite = {
 }
 ```
 
+### AgentSkillWriteIntent
+
+AI Agentが次回以降に再利用したい判断手順や観察手順。必ず日本語で作る。toolとして直接保存させず、host側がvalidationしてprivate skillとして保存する。shared化はFeedback Agentの昇格処理だけが行う。
+
+```ts
+type AgentSkillWriteIntent = {
+  title: string
+  body: string
+  tags: string[]
+  sourceRefs: string[]
+  reason: string
+  desiredScope: "private" | "shared"
+}
+```
+
 ## Observation Input
 
 AI Agent入力は **deterministic context summary + read-only tool access** にする。
@@ -185,21 +203,26 @@ calc_indicator(symbol, timeframe, indicator, params, count)
 get_candidate_performance(strategyName)
 get_rejection_history(strategyName?, limit)
 recall_memory(agentId, query, types, limit)
+recall_skills(agentId, query, scopes, tags, limit)
+get_skill(agentId, skillId)
 ```
 
 write toolは持たせない。`save_memory` は存在させず、`memoryWrites` をAgentOutputProcessorが検証して保存する。
+`save_skill` も存在させない。skillsは `skillWriteIntents` として出力し、host側が日本語チェックとscope制御を行って保存する。
 
 ## Tool Runtime
 
 `apps/ai-runner` はLLM実行とtool loopだけを担当する。DB接続、repository、Paper Account更新、Risk Gate decisionは持たない。
 
-read-only toolsはMCP互換のtool serverとして分離する。
+read-only toolsはMCP互換のtool serverとして分離する。Claude CLIには `--mcp-config` で `mcp-agent-research` のStreamable HTTP endpointを渡す。これにより、`apps/ai-runner` はDB credentialを持たず、DB readは `mcp-agent-research` 側に閉じる。
 
 ```text
 apps/ai-runner
-  -> mcp-market-data-read
-  -> mcp-candidate-read
-  -> mcp-memory-read
+  -> Claude CLI --mcp-config
+  -> http://mcp-agent-research:8789/mcp
+       -> read_bars / calc_indicator
+       -> get_candidate_performance / get_rejection_history
+       -> recall_memory / recall_skills / get_skill
 ```
 
 MCP serverはDB readだけを許可する。writeが必要な処理は、workerのAgentOutputProcessorがDB repository経由で行う。
@@ -338,6 +361,25 @@ ai_agent_memories
   gin_index(tags)
   gin_index(search_vector)
 
+ai_agent_skills
+  id: uuid
+  agent_id: uuid
+  scope: text                 # private | shared
+  title: text
+  body: text
+  tags: text[]
+  source_refs: jsonb
+  reason: text
+  status: text                # draft | active | archived
+  version: integer
+  promoted_from_skill_id: uuid nullable
+  created_run_id: uuid nullable
+  created_at: timestamptz
+  updated_at: timestamptz
+  index(agent_id)
+  index(scope, status)
+  gin_index(tags)
+
 ai_agent_observations
   id: uuid
   run_id: uuid
@@ -387,6 +429,7 @@ ai_agent_candidate_reviews
   - overview: latest observations, proposals, Candidate Review summary
   - prompt: systemPrompt編集、tool allowlist編集
   - memories: 検索、一覧、削除
+  - skills: private / shared skillsの一覧
   - proposals: validation結果、paper投入状況、関連Strategy Run
   - reviews: continue / retire / promote Candidate Reviewとdeterministic gate結果
   - runs: tool calls、token usage、output validation結果
@@ -429,6 +472,8 @@ status: active
 - read-only MCP serverにはwrite SQL、mutation repository、paper execution APIを置かない。
 - prompt、tool args、tool resultはredactしてrun logへ保存する。
 - system prompt保存時はsecret-like文字列を検出し、UIで警告する。
+- memory / skills lookup toolの `agentId` はLLM出力を信用せず、ai-runner側で実行中Agentのidに固定する。
+- skillWriteIntentsは日本語を含まない場合schema validationでrejectする。
 - output size、tool hop、timeout、token budgetをagent単位で制限する。
 
 ## Implementation Phases

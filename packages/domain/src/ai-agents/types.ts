@@ -8,6 +8,8 @@ export const AGENT_RESEARCH_TOOL_NAMES = [
   "get_candidate_performance",
   "get_rejection_history",
   "recall_memory",
+  "recall_skills",
+  "get_skill",
 ] as const;
 
 export type AgentResearchToolName = (typeof AGENT_RESEARCH_TOOL_NAMES)[number];
@@ -42,11 +44,21 @@ export type AgentMemoryWrite = {
   sourceRefs: string[];
 };
 
+export type AgentSkillWriteIntent = {
+  title: string;
+  body: string;
+  tags: string[];
+  sourceRefs: string[];
+  reason: string;
+  desiredScope: "private" | "shared";
+};
+
 export type AgentRunOutput = {
   observations: AgentObservation[];
   strategyProposals: AgentStrategyProposal[];
   candidateReviews: CandidateReview[];
   memoryWrites: AgentMemoryWrite[];
+  skillWriteIntents: AgentSkillWriteIntent[];
 };
 
 export type AgentRunOutputValidationResult =
