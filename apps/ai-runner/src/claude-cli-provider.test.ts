@@ -55,7 +55,8 @@ describe("ClaudeCliProvider", () => {
       expect(args).toContain("--strict-mcp-config");
       expect(args).toContain("--mcp-config");
       expect(args).toContain("--allowedTools");
-      expect(args[1]).toBe("Return JSON only.");
+      expect(args.at(-2)).toBe("--");
+      expect(args.at(-1)).toBe("Return JSON only.");
       expect(args[args.indexOf("--allowedTools") + 1]).toContain(
         "mcp__agent_research__read_bars,mcp__agent_research__calc_indicator",
       );
