@@ -5,6 +5,12 @@ import { AGENT_RESEARCH_TOOL_NAMES } from "@ai-trade/domain/ai-agents/types";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { createAgent } from "@/app/agents/actions";
+import {
+  hasModelOption,
+  hasRunIntervalOption,
+  MODEL_OPTIONS,
+  RUN_INTERVAL_OPTIONS,
+} from "./form-options";
 
 type Props = {
   /** ?character=... で初期選択を受け取る (server action リダイレクト用) */
@@ -204,17 +210,35 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
               </label>
               <label>
                 <span>Run interval (sec)</span>
-                <input
-                  type="number"
+                <select
                   name="runIntervalSec"
                   defaultValue={selected.defaultRunIntervalSec}
-                  min={60}
                   required
-                />
+                >
+                  {hasRunIntervalOption(selected.defaultRunIntervalSec) ? null : (
+                    <option value={selected.defaultRunIntervalSec}>
+                      Custom ({selected.defaultRunIntervalSec} sec)
+                    </option>
+                  )}
+                  {RUN_INTERVAL_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 <span>Model</span>
-                <input type="text" name="model" defaultValue={selected.defaultModel} required />
+                <select name="model" defaultValue={selected.defaultModel} required>
+                  {hasModelOption(selected.defaultModel) ? null : (
+                    <option value={selected.defaultModel}>{selected.defaultModel}</option>
+                  )}
+                  {MODEL_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="col-span-2">
                 <span>System prompt</span>

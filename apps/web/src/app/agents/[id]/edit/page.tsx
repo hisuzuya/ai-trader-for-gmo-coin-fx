@@ -2,6 +2,12 @@ import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/chara
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  hasModelOption,
+  hasRunIntervalOption,
+  MODEL_OPTIONS,
+  RUN_INTERVAL_OPTIONS,
+} from "@/components/agents/form-options";
 
 import { updateAgentSettings } from "../../actions";
 
@@ -120,17 +126,29 @@ export default async function EditAgentPage({ params, searchParams }: PageProps)
           </label>
           <label>
             <span>Run interval (sec)</span>
-            <input
-              type="number"
-              name="runIntervalSec"
-              defaultValue={agent.runIntervalSec}
-              min={60}
-              required
-            />
+            <select name="runIntervalSec" defaultValue={agent.runIntervalSec} required>
+              {hasRunIntervalOption(agent.runIntervalSec) ? null : (
+                <option value={agent.runIntervalSec}>Custom ({agent.runIntervalSec} sec)</option>
+              )}
+              {RUN_INTERVAL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             <span>Model</span>
-            <input type="text" name="model" defaultValue={agent.model} required />
+            <select name="model" defaultValue={agent.model} required>
+              {hasModelOption(agent.model) ? null : (
+                <option value={agent.model}>{agent.model}</option>
+              )}
+              {MODEL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             <span>Status</span>
