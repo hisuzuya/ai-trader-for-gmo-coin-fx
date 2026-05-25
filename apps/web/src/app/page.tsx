@@ -550,23 +550,11 @@ function TopBar({
           <span className="tv-brand-name">AI Trade</span>
           <span className="tv-brand-sub">USD/JPY · Paper</span>
         </div>
-        <nav className="tv-topbar-nav" aria-label="セクション">
-          <a className="active" href="#overview">
-            概況
-          </a>
-          <a href="#accounts">口座</a>
-          <a href="#strategies">戦略</a>
-          <a href="#trades">履歴</a>
-          <a href="#reviews">AI</a>
-        </nav>
       </div>
       <div className="tv-topbar-right">
-        <span className="tv-system-pill">
+        <span className="tv-system-pill" title={`Service: ${healthService}`}>
           <span className={`tv-status-dot ${healthOk ? "live" : "danger"}`} />
           {healthOk ? "稼働中" : "要確認"}
-        </span>
-        <span className="tv-system-pill" title={`tRPC: ${healthService}`}>
-          tRPC · {healthService}
         </span>
         <span className="tv-clock">{formatDateTime(timestamp)}</span>
       </div>
