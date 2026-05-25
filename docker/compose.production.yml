@@ -75,6 +75,8 @@ services:
       CLAUDE_CLI_PATH: /usr/local/bin/claude
       CLAUDE_CONFIG_DIR: /home/node/.claude
       CLAUDE_MCP_ENABLED: "1"
+      CLAUDE_MCP_AGENT_RESEARCH_COMMAND: /usr/local/bin/node
+      CLAUDE_MCP_AGENT_RESEARCH_ARGS: '["/app/apps/mcp-agent-research/dist/mcp-stdio.cjs"]'
       MCP_AGENT_RESEARCH_INTERNAL_URL: http://mcp-agent-research:8789
     ports: !override
       - "127.0.0.1:8788:8788"
