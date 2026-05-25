@@ -348,14 +348,12 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
 
     return [
       "-p",
+      prompt,
       "--strict-mcp-config",
       "--mcp-config",
       JSON.stringify(mcpConfig),
-      "--tools",
-      "",
       "--allowedTools",
-      ...allowedTools,
-      prompt,
+      allowedTools.join(","),
     ];
   }
 }
