@@ -6,7 +6,7 @@ import {
   paperTrades,
   strategyRuns,
 } from "@ai-trade/db";
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 import { readOnlyDb } from "./read-only-db.js";
 
@@ -130,11 +130,18 @@ export async function recallMemory(input: {
   types?: string[];
   limit?: number;
 }) {
-  const conditions = [eq(aiAgentMemories.agentId, input.agentId)];
+  const conditions = [
+    or(
+      eq(aiAgentMemories.agentId, input.agentId),
+      sql`${aiAgentMemories.tags} @> ARRAY['shared_memory']::text[]`,
+    ),
+  ];
 
   if (input.query?.trim()) {
-    const query = `%${input.query.trim()}%`;
+    const trimmedQuery = input.query.trim();
+    const query = `%${trimmedQuery}%`;
     const searchCondition = or(
+      sql`to_tsvector('simple', coalesce(${aiAgentMemories.searchVector}, ${aiAgentMemories.content})) @@ plainto_tsquery('simple', ${trimmedQuery})`,
       ilike(aiAgentMemories.content, query),
       ilike(aiAgentMemories.searchVector, query),
     );

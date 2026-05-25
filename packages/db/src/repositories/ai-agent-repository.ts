@@ -22,13 +22,14 @@ import {
 } from "../schema/index.js";
 
 type AiAgentDatabase = Pick<typeof db, "delete" | "insert" | "select" | "transaction">;
-type AiAgentWriteDatabase = Pick<typeof db, "insert" | "update">;
+type AiAgentWriteDatabase = Pick<typeof db, "insert" | "select" | "update">;
 const SECRET_LIKE_PATTERN =
   /(sk-[A-Za-z0-9_-]{16,}|[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY)[A-Z0-9_]*\s*[:=]\s*["']?[^"',\s}]+)/;
 const SECRET_LIKE_GLOBAL_PATTERN =
   /(sk-[A-Za-z0-9_-]{16,}|[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY)[A-Z0-9_]*\s*[:=]\s*["']?[^"',\s}]+)/g;
 
 export const RESEARCH_AGENT_SEED_ID = "11111111-1111-4111-8111-111111111111";
+export const RESEARCH_AGENT_1H_SEED_ID = "33333333-3333-4333-8333-333333333333";
 
 export type AgentVersionInput = {
   agentId: string;
@@ -52,6 +53,10 @@ export type AgentSummary = AgentDefinition & {
     finishedAt: string | null;
   } | null;
   proposalCount: number;
+  acceptedProposalCount: number;
+  rejectedProposalCount: number;
+  succeededRunCount: number;
+  failedRunCount: number;
 };
 
 export type AgentDetail = AgentDefinition & {
@@ -134,10 +139,16 @@ export class AiAgentRepository {
           .where(eq(aiAgentRuns.agentId, agent.id))
           .orderBy(desc(aiAgentRuns.startedAt))
           .limit(1);
-        const proposalRows = await this.database
-          .select({ id: aiAgentStrategyProposals.id })
-          .from(aiAgentStrategyProposals)
-          .where(eq(aiAgentStrategyProposals.agentId, agent.id));
+        const [proposalRows, runRows] = await Promise.all([
+          this.database
+            .select({ validationStatus: aiAgentStrategyProposals.validationStatus })
+            .from(aiAgentStrategyProposals)
+            .where(eq(aiAgentStrategyProposals.agentId, agent.id)),
+          this.database
+            .select({ status: aiAgentRuns.status })
+            .from(aiAgentRuns)
+            .where(eq(aiAgentRuns.agentId, agent.id)),
+        ]);
 
         return {
           ...agent,
@@ -149,6 +160,14 @@ export class AiAgentRepository {
               }
             : null,
           proposalCount: proposalRows.length,
+          acceptedProposalCount: proposalRows.filter(
+            (proposal) => proposal.validationStatus === "accepted",
+          ).length,
+          rejectedProposalCount: proposalRows.filter(
+            (proposal) => proposal.validationStatus === "rejected",
+          ).length,
+          succeededRunCount: runRows.filter((run) => run.status === "succeeded").length,
+          failedRunCount: runRows.filter((run) => run.status !== "succeeded").length,
         };
       }),
     );
@@ -286,19 +305,29 @@ export class AiAgentRepository {
   async seedResearchAgent(): Promise<void> {
     await this.database
       .insert(aiAgents)
-      .values(toResearchAgentSeedRow())
+      .values([toResearchAgentSeedRow(), toResearchAgent1hSeedRow()])
       .onConflictDoNothing({ target: aiAgents.id });
 
     await this.database
       .insert(aiAgentVersions)
-      .values({
-        id: "22222222-2222-4222-8222-222222222222",
-        agentId: RESEARCH_AGENT_SEED_ID,
-        version: "1",
-        systemPrompt: RESEARCH_AGENT_SYSTEM_PROMPT,
-        allowedTools: [...AGENT_RESEARCH_TOOL_NAMES],
-        note: "Initial Research Agent 01 seed.",
-      })
+      .values([
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          agentId: RESEARCH_AGENT_SEED_ID,
+          version: "1",
+          systemPrompt: RESEARCH_AGENT_SYSTEM_PROMPT,
+          allowedTools: [...AGENT_RESEARCH_TOOL_NAMES],
+          note: "Initial Research Agent 01 seed.",
+        },
+        {
+          id: "44444444-4444-4444-8444-444444444444",
+          agentId: RESEARCH_AGENT_1H_SEED_ID,
+          version: "1",
+          systemPrompt: RESEARCH_AGENT_1H_SYSTEM_PROMPT,
+          allowedTools: [...AGENT_RESEARCH_TOOL_NAMES],
+          note: "Initial Research Agent 1H seed.",
+        },
+      ])
       .onConflictDoNothing({
         target: [aiAgentVersions.agentId, aiAgentVersions.version],
       });
@@ -382,6 +411,7 @@ export class AiAgentRepository {
   async recordRun(input: AgentRunRecordInput): Promise<void> {
     await this.database.transaction(async (tx) => {
       await tx.insert(aiAgentRuns).values(toAgentRunInsertRow(input));
+      await updateFailureState(tx, input.agentId, input.response);
 
       if (!input.response.output) {
         return;
@@ -403,6 +433,32 @@ export function toResearchAgentSeedRow() {
     currentVersion: "1",
     runIntervalSec: "3600",
     model: "claude-sonnet-4-5",
+    maxConsecutiveFailures: "3",
+    consecutiveFailures: "0",
+    tokenBudgetPerRun: "200000",
+    costBudgetPerRunUsd: "5",
+    pausedReason: null,
+    sharedMemoryEnabled: true,
+  };
+}
+
+export function toResearchAgent1hSeedRow() {
+  return {
+    id: RESEARCH_AGENT_1H_SEED_ID,
+    name: "Research Agent 1H",
+    persona: "USD/JPY 1h paper strategy researcher",
+    systemPrompt: RESEARCH_AGENT_1H_SYSTEM_PROMPT,
+    allowedTools: [...AGENT_RESEARCH_TOOL_NAMES],
+    status: "active" as const,
+    currentVersion: "1",
+    runIntervalSec: "14400",
+    model: "claude-sonnet-4-5",
+    maxConsecutiveFailures: "3",
+    consecutiveFailures: "0",
+    tokenBudgetPerRun: "200000",
+    costBudgetPerRunUsd: "5",
+    pausedReason: null,
+    sharedMemoryEnabled: true,
   };
 }
 
@@ -483,6 +539,50 @@ async function recordAcceptedOutput(
   }
 }
 
+async function updateFailureState(
+  tx: AiAgentWriteDatabase,
+  agentId: string,
+  response: AgentRunResponse,
+) {
+  if (response.ok) {
+    await tx
+      .update(aiAgents)
+      .set({ consecutiveFailures: "0", pausedReason: null, updatedAt: new Date() })
+      .where(eq(aiAgents.id, agentId));
+    return;
+  }
+
+  const [agent] = await tx
+    .select({
+      maxConsecutiveFailures: aiAgents.maxConsecutiveFailures,
+      consecutiveFailures: aiAgents.consecutiveFailures,
+    })
+    .from(aiAgents)
+    .where(eq(aiAgents.id, agentId))
+    .limit(1);
+
+  if (!agent) {
+    return;
+  }
+
+  const nextFailures = Number(agent.consecutiveFailures) + 1;
+  const maxFailures = Number(agent.maxConsecutiveFailures);
+  const shouldPause = nextFailures >= maxFailures;
+  const updateValues = shouldPause
+    ? {
+        consecutiveFailures: String(nextFailures),
+        status: "paused" as const,
+        pausedReason: `Paused after ${nextFailures} consecutive agent failures: ${response.status}`,
+        updatedAt: new Date(),
+      }
+    : {
+        consecutiveFailures: String(nextFailures),
+        updatedAt: new Date(),
+      };
+
+  await tx.update(aiAgents).set(updateValues).where(eq(aiAgents.id, agentId));
+}
+
 async function recordStrategyProposal(
   tx: AiAgentWriteDatabase,
   runId: string,
@@ -546,6 +646,12 @@ function toAgentDefinition(row: typeof aiAgents.$inferSelect): AgentDefinition {
     currentVersion: Number(row.currentVersion),
     runIntervalSec: Number(row.runIntervalSec),
     model: row.model,
+    maxConsecutiveFailures: Number(row.maxConsecutiveFailures),
+    consecutiveFailures: Number(row.consecutiveFailures),
+    tokenBudgetPerRun: Number(row.tokenBudgetPerRun),
+    costBudgetPerRunUsd: Number(row.costBudgetPerRunUsd),
+    pausedReason: row.pausedReason ?? undefined,
+    sharedMemoryEnabled: row.sharedMemoryEnabled,
   };
 }
 
@@ -596,5 +702,12 @@ const RESEARCH_AGENT_SYSTEM_PROMPT = [
   "あなたはUSD/JPYのpaper trading戦略を研究するAI agentです。",
   "あなたは注文、決済、baseline昇格、candidate停止を直接実行してはいけません。",
   "あなたの役割は、市場状態、候補成績、過去の失敗理由、自分のmemoryを観察し、Strategy Definition候補、Candidate Review、Observation、Memory WriteをJSONで出力することです。",
+  "Strategy Definitionは許可済みDSLだけを使い、risk gateを緩和してはいけません。",
+].join("\n");
+
+const RESEARCH_AGENT_1H_SYSTEM_PROMPT = [
+  "あなたはUSD/JPYの1h timeframeに特化したpaper trading戦略を研究するAI agentです。",
+  "あなたは注文、決済、baseline昇格、candidate停止を直接実行してはいけません。",
+  "あなたの役割は、1h candleの市場状態、候補成績、過去の失敗理由、shared memoryを観察し、Strategy Definition候補、Candidate Review、Observation、Memory WriteをJSONで出力することです。",
   "Strategy Definitionは許可済みDSLだけを使い、risk gateを緩和してはいけません。",
 ].join("\n");

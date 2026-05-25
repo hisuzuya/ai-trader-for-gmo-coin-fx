@@ -79,6 +79,11 @@ AIAgent
   - currentVersion
   - runIntervalSec
   - model
+  - maxConsecutiveFailures
+  - consecutiveFailures
+  - tokenBudgetPerRun
+  - costBudgetPerRunUsd
+  - sharedMemoryEnabled
 ```
 
 agentはpaper accountを直接所有しない。agentが提案したStrategy Definitionがvalidationを通過した場合、StrategyEvaluationPipelineがcandidate Strategy RunとPaper Accountを作る。
@@ -237,9 +242,19 @@ Phase 1:
 
 Phase 2:
 
-- hourly tunerはResearch Agentのrun cadenceへ統合する。
-- daily reviewerはAgentOutputProcessorまたはCross-Agent Reviewへ役割変更する。
-- 既存 `ai_invocations` はagent run logと統合または関連付ける。
+- hourly tunerのmanual jobはResearch Agent pipelineを優先実行する。旧 `AiTunerService` はfallback serviceとして残す。
+- daily reviewerのmanual jobはactive agentを横断実行し、CandidateReview数とpromotion/retirement推薦数を集計する。旧 `AiDailyReviewerService` はfallback serviceとして残す。
+- agent runにはtoken/cost budget、consecutive failure tracking、auto-pauseを持たせる。
+- memory recallはagent memoryと `shared_memory` tag付きmemory shelfを対象にし、PostgreSQL full-text + fallback substring searchを使う。
+- 既存 `ai_invocations` は後方互換のため維持し、agent run logを主ログとして扱う。
+
+Phase 3:
+
+- seedは複数agentを作成する。初期構成は `Research Agent 01` と `Research Agent 1H`。
+- agent一覧はproposal/runの成功・失敗件数を返し、比較UIの最小入力にする。
+- `Research Agent 1H` はcontext buildingで1h candleを使う。
+- shared memory shelfは `shared_memory` tagで表現する。Phase 3では独立tableを追加しない。
+- live tradingへの反映は実装しない。live trading向けには人間承認ゲートを別設計し、agent outputは直接live order pathへ接続しない。
 
 ## Data Model
 

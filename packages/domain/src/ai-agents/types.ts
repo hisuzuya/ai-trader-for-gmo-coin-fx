@@ -68,6 +68,12 @@ export type AgentDefinition = {
   currentVersion: number;
   runIntervalSec: number;
   model: string;
+  maxConsecutiveFailures: number;
+  consecutiveFailures: number;
+  tokenBudgetPerRun: number;
+  costBudgetPerRunUsd: number;
+  pausedReason?: string;
+  sharedMemoryEnabled: boolean;
 };
 
 export type AgentRunRequest = {

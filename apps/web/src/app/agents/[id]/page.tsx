@@ -22,6 +22,12 @@ type AgentDetail = {
   currentVersion: number;
   runIntervalSec: number;
   model: string;
+  maxConsecutiveFailures: number;
+  consecutiveFailures: number;
+  tokenBudgetPerRun: number;
+  costBudgetPerRunUsd: number;
+  pausedReason?: string;
+  sharedMemoryEnabled: boolean;
   observations: {
     id: string;
     kind: string;
@@ -147,6 +153,30 @@ export default async function AgentDetailPage({ params, searchParams }: PageProp
               <dt>Run interval</dt>
               <dd>{agent.runIntervalSec}s</dd>
             </div>
+            <div>
+              <dt>Failure budget</dt>
+              <dd>
+                {agent.consecutiveFailures}/{agent.maxConsecutiveFailures}
+              </dd>
+            </div>
+            <div>
+              <dt>Token budget</dt>
+              <dd>{agent.tokenBudgetPerRun}</dd>
+            </div>
+            <div>
+              <dt>Cost budget</dt>
+              <dd>${agent.costBudgetPerRunUsd}</dd>
+            </div>
+            <div>
+              <dt>Shared memory</dt>
+              <dd>{agent.sharedMemoryEnabled ? "enabled" : "disabled"}</dd>
+            </div>
+            {agent.pausedReason ? (
+              <div>
+                <dt>Paused reason</dt>
+                <dd>{agent.pausedReason}</dd>
+              </div>
+            ) : null}
           </dl>
         </aside>
 

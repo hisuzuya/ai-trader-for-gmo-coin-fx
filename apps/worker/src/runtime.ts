@@ -120,6 +120,21 @@ export class WorkerRuntime {
   }
 
   async runAiTuning(): Promise<AiTuningRunResult> {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (scheduler) {
+      const result = await scheduler.runOnce();
+      return {
+        attemptedAt: result.startedAt,
+        sourceStrategyName: "agent-pipeline",
+        invocationStatus:
+          result.status === "timeout" ? "timeout" : result.ok ? "succeeded" : "failed",
+        proposalStatus: result.ok ? "accepted" : "failed",
+        candidateStrategyName: firstStrategyProposalName(result.output),
+        reason: result.error ?? "Agent pipeline completed.",
+      };
+    }
+
     const aiTuner = this.services.find(isAiTunerService);
 
     if (!aiTuner) {
@@ -130,6 +145,31 @@ export class WorkerRuntime {
   }
 
   async runDailyReview(): Promise<DailyReviewRunResult> {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (scheduler) {
+      const results = await scheduler.runAll();
+      const acceptedReviews = results.flatMap((result) => result.output?.candidateReviews ?? []);
+      return {
+        attemptedAt: new Date().toISOString(),
+        reviewDate: toTokyoDate(new Date()),
+        invocationStatus: results.some((result) => result.status === "timeout")
+          ? "timeout"
+          : results.every((result) => result.ok)
+            ? "succeeded"
+            : "failed",
+        reviewStatus: results.every((result) => result.ok) ? "accepted" : "failed",
+        warningCount: results.filter((result) => !result.ok).length,
+        promotionCandidateCount: acceptedReviews.filter(
+          (review) => review.recommendation === "promote",
+        ).length,
+        retirementCandidateCount: acceptedReviews.filter(
+          (review) => review.recommendation === "retire",
+        ).length,
+        reason: `Agent pipeline reviewed ${acceptedReviews.length} candidate decisions across ${results.length} agents.`,
+      };
+    }
+
     const dailyReviewer = this.services.find(isAiDailyReviewerService);
 
     if (!dailyReviewer) {
@@ -167,6 +207,16 @@ export class WorkerRuntime {
     }
 
     return scheduler.runOnce(agentId);
+  }
+
+  async runAllAgents() {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.runAll();
   }
 
   async createAgentVersion(input: {
@@ -584,6 +634,18 @@ function detailBoolean(service: ServiceHealth | undefined, key: string): boolean
 }
 
 function detailAiInvocationStatus(services: ServiceHealth[]): string | null {
+  const agentScheduler = services.find((service) => service.name === "agent-scheduler");
+  const latestAgentResult = agentScheduler?.details?.latestResult;
+
+  if (
+    typeof latestAgentResult === "object" &&
+    latestAgentResult !== null &&
+    "status" in latestAgentResult &&
+    typeof latestAgentResult.status === "string"
+  ) {
+    return latestAgentResult.status;
+  }
+
   const aiTuner = services.find((service) => service.name === "ai-tuner");
   const latestResult = aiTuner?.details?.latestResult;
 
@@ -612,6 +674,22 @@ function isAgentScheduler(service: WorkerService): service is AgentScheduler {
     service.name === "agent-scheduler" &&
     "listAgentSummaries" in service &&
     "getAgentDetail" in service &&
-    "runOnce" in service
+    "runOnce" in service &&
+    "runAll" in service
   );
+}
+
+function firstStrategyProposalName(
+  output: { strategyProposals?: { strategy?: { meta?: { name?: string } } }[] } | undefined,
+) {
+  return output?.strategyProposals?.[0]?.strategy?.meta?.name ?? null;
+}
+
+function toTokyoDate(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { env } from "@ai-trade/config";
 import {
   AiAgentRepository,
+  aiAgentMemories,
   aiDailyReviews,
   aiTuningProposals,
   CandleRepository,
@@ -15,7 +16,7 @@ import type {
   AgentRunRequest,
   AgentRunResponse,
 } from "@ai-trade/domain/ai-agents";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import type { ServiceHealth, ServiceState, WorkerService } from "../types.js";
 
@@ -23,10 +24,11 @@ export class AgentContextBuilder {
   constructor(private readonly candleReader = new CandleRepository()) {}
 
   async build(agent: AgentDefinition): Promise<string> {
-    const [candles, candidates, rejections, reviews, accounts] = await Promise.all([
+    const timeframe = selectAgentTimeframe(agent);
+    const [candles, candidates, rejections, reviews, accounts, sharedMemories] = await Promise.all([
       this.candleReader.getRecent({
         symbol: "USD_JPY",
-        timeframe: "1m",
+        timeframe,
         priceType: "mid",
         limit: 20,
       }),
@@ -74,6 +76,27 @@ export class AgentContextBuilder {
         .from(paperAccounts)
         .orderBy(desc(paperAccounts.updatedAt))
         .limit(10),
+      agent.sharedMemoryEnabled
+        ? db
+            .select({
+              id: aiAgentMemories.id,
+              agentId: aiAgentMemories.agentId,
+              type: aiAgentMemories.type,
+              content: aiAgentMemories.content,
+              tags: aiAgentMemories.tags,
+              sourceRefs: aiAgentMemories.sourceRefs,
+              createdAt: aiAgentMemories.createdAt,
+            })
+            .from(aiAgentMemories)
+            .where(
+              and(
+                sql`${aiAgentMemories.tags} @> ARRAY['shared_memory']::text[]`,
+                sql`${aiAgentMemories.agentId} <> ${agent.id}`,
+              ),
+            )
+            .orderBy(desc(aiAgentMemories.createdAt))
+            .limit(10)
+        : Promise.resolve([]),
     ]);
     const latestTrades = await db
       .select({
@@ -91,6 +114,8 @@ export class AgentContextBuilder {
         id: agent.id,
         name: agent.name,
         version: agent.currentVersion,
+        timeframe,
+        sharedMemoryEnabled: agent.sharedMemoryEnabled,
       },
       market: {
         latestCandleOpenedAt: candles.at(0)?.openedAt.toISOString() ?? null,
@@ -119,6 +144,10 @@ export class AgentContextBuilder {
       dailyReviews: reviews.map((review) => ({
         ...review,
         createdAt: review.createdAt.toISOString(),
+      })),
+      sharedMemoryShelf: sharedMemories.map((memory) => ({
+        ...memory,
+        createdAt: memory.createdAt.toISOString(),
       })),
     });
   }
@@ -245,6 +274,17 @@ export class AgentScheduler implements WorkerService {
     return response;
   }
 
+  async runAll(): Promise<AgentRunResponse[]> {
+    const agents = (await this.listAgents()).filter((agent) => agent.status === "active");
+    const results: AgentRunResponse[] = [];
+
+    for (const agent of agents) {
+      results.push(await this.runOnce(agent.id));
+    }
+
+    return results;
+  }
+
   private async callAgentRunner(request: AgentRunRequest): Promise<AgentRunResponse> {
     const response = await fetch(new URL("/agent-runs", this.aiRunnerUrl), {
       method: "POST",
@@ -259,4 +299,9 @@ export class AgentScheduler implements WorkerService {
 
     return body;
   }
+}
+
+function selectAgentTimeframe(agent: AgentDefinition): "1m" | "1h" {
+  const profile = `${agent.name} ${agent.persona} ${agent.systemPrompt}`.toLowerCase();
+  return profile.includes("1h") || profile.includes("1 hour") ? "1h" : "1m";
 }

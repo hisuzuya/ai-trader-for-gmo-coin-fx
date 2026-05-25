@@ -13,6 +13,7 @@ import type { StrategyProposalProvider } from "./claude-cli-provider.js";
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_TOOL_HOPS = 5;
 const DEFAULT_OUTPUT_SIZE_LIMIT_BYTES = 128 * 1024;
+const ESTIMATED_USD_PER_1K_TOKENS = 0.003;
 const SECRET_LIKE_PATTERN =
   /(sk-[A-Za-z0-9_-]{16,}|[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY)[A-Z0-9_]*\s*[:=]\s*["']?[^"',\s}]+)/;
 const SECRET_LIKE_GLOBAL_PATTERN =
@@ -41,8 +42,25 @@ export class AiAgentRunner implements AgentRunner {
     const outputSizeLimitBytes = input.outputSizeLimitBytes ?? DEFAULT_OUTPUT_SIZE_LIMIT_BYTES;
     const toolCalls: AgentToolCallLog[] = [];
     let prompt = buildAgentPrompt(input, maxToolHops, toolCalls);
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
     for (let hop = 0; hop <= maxToolHops; hop += 1) {
+      const inputTokens = estimateTokens(prompt);
+      totalInputTokens += inputTokens;
+
+      if (totalInputTokens > input.agent.tokenBudgetPerRun) {
+        return {
+          ok: false,
+          status: "rejected_output",
+          toolCalls: toolCalls.map(redactToolCall),
+          tokenUsage: buildTokenUsage(totalInputTokens, totalOutputTokens),
+          error: "Agent exceeded tokenBudgetPerRun before invocation.",
+          startedAt: startedAt.toISOString(),
+          finishedAt: new Date().toISOString(),
+        };
+      }
+
       const invocation = await this.provider.invoke({ prompt, timeoutMs });
       const finishedAt = new Date();
 
@@ -51,18 +69,34 @@ export class AiAgentRunner implements AgentRunner {
           ok: false,
           status: invocation.error.includes("timed out") ? "timeout" : "failed",
           toolCalls: toolCalls.map(redactToolCall),
+          tokenUsage: buildTokenUsage(totalInputTokens, totalOutputTokens),
           error: redactSecretLikeText(invocation.error),
           startedAt: invocation.startedAt,
           finishedAt: invocation.finishedAt,
         };
       }
 
+      totalOutputTokens += estimateTokens(invocation.stdout);
+
       if (Buffer.byteLength(invocation.stdout, "utf8") > outputSizeLimitBytes) {
         return {
           ok: false,
           status: "rejected_output",
           toolCalls: toolCalls.map(redactToolCall),
+          tokenUsage: buildTokenUsage(totalInputTokens, totalOutputTokens),
           error: "Agent output exceeded outputSizeLimitBytes.",
+          startedAt: startedAt.toISOString(),
+          finishedAt: finishedAt.toISOString(),
+        };
+      }
+
+      if (totalInputTokens + totalOutputTokens > input.agent.tokenBudgetPerRun) {
+        return {
+          ok: false,
+          status: "rejected_output",
+          toolCalls: toolCalls.map(redactToolCall),
+          tokenUsage: buildTokenUsage(totalInputTokens, totalOutputTokens),
+          error: "Agent exceeded tokenBudgetPerRun.",
           startedAt: startedAt.toISOString(),
           finishedAt: finishedAt.toISOString(),
         };
@@ -82,6 +116,7 @@ export class AiAgentRunner implements AgentRunner {
             memoryWrites: validation.output.memoryWrites.length,
           },
           toolCalls: toolCalls.map(redactToolCall),
+          tokenUsage: buildTokenUsage(totalInputTokens, totalOutputTokens),
           startedAt: invocation.startedAt,
           finishedAt: invocation.finishedAt,
         };
@@ -95,6 +130,7 @@ export class AiAgentRunner implements AgentRunner {
           status: "rejected_output",
           outputSummary: { rejectionReasons: validation.reasons },
           toolCalls: toolCalls.map(redactToolCall),
+          tokenUsage: buildTokenUsage(totalInputTokens, totalOutputTokens),
           error: validation.reasons.map((reason) => reason.message).join("; "),
           startedAt: invocation.startedAt,
           finishedAt: invocation.finishedAt,
@@ -106,6 +142,7 @@ export class AiAgentRunner implements AgentRunner {
           ok: false,
           status: "rejected_output",
           toolCalls: toolCalls.map(redactToolCall),
+          tokenUsage: buildTokenUsage(totalInputTokens, totalOutputTokens),
           error: "Agent exceeded maxToolHops.",
           startedAt: startedAt.toISOString(),
           finishedAt: finishedAt.toISOString(),
@@ -124,6 +161,7 @@ export class AiAgentRunner implements AgentRunner {
       ok: false,
       status: "rejected_output",
       toolCalls: toolCalls.map(redactToolCall),
+      tokenUsage: buildTokenUsage(totalInputTokens, totalOutputTokens),
       error: "Agent did not produce structured output before maxToolHops.",
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
@@ -182,6 +220,8 @@ export function buildAgentPrompt(
     limits: {
       maxToolHops,
       outputSizeLimitBytes: input.outputSizeLimitBytes ?? DEFAULT_OUTPUT_SIZE_LIMIT_BYTES,
+      tokenBudgetPerRun: input.agent.tokenBudgetPerRun,
+      costBudgetPerRunUsd: input.agent.costBudgetPerRunUsd,
     },
     toolResults: toolResults.map(redactToolCall),
     outputSchema: {
@@ -296,4 +336,19 @@ export function redactUnknown(value: unknown): unknown {
 
 export function redactSecretLikeText(input: string): string {
   return input.replace(SECRET_LIKE_GLOBAL_PATTERN, "[REDACTED]");
+}
+
+function estimateTokens(input: string): number {
+  return Math.ceil(Buffer.byteLength(input, "utf8") / 4);
+}
+
+function buildTokenUsage(inputTokens: number, outputTokens: number) {
+  const totalTokens = inputTokens + outputTokens;
+
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    estimatedCostUsd: Number(((totalTokens / 1000) * ESTIMATED_USD_PER_1K_TOKENS).toFixed(6)),
+  };
 }

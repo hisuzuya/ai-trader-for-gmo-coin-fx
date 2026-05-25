@@ -291,6 +291,24 @@ export function createWorkerApp(runtime: WorkerRuntime) {
     }
   });
 
+  app.post("/jobs/agent-run-all", async (c) => {
+    try {
+      const results = await runtime.runAllAgents();
+      return c.json({
+        ok: results.every((result) => result.ok),
+        results,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Agent run all failed.",
+        },
+        500,
+      );
+    }
+  });
+
   app.post("/paper-decisions", async (c) => {
     const body = await c.req.json().catch(() => null);
 
