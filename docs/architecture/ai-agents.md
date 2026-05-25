@@ -451,5 +451,6 @@ agentはtraderではなく、Strategy DSL候補と候補レビューを改善し
 - [Trading Design](./trading.md)
 - [AI Tuning](./ai-tuning.md)
 - [Data Architecture](./data.md)
+- [Agent Personas (キャラクター仕様)](../personas/README.md)
 - [ADR 0001: Claude CLIはAI Runnerで隔離実行する](../adr/0001-run-claude-cli-in-ai-runner.md)
 - [ADR 0003: Research + Evaluation Agentを導入する](../adr/0003-introduce-research-evaluation-ai-agents.md)
