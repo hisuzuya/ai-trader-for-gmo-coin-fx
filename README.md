@@ -123,6 +123,19 @@ Production defaults bind only the dashboard to `127.0.0.1:3000`; `worker`,
 with a root `.env` file or exported shell variables, when defaults are not
 acceptable. Runtime application flags can be placed in `.env.production`.
 
+## Continuous deployment
+
+Pushes to `main` run CI first. When lint, typecheck, test, and build all pass,
+GitHub Actions connects to the production host over SSH and runs the deploy
+user's forced command.
+
+Required repository secrets:
+
+- `DEPLOY_HOST`: production SSH hostname.
+- `DEPLOY_USER`: deploy-only SSH user, for example `deploy-ai-trade`.
+- `DEPLOY_SSH_KEY`: private key for the deploy-only SSH user.
+- `DEPLOY_PORT`: optional SSH port. Defaults to `22`.
+
 ## Commands
 
 ```bash
