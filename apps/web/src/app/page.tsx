@@ -152,6 +152,28 @@ type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
+const SECTION_CLS = "flex flex-col gap-3.5";
+const SECTION_HEAD_CLS = "flex flex-wrap items-end justify-between gap-4";
+const KICKER_CLS =
+  "inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted before:inline-block before:h-px before:w-[18px] before:bg-accent-strong before:content-['']";
+const SECTION_TITLE_CLS = "text-lg font-semibold text-text-strong tracking-tight";
+const SECTION_DESC_CLS = "max-w-[64ch] text-xs leading-relaxed text-muted";
+const CARD_CLS =
+  "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-bg-elevated";
+const CARD_HEAD_CLS =
+  "flex items-center justify-between gap-2 border-b border-line bg-linear-to-b from-surface to-bg-elevated px-4 py-3";
+const CARD_HEAD_TITLE_CLS =
+  "inline-flex items-center gap-2 text-xs font-bold tracking-wide text-text-strong before:h-3.5 before:w-[3px] before:rounded-sm before:bg-accent before:content-['']";
+const CARD_HEAD_META_CLS =
+  "inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-wide text-muted";
+const META_CHIP_CLS = "rounded-full bg-surface px-2 py-0.5 text-text";
+const CARD_BODY_CLS = "flex min-h-0 flex-col gap-3 p-4";
+const KPI_LABEL_CLS = "text-[10px] font-bold uppercase tracking-[0.1em] text-muted";
+const KPI_VALUE_CLS =
+  "truncate font-mono text-[22px] font-semibold tracking-tight text-text-strong tabular-nums";
+const EMPTY_CLS =
+  "grid min-h-[160px] place-items-center rounded-xl border border-dashed border-line p-5 text-center text-xs text-muted";
+
 export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const rawAccount = params.account;
@@ -205,33 +227,51 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     .filter((agent) => agent.paperAccount !== null)
     .sort((a, b) => (b.paperAccount?.pnlJpy ?? 0) - (a.paperAccount?.pnlJpy ?? 0))
     .slice(0, 3);
+  const topMaxBalance = Math.max(...topPerformers.map((a) => a.paperAccount?.balanceJpy ?? 0), 1);
 
   return (
-    <div className="home">
-      {/* === Hero: 全体スナップショット ===================================== */}
-      <section className="home-hero" aria-label="ダッシュボード概要">
-        <div className="home-hero-left">
-          <div className="home-hero-meta">
-            <p className="home-kicker">AI Crew Overview · USD/JPY · Paper</p>
-            <div className="home-hero-meta-status">
-              <span className={`home-hero-pill ${health.ok ? "live" : "danger"}`}>
+    <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-7 px-4 pt-6 pb-14 sm:px-6 lg:px-9">
+      {/* === Hero =========================================================== */}
+      <section
+        aria-label="ダッシュボード概要"
+        className="relative grid grid-cols-1 gap-4 overflow-hidden rounded-2xl border border-accent/30 bg-linear-to-b from-surface to-bg-elevated p-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 0% 0%, rgb(41 98 255 / 0.22), transparent 55%), radial-gradient(circle at 100% 0%, rgb(38 166 154 / 0.14), transparent 55%), linear-gradient(180deg, var(--color-surface) 0%, var(--color-bg-elevated) 100%)",
+        }}
+      >
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className={KICKER_CLS}>AI Crew Overview · USD/JPY · Paper</p>
+            <div className="inline-flex items-center gap-3.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-muted px-2.5 py-1 text-[11px] text-muted">
                 <span className={`tv-status-dot ${health.ok ? "live" : "danger"}`} />
                 <span>Worker</span>
-                <strong>{health.ok ? "CONNECTED" : "DEGRADED"}</strong>
+                <strong className={health.ok ? "text-profit-strong" : "text-loss-strong"}>
+                  {health.ok ? "CONNECTED" : "DEGRADED"}
+                </strong>
               </span>
-              <span className="home-hero-clock">{formatDateTime(health.timestamp)}</span>
+              <span className="font-mono text-[11px] text-muted">
+                {formatDateTime(health.timestamp)}
+              </span>
             </div>
           </div>
+
           <div>
-            <h1 className="home-hero-title">
-              本日の <strong>AIクルー</strong> 全体ステータス
+            <h1 className="text-[clamp(22px,2.4vw,30px)] font-semibold leading-tight tracking-tight text-text-strong">
+              本日の{" "}
+              <strong className="bg-linear-to-r from-accent-strong to-profit-strong bg-clip-text font-bold text-transparent">
+                AIクルー
+              </strong>{" "}
+              全体ステータス
             </h1>
-            <p className="home-hero-sub">
-              {agentSummaries.length}
-              体のクルーがUSD/JPYのペーパー取引を運用中。残高・確定損益・候補戦略・AI日次レビューを一画面で確認できます。
+            <p className="mt-2 max-w-[56ch] text-[13px] leading-relaxed text-muted">
+              {agentSummaries.length}体のクルーがUSD/JPYのペーパー取引を運用中。
+              残高・確定損益・候補戦略・AI日次レビューを一画面で確認できます。
             </p>
           </div>
-          <dl className="home-hero-kpis">
+
+          <dl className="mt-auto grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
             <KpiCell
               label="Crew Equity"
               value={formatJpy(totalBalance)}
@@ -241,14 +281,18 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               label="Unrealized PnL"
               value={formatJpySigned(totalUnrealizedPnl)}
               tone={totalUnrealizedPnl > 0 ? "profit" : totalUnrealizedPnl < 0 ? "loss" : undefined}
-              spark={`${totalUnrealizedPnlPct >= 0 ? "+" : "−"}${Math.abs(totalUnrealizedPnlPct).toFixed(2)}%`}
+              spark={`${totalUnrealizedPnlPct >= 0 ? "+" : "−"}${Math.abs(
+                totalUnrealizedPnlPct,
+              ).toFixed(2)}%`}
               sparkTone={totalUnrealizedPnl >= 0 ? "profit" : "loss"}
             />
             <KpiCell
               label="Realized PnL"
               value={formatJpySigned(totalPnl)}
               tone={totalPnl > 0 ? "profit" : totalPnl < 0 ? "loss" : undefined}
-              foot={`${dashboard.trades.length} fills · ${dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"} win`}
+              foot={`${dashboard.trades.length} fills · ${
+                dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"
+              } win`}
             />
             <KpiCell
               label="Active Agents"
@@ -259,15 +303,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           </dl>
         </div>
 
-        <aside className="home-hero-side" aria-label="トップ成績エージェント">
-          <div className="home-hero-side-head">
-            <span className="home-hero-side-title">Top Crew</span>
+        {/* Hero right column: Top Crew */}
+        <aside
+          aria-label="トップ成績エージェント"
+          className="flex min-w-0 flex-col gap-2.5 rounded-xl border border-line bg-bg/60 p-4"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-text-strong before:inline-block before:size-1.5 before:rounded-full before:bg-accent-strong before:shadow-[0_0_8px_var(--color-accent-strong)] before:content-['']">
+              Top Crew
+            </span>
             <Link className="btn-ghost" href="/agents">
               管理 →
             </Link>
           </div>
           {topPerformers.length === 0 ? (
-            <p className="text-[12px] text-muted">
+            <p className="text-xs text-muted">
               ペーパー口座を持つエージェントがまだいません。
               <br />
               <Link className="text-accent-strong" href="/agents#picker">
@@ -275,32 +325,39 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </Link>
             </p>
           ) : (
-            <div className="home-hero-bars">
+            <div className="flex flex-col gap-2">
               {topPerformers.map((agent) => {
                 const pnl = agent.paperAccount?.pnlJpy ?? 0;
                 const balance = agent.paperAccount?.balanceJpy ?? 0;
                 const initial = agent.paperAccount?.initialBalanceJpy ?? 0;
-                const maxBalance = Math.max(
-                  ...topPerformers.map((a) => a.paperAccount?.balanceJpy ?? 0),
-                  1,
-                );
-                const pct = (balance / maxBalance) * 100;
-                const tone = pnl > 0 ? "" : pnl < 0 ? "loss" : "flat";
+                const pct = (balance / topMaxBalance) * 100;
+                const fillGradient =
+                  pnl < 0
+                    ? "linear-gradient(90deg, var(--color-warning) 0%, var(--color-loss-strong) 100%)"
+                    : pnl === 0
+                      ? "var(--color-surface-strong)"
+                      : "linear-gradient(90deg, var(--color-accent) 0%, var(--color-profit-strong) 100%)";
                 return (
                   <Link
                     key={agent.id}
                     href={`/agents/${agent.id}`}
-                    className="home-hero-bar"
+                    className="grid grid-cols-[80px_1fr_auto] items-center gap-2.5 text-[11px] hover:text-text-strong"
                     aria-label={`${agent.name} の口座`}
                   >
-                    <span className="home-hero-bar-label">{agent.name}</span>
-                    <span className="home-hero-bar-track" aria-hidden>
+                    <span className="text-muted">{agent.name}</span>
+                    <span
+                      aria-hidden
+                      className="relative h-1 overflow-hidden rounded-full bg-surface-muted"
+                    >
                       <span
-                        className={`home-hero-bar-fill ${tone}`}
-                        style={{ transform: `scaleX(${(pct / 100).toFixed(3)})` }}
+                        className="absolute inset-0 origin-left rounded-full"
+                        style={{
+                          transform: `scaleX(${(pct / 100).toFixed(3)})`,
+                          background: fillGradient,
+                        }}
                       />
                     </span>
-                    <span className="home-hero-bar-value">
+                    <span className="font-mono text-[11px] tabular-nums text-text-strong">
                       {pnl >= 0 ? "+" : "−"}
                       {formatCompactJpy(Math.abs(pnl))} ·{" "}
                       {initial > 0 ? `${((pnl / initial) * 100).toFixed(1)}%` : "—"}
@@ -313,17 +370,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </aside>
       </section>
 
-      {/* === AI Crew Tiles =============================================== */}
-      <section className="home-section" aria-label="AI Crew">
-        <header className="home-section-head">
-          <div className="home-section-head-meta">
-            <p className="home-kicker">AI Crew</p>
-            <h2 className="home-section-title">エージェント・クルー</h2>
-            <p className="home-section-desc">
+      {/* === AI Crew Tiles ================================================ */}
+      <section aria-label="AI Crew" className={SECTION_CLS}>
+        <header className={SECTION_HEAD_CLS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className={KICKER_CLS}>AI Crew</p>
+            <h2 className={SECTION_TITLE_CLS}>エージェント・クルー</h2>
+            <p className={SECTION_DESC_CLS}>
               各キャラクターは独自のペルソナを持ち、専用のペーパー口座で戦略を運用します。タイルから個別の詳細画面に遷移できます。
             </p>
           </div>
-          <div className="home-section-actions">
+          <div className="inline-flex items-center gap-1.5">
             <Link href="/agents#picker" className="btn-primary">
               ＋ New Agent
             </Link>
@@ -357,75 +414,70 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </div>
       </section>
 
-      {/* === Market chart =============================================== */}
-      <section className="home-section" aria-label="Market">
-        <header className="home-section-head">
-          <div className="home-section-head-meta">
-            <p className="home-kicker">Market · USD/JPY</p>
-            <h2 className="home-section-title">マーケット & プライス</h2>
-            <p className="home-section-desc">
+      {/* === Market ====================================================== */}
+      <section aria-label="Market" className={SECTION_CLS}>
+        <header className={SECTION_HEAD_CLS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className={KICKER_CLS}>Market · USD/JPY</p>
+            <h2 className={SECTION_TITLE_CLS}>マーケット & プライス</h2>
+            <p className={SECTION_DESC_CLS}>
               内部蓄積のローソク足からダッシュボード用のスナップショットを表示。詳細な時間足/BID-ASK切替は
               Market 画面で。
             </p>
           </div>
-          <div className="home-section-actions">
+          <div className="inline-flex items-center gap-1.5">
             <Link href="/market" className="btn-primary">
               📈 フルチャートを開く
             </Link>
           </div>
         </header>
 
-        <div className="home-card">
-          <div className="home-card-head">
-            <span className="home-card-head-title">
+        <div className={CARD_CLS}>
+          <div className={CARD_HEAD_CLS}>
+            <span className={CARD_HEAD_TITLE_CLS}>
               {formatSymbol(recentCandles.symbol)} · {recentCandles.timeframe.toUpperCase()} ·{" "}
               {recentCandles.priceType.toUpperCase()}
             </span>
-            <span className="home-card-head-meta">
-              <span className="meta-chip">{candleSeries.length} bars</span>
-              <Link href="/market" className="meta-chip">
+            <span className={CARD_HEAD_META_CLS}>
+              <span className={META_CHIP_CLS}>{candleSeries.length} bars</span>
+              <Link href="/market" className={`${META_CHIP_CLS} hover:text-text-strong`}>
                 Market →
               </Link>
             </span>
           </div>
-          <div className="home-card-body">
-            <div className="home-chart-summary">
-              <div className="home-chart-price">
-                <span className={`home-chart-price-value ${candleUp ? "profit" : "loss"}`}>
+          <div className={CARD_BODY_CLS}>
+            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-line-soft pb-2.5">
+              <div className="flex items-baseline gap-3">
+                <span
+                  className={`font-mono text-[30px] font-semibold tabular-nums tracking-tight ${
+                    candleUp ? "text-profit-strong" : "text-loss-strong"
+                  }`}
+                >
                   {lastCandle ? lastCandle.close.toFixed(3) : "—"}
                 </span>
                 {lastCandle && firstCandle ? (
-                  <span className={`home-chart-price-delta ${candleUp ? "profit" : "loss"}`}>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-sm font-semibold ${
+                      candleUp
+                        ? "bg-profit-soft text-profit-strong"
+                        : "bg-loss-soft text-loss-strong"
+                    }`}
+                  >
                     {candleUp ? "▲" : "▼"} {Math.abs(candleChange).toFixed(3)}
-                    <span style={{ opacity: 0.75 }}>
+                    <span className="opacity-75">
                       ({candleChangePct >= 0 ? "+" : "−"}
                       {Math.abs(candleChangePct).toFixed(2)}%)
                     </span>
                   </span>
                 ) : null}
               </div>
-              <div className="home-chart-stats">
-                <div className="home-chart-stat">
-                  <span className="home-chart-stat-label">High</span>
-                  <span className="home-chart-stat-value">
-                    {lastCandle ? lastCandle.high.toFixed(3) : "—"}
-                  </span>
-                </div>
-                <div className="home-chart-stat">
-                  <span className="home-chart-stat-label">Low</span>
-                  <span className="home-chart-stat-value">
-                    {lastCandle ? lastCandle.low.toFixed(3) : "—"}
-                  </span>
-                </div>
-                <div className="home-chart-stat">
-                  <span className="home-chart-stat-label">Bars</span>
-                  <span className="home-chart-stat-value">
-                    {candleSeries.length.toLocaleString()}
-                  </span>
-                </div>
+              <div className="ml-auto flex gap-5">
+                <StatBlock label="High" value={lastCandle ? lastCandle.high.toFixed(3) : "—"} />
+                <StatBlock label="Low" value={lastCandle ? lastCandle.low.toFixed(3) : "—"} />
+                <StatBlock label="Bars" value={candleSeries.length.toLocaleString()} />
               </div>
             </div>
-            <div className="home-chart-frame">
+            <div className="flex min-h-[360px] flex-1 flex-col">
               {candleSeries.length > 0 ? (
                 <CandlestickChart
                   data={candleSeries}
@@ -437,7 +489,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   initialLimit={1000}
                 />
               ) : (
-                <div className="home-chart-empty">
+                <div className="grid min-h-[280px] place-items-center rounded-xl border border-dashed border-line p-6 text-center text-xs leading-relaxed text-muted">
                   USD/JPYのMIDキャンドルが取得できていません
                   <br />
                   (worker未起動 / データ未蓄積)
@@ -452,44 +504,51 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </div>
       </section>
 
-      {/* === Performance: PnL + Recent Fills + Crew watchlist ============ */}
-      <section className="home-section" aria-label="Performance">
-        <header className="home-section-head">
-          <div className="home-section-head-meta">
-            <p className="home-kicker">Performance</p>
-            <h2 className="home-section-title">パフォーマンス</h2>
-            <p className="home-section-desc">
+      {/* === Performance ================================================= */}
+      <section aria-label="Performance" className={SECTION_CLS}>
+        <header className={SECTION_HEAD_CLS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className={KICKER_CLS}>Performance</p>
+            <h2 className={SECTION_TITLE_CLS}>パフォーマンス</h2>
+            <p className={SECTION_DESC_CLS}>
               確定済みのペーパー取引から累積損益と直近の約定を集計。クルー別の口座状況も切り替え可能です。
             </p>
           </div>
-          <div className="home-section-actions">
+          <div className="inline-flex items-center gap-1.5">
             <Link href="/activity?kind=runs" className="btn-ghost">
               実行履歴 →
             </Link>
           </div>
         </header>
 
-        <div className="home-grid-2">
-          <div className="home-card">
-            <div className="home-card-head">
-              <span className="home-card-head-title">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className={CARD_CLS}>
+            <div className={CARD_HEAD_CLS}>
+              <span className={CARD_HEAD_TITLE_CLS}>
                 累積損益 / Cumulative PnL
                 {selectedAccountName ? ` · ${selectedAccountName}` : ""}
               </span>
-              <span className="home-card-head-meta">
-                <span className="meta-chip">{dashboard.trades.length} fills</span>
+              <span className={CARD_HEAD_META_CLS}>
+                <span className={META_CHIP_CLS}>{dashboard.trades.length} fills</span>
               </span>
             </div>
-            <div className="home-card-body">
-              <div className="home-chart-summary">
-                <div className="home-chart-price">
+            <div className={CARD_BODY_CLS}>
+              <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-line-soft pb-2.5">
+                <div className="flex items-baseline gap-3">
                   <span
-                    className={`home-chart-price-value ${pnlPositive ? "profit" : "loss"}`}
-                    style={{ fontSize: 24 }}
+                    className={`font-mono text-2xl font-semibold tabular-nums ${
+                      pnlPositive ? "text-profit-strong" : "text-loss-strong"
+                    }`}
                   >
                     {formatJpySigned(totalPnl)}
                   </span>
-                  <span className={`home-chart-price-delta ${pnlPositive ? "profit" : "loss"}`}>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-sm font-semibold ${
+                      pnlPositive
+                        ? "bg-profit-soft text-profit-strong"
+                        : "bg-loss-soft text-loss-strong"
+                    }`}
+                  >
                     勝率 {dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"}
                   </span>
                 </div>
@@ -497,57 +556,62 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               {pnlSeries.length > 0 ? (
                 <PnlChart data={pnlSeries} positive={pnlPositive} />
               ) : (
-                <div className="home-chart-empty" style={{ minHeight: 160 }}>
+                <div className={EMPTY_CLS}>
                   確定取引が記録され次第、ここに累積損益が描画されます
                 </div>
               )}
             </div>
           </div>
 
-          <div className="home-card">
-            <div className="home-card-head">
-              <span className="home-card-head-title">エージェント口座 / Agents</span>
-              <span className="home-card-head-meta">
-                <span className="meta-chip">{agentSummaries.length} crew</span>
+          <div className={CARD_CLS}>
+            <div className={CARD_HEAD_CLS}>
+              <span className={CARD_HEAD_TITLE_CLS}>エージェント口座 / Agents</span>
+              <span className={CARD_HEAD_META_CLS}>
+                <span className={META_CHIP_CLS}>{agentSummaries.length} crew</span>
               </span>
             </div>
-            <div className="home-card-body flush scroll">
+            <div className="flex max-h-[360px] min-h-0 flex-col overflow-auto">
               {agentSummaries.length === 0 ? (
-                <div className="home-insight-empty">
-                  エージェントがまだ配属されていません
-                  <br />
-                  <Link href="/agents#picker" className="text-accent-strong">
-                    ＋ クルーを配属する →
-                  </Link>
+                <div className="m-4">
+                  <div className={EMPTY_CLS}>
+                    エージェントがまだ配属されていません
+                    <br />
+                    <Link href="/agents#picker" className="text-accent-strong">
+                      ＋ クルーを配属する →
+                    </Link>
+                  </div>
                 </div>
               ) : (
-                <div className="home-watchlist">
-                  <Link
+                <div className="flex flex-col">
+                  <WatchlistRow
                     href="/"
                     scroll={false}
-                    className={`home-watchlist-row ${isAccountView ? "" : "active"}`}
-                  >
-                    <span className="home-watchlist-avatar" aria-hidden>
-                      Σ
-                    </span>
-                    <span className="home-watchlist-name">
-                      <span className="home-watchlist-name-main">クルー合計</span>
-                      <span className="home-watchlist-name-sub">
+                    avatar={
+                      <span
+                        aria-hidden
+                        className="grid size-9 place-items-center rounded-lg border border-line bg-surface text-[11px] font-bold text-text-strong"
+                      >
+                        Σ
+                      </span>
+                    }
+                    name="クルー合計"
+                    sub={
+                      <>
                         <span className="tv-tag">ALL</span>
                         {agentSummaries.length} agents
-                      </span>
-                    </span>
-                    <span className="home-watchlist-balance">
-                      <span className="home-watchlist-balance-main">{formatJpy(totalBalance)}</span>
-                      <span
-                        className={`home-watchlist-balance-sub ${
-                          totalUnrealizedPnl > 0 ? "profit" : totalUnrealizedPnl < 0 ? "loss" : ""
-                        }`}
-                      >
-                        {formatJpySigned(totalUnrealizedPnl)}
-                      </span>
-                    </span>
-                  </Link>
+                      </>
+                    }
+                    balance={formatJpy(totalBalance)}
+                    delta={formatJpySigned(totalUnrealizedPnl)}
+                    deltaTone={
+                      totalUnrealizedPnl > 0
+                        ? "profit"
+                        : totalUnrealizedPnl < 0
+                          ? "loss"
+                          : undefined
+                    }
+                    active={!isAccountView}
+                  />
                   {agentSummaries.map((agent) => (
                     <AgentAccountRow key={agent.id} agent={agent} />
                   ))}
@@ -557,28 +621,38 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           </div>
         </div>
 
-        <div className="home-card">
-          <div className="home-card-head">
-            <span className="home-card-head-title">
+        <div className={CARD_CLS}>
+          <div className={CARD_HEAD_CLS}>
+            <span className={CARD_HEAD_TITLE_CLS}>
               直近の確定取引 / Recent Fills
               {selectedAccountName ? ` · ${selectedAccountName}` : ""}
             </span>
-            <span className="home-card-head-meta">
-              <span className="meta-chip">{dashboard.trades.length} fills</span>
+            <span className={CARD_HEAD_META_CLS}>
+              <span className={META_CHIP_CLS}>{dashboard.trades.length} fills</span>
             </span>
           </div>
-          <div className="home-card-body flush">
+          <div className="flex min-h-0 flex-col">
             {dashboard.trades.length === 0 ? (
-              <div className="home-insight-empty">確定済みのペーパー取引はまだありません</div>
+              <div className="m-4">
+                <div className={EMPTY_CLS}>確定済みのペーパー取引はまだありません</div>
+              </div>
             ) : (
-              <div style={{ overflow: "auto" }}>
-                <table className="home-trade-table">
+              <div className="overflow-auto">
+                <table className="w-full border-collapse text-xs">
                   <thead>
                     <tr>
-                      <th>通貨ペア</th>
-                      <th>売買</th>
-                      <th className="num">損益 (JPY)</th>
-                      <th className="num">決済日時</th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-3.5 py-2 text-left text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                        通貨ペア
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-3.5 py-2 text-left text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                        売買
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-3.5 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        損益 (JPY)
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-3.5 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        決済日時
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -586,21 +660,24 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                       const pnl = Number(trade.pnlJpy);
                       const sideClass = trade.side.toLowerCase();
                       return (
-                        <tr key={`${trade.symbol}-${trade.closedAt}`}>
-                          <td>
+                        <tr
+                          key={`${trade.symbol}-${trade.closedAt}`}
+                          className="border-b border-line-soft transition-colors last:border-b-0 hover:bg-surface-muted"
+                        >
+                          <td className="px-3.5 py-2.5">
                             <span className="tv-symbol">{formatSymbol(trade.symbol)}</span>
                           </td>
-                          <td>
+                          <td className="px-3.5 py-2.5">
                             <span className={`tv-side ${sideClass}`}>
                               {translateSide(trade.side)}
                             </span>
                           </td>
-                          <td className="num">
+                          <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">
                             <span className={`tv-pnl ${pnl >= 0 ? "profit" : "loss"}`}>
                               {formatJpySigned(pnl)}
                             </span>
                           </td>
-                          <td className="num">
+                          <td className="px-3.5 py-2.5 text-right font-mono tabular-nums">
                             <span className="tv-time">{formatDateTime(trade.closedAt)}</span>
                           </td>
                         </tr>
@@ -614,24 +691,24 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </div>
 
         {dashboard.accountDetail ? (
-          <div className="home-grid-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <AccountStrategyPanel detail={dashboard.accountDetail} />
             <PositionsPanel detail={dashboard.accountDetail} />
           </div>
         ) : null}
       </section>
 
-      {/* === AI Insights: Review + Candidates =========================== */}
-      <section className="home-section" aria-label="AI Insights">
-        <header className="home-section-head">
-          <div className="home-section-head-meta">
-            <p className="home-kicker">AI Insights</p>
-            <h2 className="home-section-title">AIインサイト</h2>
-            <p className="home-section-desc">
+      {/* === AI Insights =================================================== */}
+      <section aria-label="AI Insights" className={SECTION_CLS}>
+        <header className={SECTION_HEAD_CLS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className={KICKER_CLS}>AI Insights</p>
+            <h2 className={SECTION_TITLE_CLS}>AIインサイト</h2>
+            <p className={SECTION_DESC_CLS}>
               AIの日次レビューと審査中の候補戦略を要約。詳細は Activity 画面で時系列に確認できます。
             </p>
           </div>
-          <div className="home-section-actions">
+          <div className="inline-flex items-center gap-1.5">
             <Link href="/activity?kind=proposals" className="btn-ghost">
               提案を見る →
             </Link>
@@ -641,39 +718,43 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           </div>
         </header>
 
-        <div className="home-grid-3">
-          <div className="home-card">
-            <div className="home-card-head">
-              <span className="home-card-head-title">AI日次レビュー / Daily Review</span>
-              <span className="home-card-head-meta">
-                <span className="meta-chip">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className={CARD_CLS}>
+            <div className={CARD_HEAD_CLS}>
+              <span className={CARD_HEAD_TITLE_CLS}>AI日次レビュー / Daily Review</span>
+              <span className={CARD_HEAD_META_CLS}>
+                <span className={META_CHIP_CLS}>
                   {latestReview ? formatDate(latestReview.reviewDate) : "—"}
                 </span>
               </span>
             </div>
-            <div className="home-card-body">
+            <div className={CARD_BODY_CLS}>
               {dashboard.dailyReviews.length === 0 ? (
-                <div className="home-insight-empty">AI日次レビューはまだ記録されていません</div>
+                <div className={EMPTY_CLS}>AI日次レビューはまだ記録されていません</div>
               ) : (
-                <div>
+                <div className="flex flex-col gap-3">
                   {dashboard.dailyReviews.slice(0, 2).map((review) => (
                     <article
-                      className="home-review"
                       key={`${review.reviewDate}-${review.createdAt}`}
+                      className="flex flex-col gap-3 rounded-xl border border-line bg-linear-to-b from-accent-soft to-surface-muted p-3.5"
                     >
-                      <header className="home-review-head">
-                        <div className="home-review-head-left">
-                          <span className="home-review-date">{formatDate(review.reviewDate)}</span>
+                      <header className="flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="inline-flex items-center gap-2.5">
+                          <span className="font-mono text-sm font-bold text-text-strong">
+                            {formatDate(review.reviewDate)}
+                          </span>
                           <span className={`tv-tag ${normalizeStatus(review.status)}`}>
                             {translateStatus(review.status)}
                           </span>
                         </div>
-                        <span className="home-review-time">{formatDateTime(review.createdAt)}</span>
+                        <span className="font-mono text-[10px] text-subtle">
+                          {formatDateTime(review.createdAt)}
+                        </span>
                       </header>
-                      <p className="home-review-summary">
+                      <p className="text-xs leading-relaxed text-text">
                         {review.summary ?? "レビューは却下、または要約が返されませんでした。"}
                       </p>
-                      <div className="home-review-cols">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <ReviewCol
                           title="採用候補"
                           items={formatRecommendationItems(review.baselinePromotionCandidates)}
@@ -692,38 +773,45 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </div>
           </div>
 
-          <div className="home-card">
-            <div className="home-card-head">
-              <span className="home-card-head-title">候補戦略 / Candidates</span>
-              <span className="home-card-head-meta">
-                <span className="meta-chip">{dashboard.candidates.length} 件</span>
+          <div className={CARD_CLS}>
+            <div className={CARD_HEAD_CLS}>
+              <span className={CARD_HEAD_TITLE_CLS}>候補戦略 / Candidates</span>
+              <span className={CARD_HEAD_META_CLS}>
+                <span className={META_CHIP_CLS}>{dashboard.candidates.length} 件</span>
               </span>
             </div>
-            <div className="home-card-body flush scroll">
+            <div className="flex max-h-[360px] min-h-0 flex-col overflow-auto">
               {dashboard.candidates.length === 0 ? (
-                <div className="home-insight-empty">AI候補戦略はまだ承認されていません</div>
+                <div className="m-4">
+                  <div className={EMPTY_CLS}>AI候補戦略はまだ承認されていません</div>
+                </div>
               ) : (
                 dashboard.candidates.map((candidate) => {
                   const status = candidate.strategyRunStatus ?? candidate.status;
                   return (
-                    <article className="home-candidate" key={candidate.id}>
-                      <div className="home-candidate-meta">
-                        <span className="home-candidate-name">
+                    <article
+                      key={candidate.id}
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 border-b border-line-soft px-3.5 py-3 last:border-b-0"
+                    >
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <span className="truncate text-[13px] font-semibold text-text-strong">
                           {candidate.candidateStrategyName ?? candidate.id}
                         </span>
-                        <span className="home-candidate-source">
+                        <span className="truncate font-mono text-[10px] text-muted">
                           ← {candidate.sourceStrategyName}
                         </span>
-                        <span className="home-candidate-tags">
+                        <span className="mt-1 inline-flex flex-wrap gap-1">
                           <span className="tv-tag">{candidate.timeframe}</span>
                           <span className={`tv-tag ${normalizeStatus(status)}`}>
                             {translateStatus(status)}
                           </span>
                         </span>
                       </div>
-                      <div className="home-candidate-status">
-                        <span className="home-candidate-status-label">自動審査</span>
-                        <span className="home-candidate-status-value">
+                      <div className="flex flex-col items-end gap-0.5 text-right whitespace-nowrap">
+                        <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted">
+                          自動審査
+                        </span>
+                        <span className="max-w-[200px] font-mono text-[11px] leading-snug font-semibold whitespace-normal text-text-strong">
                           {describeAutoStatus(status)}
                         </span>
                       </div>
@@ -754,17 +842,96 @@ function KpiCell({
   spark?: string;
   sparkTone?: "profit" | "loss";
 }) {
+  const toneClass =
+    tone === "profit"
+      ? "text-profit-strong"
+      : tone === "loss"
+        ? "text-loss-strong"
+        : tone === "accent"
+          ? "text-accent-strong"
+          : "text-text-strong";
+  const sparkClass =
+    sparkTone === "profit"
+      ? "bg-profit-soft text-profit-strong"
+      : sparkTone === "loss"
+        ? "bg-loss-soft text-loss-strong"
+        : "bg-surface-muted text-muted";
   return (
-    <div className="home-kpi">
-      <span className="home-kpi-label">{label}</span>
-      <span className={`home-kpi-value ${tone ?? ""}`}>{value}</span>
+    <div className="relative flex min-w-0 flex-col gap-1.5 bg-bg-elevated p-4 transition-colors hover:bg-surface">
+      <span className={KPI_LABEL_CLS}>{label}</span>
+      <span className={`${KPI_VALUE_CLS} ${toneClass}`}>{value}</span>
       {(foot || spark) && (
-        <span className="home-kpi-foot">
-          {spark ? <span className={`home-kpi-spark ${sparkTone ?? ""}`}>{spark}</span> : null}
+        <span className="flex items-center gap-1.5 text-[11px] text-muted">
+          {spark ? (
+            <span
+              className={`inline-flex items-center gap-1 rounded font-mono text-[10px] px-1.5 py-0.5 ${sparkClass}`}
+            >
+              {spark}
+            </span>
+          ) : null}
           {foot ? <span>{foot}</span> : null}
         </span>
       )}
     </div>
+  );
+}
+
+function StatBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">{label}</span>
+      <span className="font-mono text-[13px] tabular-nums text-text-strong">{value}</span>
+    </div>
+  );
+}
+
+function WatchlistRow({
+  href,
+  scroll,
+  avatar,
+  name,
+  sub,
+  balance,
+  delta,
+  deltaTone,
+  active,
+}: {
+  href: string;
+  scroll?: boolean;
+  avatar: React.ReactNode;
+  name: string;
+  sub: React.ReactNode;
+  balance: string;
+  delta: string;
+  deltaTone?: "profit" | "loss";
+  active?: boolean;
+}) {
+  const deltaClass =
+    deltaTone === "profit"
+      ? "text-profit-strong"
+      : deltaTone === "loss"
+        ? "text-loss-strong"
+        : "text-muted";
+  return (
+    <Link
+      href={href}
+      scroll={scroll}
+      className={`relative grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-line-soft px-3.5 py-2.5 transition-colors last:border-b-0 hover:bg-surface-muted ${
+        active
+          ? "bg-accent-soft before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-r-sm before:bg-accent-strong before:content-['']"
+          : ""
+      }`}
+    >
+      {avatar}
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="truncate text-[13px] font-semibold text-text-strong">{name}</span>
+        <span className="inline-flex items-center gap-1.5 text-[10px] text-muted">{sub}</span>
+      </span>
+      <span className="flex flex-col items-end gap-0.5">
+        <span className="font-mono text-xs font-bold tabular-nums text-text-strong">{balance}</span>
+        <span className={`font-mono text-[11px] tabular-nums ${deltaClass}`}>{delta}</span>
+      </span>
+    </Link>
   );
 }
 
@@ -773,55 +940,63 @@ function AgentAccountRow({ agent }: { agent: AgentSummaryRaw }) {
   const account = agent.paperAccount;
   const pnl = account?.pnlJpy ?? 0;
   const balance = account?.balanceJpy ?? 0;
-  const pnlClass = pnl > 0 ? "profit" : pnl < 0 ? "loss" : "";
+  const deltaTone: "profit" | "loss" | undefined =
+    pnl > 0 ? "profit" : pnl < 0 ? "loss" : undefined;
   return (
-    <Link
+    <WatchlistRow
       href={`/agents/${agent.id}`}
-      className="home-watchlist-row"
-      data-character-id={character?.id ?? "unassigned"}
-    >
-      <span className="home-watchlist-avatar" aria-hidden>
-        {character ? (
-          <Image
-            src={character.avatarPath ?? character.imagePath}
-            alt={`${character.name} avatar`}
-            width={36}
-            height={36}
-            unoptimized
-          />
-        ) : (
-          (agent.name[0] ?? "?")
-        )}
-      </span>
-      <span className="home-watchlist-name">
-        <span className="home-watchlist-name-main">{agent.name}</span>
-        <span className="home-watchlist-name-sub">
+      avatar={
+        <span
+          aria-hidden
+          className="grid size-9 overflow-hidden rounded-lg border border-line bg-surface"
+        >
+          {character ? (
+            <Image
+              src={character.avatarPath ?? character.imagePath}
+              alt={`${character.name} avatar`}
+              width={36}
+              height={36}
+              className="size-full object-cover object-top"
+              unoptimized
+            />
+          ) : (
+            <span className="grid place-items-center text-xs font-bold text-text-strong">
+              {agent.name[0] ?? "?"}
+            </span>
+          )}
+        </span>
+      }
+      name={agent.name}
+      sub={
+        <>
           <span className={`tv-tag ${normalizeStatus(agent.status)}`}>
             {translateStatus(agent.status)}
           </span>
           {account ? `${account.openPositionCount} open` : "no account"}
-        </span>
-      </span>
-      <span className="home-watchlist-balance">
-        <span className="home-watchlist-balance-main">{account ? formatJpy(balance) : "—"}</span>
-        <span className={`home-watchlist-balance-sub ${pnlClass}`}>
-          {account ? formatJpySigned(pnl) : ""}
-        </span>
-      </span>
-    </Link>
+        </>
+      }
+      balance={account ? formatJpy(balance) : "—"}
+      delta={account ? formatJpySigned(pnl) : ""}
+      deltaTone={deltaTone}
+    />
   );
 }
 
 function ReviewCol({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="home-review-col">
-      <h4>{title}</h4>
+    <div className="flex flex-col gap-1.5 rounded-lg border border-line-soft bg-bg-elevated p-2.5">
+      <h4 className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">{title}</h4>
       {items.length === 0 ? (
-        <span className="home-review-empty">なし</span>
+        <span className="text-[11px] text-subtle">なし</span>
       ) : (
-        <ul>
+        <ul className="flex flex-col gap-1">
           {items.map((item) => (
-            <li key={item}>{item}</li>
+            <li
+              key={item}
+              className="relative break-words pl-3 text-[11px] leading-snug text-text before:absolute before:left-0 before:text-accent-strong before:content-['›']"
+            >
+              {item}
+            </li>
           ))}
         </ul>
       )}
@@ -837,48 +1012,35 @@ function AccountStrategyPanel({ detail }: { detail: AccountDetail }) {
   const pnl = Number.isFinite(balance) && Number.isFinite(initial) ? balance - initial : 0;
   const pnlPositive = pnl >= 0;
   return (
-    <div className="home-card">
-      <div className="home-card-head">
-        <span className="home-card-head-title">戦略詳細 / Strategy · {detail.name}</span>
-        <span className="home-card-head-meta">
-          <span className="meta-chip">{run ? run.status.toUpperCase() : "—"}</span>
+    <div className={CARD_CLS}>
+      <div className={CARD_HEAD_CLS}>
+        <span className={CARD_HEAD_TITLE_CLS}>戦略詳細 / Strategy · {detail.name}</span>
+        <span className={CARD_HEAD_META_CLS}>
+          <span className={META_CHIP_CLS}>{run ? run.status.toUpperCase() : "—"}</span>
         </span>
       </div>
-      <div className="home-card-body">
-        <dl className="home-strategy-grid">
-          <div>
-            <dt>残高 / Balance</dt>
-            <dd>{formatJpy(balance)}</dd>
-          </div>
-          <div>
-            <dt>初期 / Initial</dt>
-            <dd>{formatJpy(initial)}</dd>
-          </div>
-          <div>
-            <dt>変動 / Δ</dt>
-            <dd className={pnlPositive ? "profit" : "loss"}>{formatJpySigned(pnl)}</dd>
-          </div>
-          <div>
-            <dt>戦略名 / Strategy</dt>
-            <dd>{run?.strategyName ?? "—"}</dd>
-          </div>
-          <div>
-            <dt>銘柄 / Symbol</dt>
-            <dd>{run ? formatSymbol(run.symbol) : "—"}</dd>
-          </div>
-          <div>
-            <dt>足種 / TF</dt>
-            <dd>{run?.timeframe ?? "—"}</dd>
-          </div>
-          <div>
-            <dt>開始 / Started</dt>
-            <dd>{run ? formatDateTime(run.startedAt) : "—"}</dd>
-          </div>
+      <div className={CARD_BODY_CLS}>
+        <dl className="grid grid-cols-2 gap-x-5 gap-y-2">
+          <DetailItem label="残高 / Balance" value={formatJpy(balance)} />
+          <DetailItem label="初期 / Initial" value={formatJpy(initial)} />
+          <DetailItem
+            label="変動 / Δ"
+            value={formatJpySigned(pnl)}
+            tone={pnlPositive ? "profit" : "loss"}
+          />
+          <DetailItem label="戦略名 / Strategy" value={run?.strategyName ?? "—"} />
+          <DetailItem label="銘柄 / Symbol" value={run ? formatSymbol(run.symbol) : "—"} />
+          <DetailItem label="足種 / TF" value={run?.timeframe ?? "—"} />
+          <DetailItem label="開始 / Started" value={run ? formatDateTime(run.startedAt) : "—"} />
         </dl>
         {definitionPreview && (
-          <details className="tv-detail-collapsible">
-            <summary>Strategy Definition (JSON)</summary>
-            <pre className="tv-code-block">{definitionPreview}</pre>
+          <details className="border-t border-line-soft px-3 pt-2 pb-3">
+            <summary className="cursor-pointer py-1 text-[11px] font-semibold text-muted hover:text-text-strong">
+              Strategy Definition (JSON)
+            </summary>
+            <pre className="mt-1.5 max-h-60 overflow-auto rounded border border-line-soft bg-bg p-2.5 font-mono text-[11px] leading-normal whitespace-pre-wrap break-words text-text">
+              {definitionPreview}
+            </pre>
           </details>
         )}
       </div>
@@ -886,54 +1048,72 @@ function AccountStrategyPanel({ detail }: { detail: AccountDetail }) {
   );
 }
 
+function DetailItem({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "profit" | "loss";
+}) {
+  const toneClass =
+    tone === "profit"
+      ? "text-profit-strong"
+      : tone === "loss"
+        ? "text-loss-strong"
+        : "text-text-strong";
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <dt className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted">{label}</dt>
+      <dd className={`m-0 truncate font-mono text-xs font-semibold tabular-nums ${toneClass}`}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 function PositionsPanel({ detail }: { detail: AccountDetail }) {
   return (
-    <div className="home-card">
-      <div className="home-card-head">
-        <span className="home-card-head-title">保有ポジション · {detail.name}</span>
-        <span className="home-card-head-meta">
-          <span className="meta-chip">{detail.openPositions.length} 件</span>
+    <div className={CARD_CLS}>
+      <div className={CARD_HEAD_CLS}>
+        <span className={CARD_HEAD_TITLE_CLS}>保有ポジション · {detail.name}</span>
+        <span className={CARD_HEAD_META_CLS}>
+          <span className={META_CHIP_CLS}>{detail.openPositions.length} 件</span>
         </span>
       </div>
-      <div className="home-card-body flush">
+      <div className="flex min-h-0 flex-col">
         {detail.openPositions.length === 0 ? (
-          <div className="home-insight-empty">現在この口座に保有ポジションはありません</div>
+          <div className="m-4">
+            <div className={EMPTY_CLS}>現在この口座に保有ポジションはありません</div>
+          </div>
         ) : (
-          <div className="home-positions">
+          <div className="flex flex-col">
             {detail.openPositions.map((position) => (
-              <article className="home-position" key={`${position.openedAt}-${position.symbol}`}>
-                <div className="home-position-head">
+              <article
+                key={`${position.openedAt}-${position.symbol}`}
+                className="flex flex-col gap-2 border-b border-line-soft px-3.5 py-3 last:border-b-0"
+              >
+                <div className="flex items-center gap-2.5">
                   <span className="tv-symbol">{formatSymbol(position.symbol)}</span>
                   <span className={`tv-side ${position.side.toLowerCase()}`}>
                     {translateSide(position.side)}
                   </span>
                   <span className="tv-time">{formatDateTime(position.openedAt)}</span>
                 </div>
-                <dl className="home-position-grid">
-                  <div>
-                    <dt>数量</dt>
-                    <dd>{Number(position.quantity).toLocaleString()}</dd>
-                  </div>
-                  <div>
-                    <dt>エントリー</dt>
-                    <dd>{Number(position.entryPrice).toFixed(3)}</dd>
-                  </div>
-                  <div>
-                    <dt>SL</dt>
-                    <dd>{Number(position.stopLossPrice).toFixed(3)}</dd>
-                  </div>
-                  <div>
-                    <dt>TP</dt>
-                    <dd>{Number(position.takeProfitPrice).toFixed(3)}</dd>
-                  </div>
-                  <div>
-                    <dt>最良値</dt>
-                    <dd>{Number(position.bestPriceSinceOpen).toFixed(3)}</dd>
-                  </div>
-                  <div>
-                    <dt>Spread</dt>
-                    <dd>{Number(position.spreadPips).toFixed(1)} pips</dd>
-                  </div>
+                <dl className="grid grid-cols-3 gap-x-5 gap-y-1.5">
+                  <DetailItem label="数量" value={Number(position.quantity).toLocaleString()} />
+                  <DetailItem label="エントリー" value={Number(position.entryPrice).toFixed(3)} />
+                  <DetailItem label="SL" value={Number(position.stopLossPrice).toFixed(3)} />
+                  <DetailItem label="TP" value={Number(position.takeProfitPrice).toFixed(3)} />
+                  <DetailItem
+                    label="最良値"
+                    value={Number(position.bestPriceSinceOpen).toFixed(3)}
+                  />
+                  <DetailItem
+                    label="Spread"
+                    value={`${Number(position.spreadPips).toFixed(1)} pips`}
+                  />
                 </dl>
               </article>
             ))}
