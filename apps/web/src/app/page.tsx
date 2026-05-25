@@ -1,12 +1,9 @@
-import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import type { UTCTimestamp } from "lightweight-charts";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  type AgentSummaryRaw,
-  CrewPanelSection,
-  fetchAgentSummaries,
-} from "@/components/agents/CrewPanelSection";
+import { type AgentSummaryRaw, fetchAgentSummaries } from "@/components/agents/CrewPanelSection";
+import { CrewTile } from "@/components/agents/CrewTile";
 import { type CandlePoint, CandlestickChart } from "@/components/CandlestickChart";
 import { PnlChart, type PnlPoint } from "@/components/PnlChart";
 import { appRouter } from "@/server/trpc/root";
@@ -182,10 +179,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     0,
   );
   const totalUnrealizedPnl = totalBalance - totalInitialBalance;
+  const totalUnrealizedPnlPct =
+    totalInitialBalance > 0 ? (totalUnrealizedPnl / totalInitialBalance) * 100 : 0;
   const totalOpenPositions = agentSummaries.reduce(
     (sum, agent) => sum + (agent.paperAccount?.openPositionCount ?? 0),
     0,
   );
+  const activeAgents = agentSummaries.filter((agent) => agent.status === "active").length;
   const totalPnl = dashboard.trades.reduce((sum, trade) => sum + Number(trade.pnlJpy), 0);
   const winningTrades = dashboard.trades.filter((trade) => Number(trade.pnlJpy) > 0).length;
   const winRate = dashboard.trades.length > 0 ? (winningTrades / dashboard.trades.length) * 100 : 0;
@@ -201,332 +201,570 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       ? (candleChange / firstCandle.open) * 100
       : 0;
   const candleUp = candleChange >= 0;
+  const topPerformers = [...agentSummaries]
+    .filter((agent) => agent.paperAccount !== null)
+    .sort((a, b) => (b.paperAccount?.pnlJpy ?? 0) - (a.paperAccount?.pnlJpy ?? 0))
+    .slice(0, 3);
 
   return (
-    <>
-      <CrewPanelSection agents={agentSummaries} />
-      <main className="tv-shell">
-        <Sidebar />
-        <TopBar healthOk={health.ok} healthService={health.service} timestamp={health.timestamp} />
-        <TickerStrip
-          balance={totalBalance}
-          unrealizedPnl={totalUnrealizedPnl}
-          realizedPnl={totalPnl}
-          winRate={winRate}
-          trades={dashboard.trades.length}
-          openPositions={totalOpenPositions}
-        />
+    <div className="home">
+      {/* === Hero: 全体スナップショット ===================================== */}
+      <section className="home-hero" aria-label="ダッシュボード概要">
+        <div className="home-hero-left">
+          <div className="home-hero-meta">
+            <p className="home-kicker">AI Crew Overview · USD/JPY · Paper</p>
+            <div className="home-hero-meta-status">
+              <span className={`home-hero-pill ${health.ok ? "live" : "danger"}`}>
+                <span className={`tv-status-dot ${health.ok ? "live" : "danger"}`} />
+                <span>Worker</span>
+                <strong>{health.ok ? "CONNECTED" : "DEGRADED"}</strong>
+              </span>
+              <span className="home-hero-clock">{formatDateTime(health.timestamp)}</span>
+            </div>
+          </div>
+          <div>
+            <h1 className="home-hero-title">
+              本日の <strong>AIクルー</strong> 全体ステータス
+            </h1>
+            <p className="home-hero-sub">
+              {agentSummaries.length}
+              体のクルーがUSD/JPYのペーパー取引を運用中。残高・確定損益・候補戦略・AI日次レビューを一画面で確認できます。
+            </p>
+          </div>
+          <dl className="home-hero-kpis">
+            <KpiCell
+              label="Crew Equity"
+              value={formatJpy(totalBalance)}
+              foot={`Initial ${formatJpy(totalInitialBalance)}`}
+            />
+            <KpiCell
+              label="Unrealized PnL"
+              value={formatJpySigned(totalUnrealizedPnl)}
+              tone={totalUnrealizedPnl > 0 ? "profit" : totalUnrealizedPnl < 0 ? "loss" : undefined}
+              spark={`${totalUnrealizedPnlPct >= 0 ? "+" : "−"}${Math.abs(totalUnrealizedPnlPct).toFixed(2)}%`}
+              sparkTone={totalUnrealizedPnl >= 0 ? "profit" : "loss"}
+            />
+            <KpiCell
+              label="Realized PnL"
+              value={formatJpySigned(totalPnl)}
+              tone={totalPnl > 0 ? "profit" : totalPnl < 0 ? "loss" : undefined}
+              foot={`${dashboard.trades.length} fills · ${dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"} win`}
+            />
+            <KpiCell
+              label="Active Agents"
+              value={`${activeAgents} / ${AGENT_CHARACTERS.length}`}
+              tone="accent"
+              foot={`${totalOpenPositions} open positions`}
+            />
+          </dl>
+        </div>
 
-        <div className="tv-main">
-          <div className="tv-col tv-col-left">
-            <section className="tv-panel" aria-label="エージェント口座">
-              <PanelHeader
-                title="エージェント口座 / Agent Accounts"
-                meta={`${agentSummaries.length}`}
-              />
-              <div className="tv-panel-body">
-                {agentSummaries.length === 0 ? (
-                  <EmptyState text="エージェントがまだ配属されていません" />
-                ) : (
-                  <>
-                    <div className="tv-watchlist-head">
-                      <span>エージェント</span>
-                      <span className="text-right">残高 / PnL</span>
-                    </div>
-                    <Link
-                      href="/"
-                      scroll={false}
-                      className={`tv-watchlist-row tv-watchlist-row-link ${
-                        isAccountView ? "" : "active"
-                      }`}
-                    >
-                      <div className="tv-watchlist-name">
-                        <span className="tv-watchlist-symbol">クルー合計</span>
-                        <span className="tv-watchlist-sub">
-                          <span className="tv-tag">ALL</span>
-                          <span>{agentSummaries.length} agents</span>
-                        </span>
-                      </div>
-                      <div className="tv-watchlist-balance">
-                        {formatJpy(totalBalance)}
-                        <small
-                          className={
-                            totalUnrealizedPnl > 0
-                              ? "tv-pnl profit"
-                              : totalUnrealizedPnl < 0
-                                ? "tv-pnl loss"
-                                : undefined
-                          }
-                        >
-                          {formatJpySigned(totalUnrealizedPnl)}
-                        </small>
-                      </div>
-                    </Link>
-                    {agentSummaries.map((agent) => (
-                      <AgentAccountRow key={agent.id} agent={agent} />
-                    ))}
-                  </>
-                )}
+        <aside className="home-hero-side" aria-label="トップ成績エージェント">
+          <div className="home-hero-side-head">
+            <span className="home-hero-side-title">Top Crew</span>
+            <Link className="btn-ghost" href="/agents">
+              管理 →
+            </Link>
+          </div>
+          {topPerformers.length === 0 ? (
+            <p className="text-[12px] text-muted">
+              ペーパー口座を持つエージェントがまだいません。
+              <br />
+              <Link className="text-accent-strong" href="/agents#picker">
+                ＋ クルーを配属する →
+              </Link>
+            </p>
+          ) : (
+            <div className="home-hero-bars">
+              {topPerformers.map((agent) => {
+                const pnl = agent.paperAccount?.pnlJpy ?? 0;
+                const balance = agent.paperAccount?.balanceJpy ?? 0;
+                const initial = agent.paperAccount?.initialBalanceJpy ?? 0;
+                const maxBalance = Math.max(
+                  ...topPerformers.map((a) => a.paperAccount?.balanceJpy ?? 0),
+                  1,
+                );
+                const pct = (balance / maxBalance) * 100;
+                const tone = pnl > 0 ? "" : pnl < 0 ? "loss" : "flat";
+                return (
+                  <Link
+                    key={agent.id}
+                    href={`/agents/${agent.id}`}
+                    className="home-hero-bar"
+                    aria-label={`${agent.name} の口座`}
+                  >
+                    <span className="home-hero-bar-label">{agent.name}</span>
+                    <span className="home-hero-bar-track" aria-hidden>
+                      <span
+                        className={`home-hero-bar-fill ${tone}`}
+                        style={{ transform: `scaleX(${(pct / 100).toFixed(3)})` }}
+                      />
+                    </span>
+                    <span className="home-hero-bar-value">
+                      {pnl >= 0 ? "+" : "−"}
+                      {formatCompactJpy(Math.abs(pnl))} ·{" "}
+                      {initial > 0 ? `${((pnl / initial) * 100).toFixed(1)}%` : "—"}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </aside>
+      </section>
+
+      {/* === AI Crew Tiles =============================================== */}
+      <section className="home-section" aria-label="AI Crew">
+        <header className="home-section-head">
+          <div className="home-section-head-meta">
+            <p className="home-kicker">AI Crew</p>
+            <h2 className="home-section-title">エージェント・クルー</h2>
+            <p className="home-section-desc">
+              各キャラクターは独自のペルソナを持ち、専用のペーパー口座で戦略を運用します。タイルから個別の詳細画面に遷移できます。
+            </p>
+          </div>
+          <div className="home-section-actions">
+            <Link href="/agents#picker" className="btn-primary">
+              ＋ New Agent
+            </Link>
+            <Link href="/agents" className="btn-secondary">
+              一覧へ
+            </Link>
+          </div>
+        </header>
+        <div className="crew-grid">
+          {AGENT_CHARACTERS.map((character) => {
+            const agent = agentSummaries.find((a) => a.characterId === character.id) ?? null;
+            const summary = agent
+              ? {
+                  id: agent.id,
+                  name: agent.name,
+                  status: agent.status,
+                  currentVersion: agent.currentVersion,
+                  acceptedProposalCount: agent.acceptedProposalCount,
+                  proposalCount: agent.proposalCount,
+                  succeededRunCount: agent.succeededRunCount,
+                  failedRunCount: agent.failedRunCount,
+                  latestRunStatus: agent.latestRun?.status ?? null,
+                  balanceJpy: agent.paperAccount?.balanceJpy ?? null,
+                  initialBalanceJpy: agent.paperAccount?.initialBalanceJpy ?? null,
+                  pnlJpy: agent.paperAccount?.pnlJpy ?? null,
+                  openPositionCount: agent.paperAccount?.openPositionCount ?? null,
+                }
+              : null;
+            return <CrewTile key={character.id} character={character} agent={summary} />;
+          })}
+        </div>
+      </section>
+
+      {/* === Market chart =============================================== */}
+      <section className="home-section" aria-label="Market">
+        <header className="home-section-head">
+          <div className="home-section-head-meta">
+            <p className="home-kicker">Market · USD/JPY</p>
+            <h2 className="home-section-title">マーケット & プライス</h2>
+            <p className="home-section-desc">
+              内部蓄積のローソク足からダッシュボード用のスナップショットを表示。詳細な時間足/BID-ASK切替は
+              Market 画面で。
+            </p>
+          </div>
+          <div className="home-section-actions">
+            <Link href="/market" className="btn-primary">
+              📈 フルチャートを開く
+            </Link>
+          </div>
+        </header>
+
+        <div className="home-card">
+          <div className="home-card-head">
+            <span className="home-card-head-title">
+              {formatSymbol(recentCandles.symbol)} · {recentCandles.timeframe.toUpperCase()} ·{" "}
+              {recentCandles.priceType.toUpperCase()}
+            </span>
+            <span className="home-card-head-meta">
+              <span className="meta-chip">{candleSeries.length} bars</span>
+              <Link href="/market" className="meta-chip">
+                Market →
+              </Link>
+            </span>
+          </div>
+          <div className="home-card-body">
+            <div className="home-chart-summary">
+              <div className="home-chart-price">
+                <span className={`home-chart-price-value ${candleUp ? "profit" : "loss"}`}>
+                  {lastCandle ? lastCandle.close.toFixed(3) : "—"}
+                </span>
+                {lastCandle && firstCandle ? (
+                  <span className={`home-chart-price-delta ${candleUp ? "profit" : "loss"}`}>
+                    {candleUp ? "▲" : "▼"} {Math.abs(candleChange).toFixed(3)}
+                    <span style={{ opacity: 0.75 }}>
+                      ({candleChangePct >= 0 ? "+" : "−"}
+                      {Math.abs(candleChangePct).toFixed(2)}%)
+                    </span>
+                  </span>
+                ) : null}
               </div>
-            </section>
+              <div className="home-chart-stats">
+                <div className="home-chart-stat">
+                  <span className="home-chart-stat-label">High</span>
+                  <span className="home-chart-stat-value">
+                    {lastCandle ? lastCandle.high.toFixed(3) : "—"}
+                  </span>
+                </div>
+                <div className="home-chart-stat">
+                  <span className="home-chart-stat-label">Low</span>
+                  <span className="home-chart-stat-value">
+                    {lastCandle ? lastCandle.low.toFixed(3) : "—"}
+                  </span>
+                </div>
+                <div className="home-chart-stat">
+                  <span className="home-chart-stat-label">Bars</span>
+                  <span className="home-chart-stat-value">
+                    {candleSeries.length.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="home-chart-frame">
+              {candleSeries.length > 0 ? (
+                <CandlestickChart
+                  data={candleSeries}
+                  query={{
+                    symbol: recentCandles.symbol,
+                    timeframe: recentCandles.timeframe,
+                    priceType: recentCandles.priceType,
+                  }}
+                  initialLimit={1000}
+                />
+              ) : (
+                <div className="home-chart-empty">
+                  USD/JPYのMIDキャンドルが取得できていません
+                  <br />
+                  (worker未起動 / データ未蓄積)
+                  <br />
+                  <Link href="/market" className="text-accent-strong">
+                    Market画面で公開APIのレートを確認 →
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* === Performance: PnL + Recent Fills + Crew watchlist ============ */}
+      <section className="home-section" aria-label="Performance">
+        <header className="home-section-head">
+          <div className="home-section-head-meta">
+            <p className="home-kicker">Performance</p>
+            <h2 className="home-section-title">パフォーマンス</h2>
+            <p className="home-section-desc">
+              確定済みのペーパー取引から累積損益と直近の約定を集計。クルー別の口座状況も切り替え可能です。
+            </p>
+          </div>
+          <div className="home-section-actions">
+            <Link href="/activity?kind=runs" className="btn-ghost">
+              実行履歴 →
+            </Link>
+          </div>
+        </header>
+
+        <div className="home-grid-2">
+          <div className="home-card">
+            <div className="home-card-head">
+              <span className="home-card-head-title">
+                累積損益 / Cumulative PnL
+                {selectedAccountName ? ` · ${selectedAccountName}` : ""}
+              </span>
+              <span className="home-card-head-meta">
+                <span className="meta-chip">{dashboard.trades.length} fills</span>
+              </span>
+            </div>
+            <div className="home-card-body">
+              <div className="home-chart-summary">
+                <div className="home-chart-price">
+                  <span
+                    className={`home-chart-price-value ${pnlPositive ? "profit" : "loss"}`}
+                    style={{ fontSize: 24 }}
+                  >
+                    {formatJpySigned(totalPnl)}
+                  </span>
+                  <span className={`home-chart-price-delta ${pnlPositive ? "profit" : "loss"}`}>
+                    勝率 {dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"}
+                  </span>
+                </div>
+              </div>
+              {pnlSeries.length > 0 ? (
+                <PnlChart data={pnlSeries} positive={pnlPositive} />
+              ) : (
+                <div className="home-chart-empty" style={{ minHeight: 160 }}>
+                  確定取引が記録され次第、ここに累積損益が描画されます
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="tv-col tv-col-center">
-            <section
-              className="tv-panel tv-chart-panel tv-chart-panel-price"
-              aria-label="価格チャート"
-            >
-              <PanelHeader
-                title={`${formatSymbol(recentCandles.symbol)} · ${recentCandles.timeframe.toUpperCase()} · ${recentCandles.priceType.toUpperCase()}`}
-                meta={`${candleSeries.length} bars`}
-              />
-              <div className="tv-panel-body">
-                <div className="tv-chart-summary">
-                  <div className="tv-chart-headline">
-                    <span className="tv-chart-headline-label">終値 / Last</span>
-                    <span className={`tv-chart-headline-value ${candleUp ? "profit" : "loss"}`}>
-                      {lastCandle ? lastCandle.close.toFixed(3) : "—"}
-                      {lastCandle && firstCandle ? (
-                        <span className="tv-chart-headline-delta">
-                          {candleUp ? "▲" : "▼"} {Math.abs(candleChange).toFixed(3)} (
-                          {candleChangePct >= 0 ? "+" : "−"}
-                          {Math.abs(candleChangePct).toFixed(2)}%)
-                        </span>
-                      ) : null}
-                    </span>
-                  </div>
-                  <div className="tv-chart-stats">
-                    <div className="tv-chart-stat">
-                      <span className="tv-chart-stat-label">高値 / High</span>
-                      <span className="tv-chart-stat-value">
-                        {lastCandle ? lastCandle.high.toFixed(3) : "—"}
-                      </span>
-                    </div>
-                    <div className="tv-chart-stat">
-                      <span className="tv-chart-stat-label">安値 / Low</span>
-                      <span className="tv-chart-stat-value">
-                        {lastCandle ? lastCandle.low.toFixed(3) : "—"}
-                      </span>
-                    </div>
-                    <div className="tv-chart-stat">
-                      <span className="tv-chart-stat-label">本数 / Bars</span>
-                      <span className="tv-chart-stat-value">
-                        {candleSeries.length.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
+          <div className="home-card">
+            <div className="home-card-head">
+              <span className="home-card-head-title">エージェント口座 / Agents</span>
+              <span className="home-card-head-meta">
+                <span className="meta-chip">{agentSummaries.length} crew</span>
+              </span>
+            </div>
+            <div className="home-card-body flush scroll">
+              {agentSummaries.length === 0 ? (
+                <div className="home-insight-empty">
+                  エージェントがまだ配属されていません
+                  <br />
+                  <Link href="/agents#picker" className="text-accent-strong">
+                    ＋ クルーを配属する →
+                  </Link>
                 </div>
-
-                {candleSeries.length > 0 ? (
-                  <CandlestickChart
-                    data={candleSeries}
-                    query={{
-                      symbol: recentCandles.symbol,
-                      timeframe: recentCandles.timeframe,
-                      priceType: recentCandles.priceType,
-                    }}
-                    initialLimit={1000}
-                  />
-                ) : (
-                  <div className="tv-chart-empty">
-                    USD/JPYのMIDキャンドルが取得できていません(worker未起動 / データ未蓄積)
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section
-              className="tv-panel tv-chart-panel tv-chart-panel-compact"
-              aria-label="累積損益"
-            >
-              <PanelHeader
-                title={`累積損益 / Cumulative PnL${selectedAccountName ? ` (${selectedAccountName})` : ""}`}
-                meta={dashboard.trades.length > 0 ? `${dashboard.trades.length} fills` : "0 fills"}
-              />
-              <div className="tv-panel-body">
-                <div className="tv-chart-summary tv-chart-summary-compact">
-                  <div className="tv-chart-headline">
-                    <span className="tv-chart-headline-label">確定損益 / Realized</span>
-                    <span
-                      className={`tv-chart-headline-value tv-chart-headline-value-sm ${pnlPositive ? "profit" : "loss"}`}
-                    >
-                      {formatJpySigned(totalPnl)}
-                      <span className="tv-chart-headline-delta">
-                        勝率 {dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"} ·{" "}
-                        {dashboard.trades.length} trades
+              ) : (
+                <div className="home-watchlist">
+                  <Link
+                    href="/"
+                    scroll={false}
+                    className={`home-watchlist-row ${isAccountView ? "" : "active"}`}
+                  >
+                    <span className="home-watchlist-avatar" aria-hidden>
+                      Σ
+                    </span>
+                    <span className="home-watchlist-name">
+                      <span className="home-watchlist-name-main">クルー合計</span>
+                      <span className="home-watchlist-name-sub">
+                        <span className="tv-tag">ALL</span>
+                        {agentSummaries.length} agents
                       </span>
                     </span>
-                  </div>
+                    <span className="home-watchlist-balance">
+                      <span className="home-watchlist-balance-main">{formatJpy(totalBalance)}</span>
+                      <span
+                        className={`home-watchlist-balance-sub ${
+                          totalUnrealizedPnl > 0 ? "profit" : totalUnrealizedPnl < 0 ? "loss" : ""
+                        }`}
+                      >
+                        {formatJpySigned(totalUnrealizedPnl)}
+                      </span>
+                    </span>
+                  </Link>
+                  {agentSummaries.map((agent) => (
+                    <AgentAccountRow key={agent.id} agent={agent} />
+                  ))}
                 </div>
-
-                {pnlSeries.length > 0 ? (
-                  <PnlChart data={pnlSeries} positive={pnlPositive} />
-                ) : (
-                  <div className="tv-chart-empty tv-chart-empty-compact">
-                    確定取引が記録され次第、ここに累積損益が描画されます
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="tv-panel" aria-label="直近の確定取引">
-              <PanelHeader
-                title={`直近の確定取引 / Recent Fills${selectedAccountName ? ` (${selectedAccountName})` : ""}`}
-                meta={`${dashboard.trades.length}`}
-              />
-              <div className="tv-panel-body scroll-x">
-                {dashboard.trades.length === 0 ? (
-                  <EmptyState text="確定済みのペーパー取引はまだありません" />
-                ) : (
-                  <table className="tv-table">
-                    <thead>
-                      <tr>
-                        <th>通貨ペア</th>
-                        <th>売買</th>
-                        <th className="num">損益 (JPY)</th>
-                        <th className="num">決済日時</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dashboard.trades.map((trade) => {
-                        const pnl = Number(trade.pnlJpy);
-                        const sideClass = trade.side.toLowerCase();
-                        return (
-                          <tr key={`${trade.symbol}-${trade.closedAt}`}>
-                            <td>
-                              <span className="tv-symbol">{formatSymbol(trade.symbol)}</span>
-                            </td>
-                            <td>
-                              <span className={`tv-side ${sideClass}`}>
-                                {translateSide(trade.side)}
-                              </span>
-                            </td>
-                            <td className="num">
-                              <span className={`tv-pnl ${pnl >= 0 ? "profit" : "loss"}`}>
-                                {formatJpySigned(pnl)}
-                              </span>
-                            </td>
-                            <td className="num">
-                              <span className="tv-time">{formatDateTime(trade.closedAt)}</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </section>
-
-            <section className="tv-panel" aria-label="AI日次レビュー">
-              <PanelHeader
-                title="AI日次レビュー / Daily Review"
-                meta={latestReview ? formatDate(latestReview.reviewDate) : "—"}
-              />
-              <div className="tv-panel-body">
-                {dashboard.dailyReviews.length === 0 ? (
-                  <EmptyState text="AI日次レビューはまだ記録されていません" />
-                ) : (
-                  <div className="tv-review-stack">
-                    {dashboard.dailyReviews.map((review) => (
-                      <article
-                        className="tv-review-card"
-                        key={`${review.reviewDate}-${review.createdAt}`}
-                      >
-                        <header className="tv-review-head">
-                          <div className="tv-review-head-left">
-                            <span className="tv-review-date">{formatDate(review.reviewDate)}</span>
-                            <span className={`tv-tag ${normalizeStatus(review.status)}`}>
-                              {translateStatus(review.status)}
-                            </span>
-                          </div>
-                          <span className="tv-review-time">{formatDateTime(review.createdAt)}</span>
-                        </header>
-                        <p className="tv-review-summary">
-                          {review.summary ?? "レビューは却下、または要約が返されませんでした。"}
-                        </p>
-                        <div className="tv-review-columns">
-                          <ReviewList
-                            title="採用候補"
-                            items={formatRecommendationItems(review.baselinePromotionCandidates)}
-                          />
-                          <ReviewList
-                            title="停止候補"
-                            items={formatRecommendationItems(review.candidateRetirementCandidates)}
-                          />
-                          <ReviewList title="警告" items={formatWarningItems(review.warnings)} />
-                          <ReviewList
-                            title="次の対応"
-                            items={formatStringItems(review.nextActions)}
-                          />
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
-
-          <div className="tv-col tv-col-right">
-            {dashboard.accountDetail ? (
-              <>
-                <AccountStrategyPanel detail={dashboard.accountDetail} />
-                <PositionsPanel detail={dashboard.accountDetail} />
-              </>
-            ) : null}
-            <section className="tv-panel" aria-label="候補戦略">
-              <PanelHeader title="候補戦略 / Candidates" meta={`${dashboard.candidates.length}`} />
-              <div className="tv-panel-body">
-                {dashboard.candidates.length === 0 ? (
-                  <EmptyState text="AI候補戦略はまだ承認されていません" />
-                ) : (
-                  dashboard.candidates.map((candidate) => {
-                    const status = candidate.strategyRunStatus ?? candidate.status;
-                    return (
-                      <article
-                        className="tv-strategy-row tv-strategy-row-readonly"
-                        key={candidate.id}
-                      >
-                        <div className="tv-strategy-meta">
-                          <span className="tv-strategy-name">
-                            {candidate.candidateStrategyName ?? candidate.id}
-                          </span>
-                          <span className="tv-strategy-source">
-                            ← {candidate.sourceStrategyName}
-                          </span>
-                          <span className="tv-strategy-tags">
-                            <span className="tv-tag">{candidate.timeframe}</span>
-                            <span className={`tv-tag ${normalizeStatus(status)}`}>
-                              {translateStatus(status)}
-                            </span>
-                          </span>
-                        </div>
-                        <div className="tv-strategy-status">
-                          <span className="tv-strategy-status-label">自動審査</span>
-                          <span className="tv-strategy-status-value">
-                            {describeAutoStatus(status)}
-                          </span>
-                        </div>
-                      </article>
-                    );
-                  })
-                )}
-              </div>
-            </section>
+              )}
+            </div>
           </div>
         </div>
 
-        <StatusBar
-          healthOk={health.ok}
-          healthService={health.service}
-          balance={totalBalance}
-          pnl={totalPnl}
-          accounts={dashboard.accounts.length}
-          candidates={dashboard.candidates.length}
-        />
-      </main>
-    </>
+        <div className="home-card">
+          <div className="home-card-head">
+            <span className="home-card-head-title">
+              直近の確定取引 / Recent Fills
+              {selectedAccountName ? ` · ${selectedAccountName}` : ""}
+            </span>
+            <span className="home-card-head-meta">
+              <span className="meta-chip">{dashboard.trades.length} fills</span>
+            </span>
+          </div>
+          <div className="home-card-body flush">
+            {dashboard.trades.length === 0 ? (
+              <div className="home-insight-empty">確定済みのペーパー取引はまだありません</div>
+            ) : (
+              <div style={{ overflow: "auto" }}>
+                <table className="home-trade-table">
+                  <thead>
+                    <tr>
+                      <th>通貨ペア</th>
+                      <th>売買</th>
+                      <th className="num">損益 (JPY)</th>
+                      <th className="num">決済日時</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.trades.slice(0, 12).map((trade) => {
+                      const pnl = Number(trade.pnlJpy);
+                      const sideClass = trade.side.toLowerCase();
+                      return (
+                        <tr key={`${trade.symbol}-${trade.closedAt}`}>
+                          <td>
+                            <span className="tv-symbol">{formatSymbol(trade.symbol)}</span>
+                          </td>
+                          <td>
+                            <span className={`tv-side ${sideClass}`}>
+                              {translateSide(trade.side)}
+                            </span>
+                          </td>
+                          <td className="num">
+                            <span className={`tv-pnl ${pnl >= 0 ? "profit" : "loss"}`}>
+                              {formatJpySigned(pnl)}
+                            </span>
+                          </td>
+                          <td className="num">
+                            <span className="tv-time">{formatDateTime(trade.closedAt)}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {dashboard.accountDetail ? (
+          <div className="home-grid-2">
+            <AccountStrategyPanel detail={dashboard.accountDetail} />
+            <PositionsPanel detail={dashboard.accountDetail} />
+          </div>
+        ) : null}
+      </section>
+
+      {/* === AI Insights: Review + Candidates =========================== */}
+      <section className="home-section" aria-label="AI Insights">
+        <header className="home-section-head">
+          <div className="home-section-head-meta">
+            <p className="home-kicker">AI Insights</p>
+            <h2 className="home-section-title">AIインサイト</h2>
+            <p className="home-section-desc">
+              AIの日次レビューと審査中の候補戦略を要約。詳細は Activity 画面で時系列に確認できます。
+            </p>
+          </div>
+          <div className="home-section-actions">
+            <Link href="/activity?kind=proposals" className="btn-ghost">
+              提案を見る →
+            </Link>
+            <Link href="/activity?kind=runs" className="btn-ghost">
+              実行を見る →
+            </Link>
+          </div>
+        </header>
+
+        <div className="home-grid-3">
+          <div className="home-card">
+            <div className="home-card-head">
+              <span className="home-card-head-title">AI日次レビュー / Daily Review</span>
+              <span className="home-card-head-meta">
+                <span className="meta-chip">
+                  {latestReview ? formatDate(latestReview.reviewDate) : "—"}
+                </span>
+              </span>
+            </div>
+            <div className="home-card-body">
+              {dashboard.dailyReviews.length === 0 ? (
+                <div className="home-insight-empty">AI日次レビューはまだ記録されていません</div>
+              ) : (
+                <div>
+                  {dashboard.dailyReviews.slice(0, 2).map((review) => (
+                    <article
+                      className="home-review"
+                      key={`${review.reviewDate}-${review.createdAt}`}
+                    >
+                      <header className="home-review-head">
+                        <div className="home-review-head-left">
+                          <span className="home-review-date">{formatDate(review.reviewDate)}</span>
+                          <span className={`tv-tag ${normalizeStatus(review.status)}`}>
+                            {translateStatus(review.status)}
+                          </span>
+                        </div>
+                        <span className="home-review-time">{formatDateTime(review.createdAt)}</span>
+                      </header>
+                      <p className="home-review-summary">
+                        {review.summary ?? "レビューは却下、または要約が返されませんでした。"}
+                      </p>
+                      <div className="home-review-cols">
+                        <ReviewCol
+                          title="採用候補"
+                          items={formatRecommendationItems(review.baselinePromotionCandidates)}
+                        />
+                        <ReviewCol
+                          title="停止候補"
+                          items={formatRecommendationItems(review.candidateRetirementCandidates)}
+                        />
+                        <ReviewCol title="警告" items={formatWarningItems(review.warnings)} />
+                        <ReviewCol title="次の対応" items={formatStringItems(review.nextActions)} />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="home-card">
+            <div className="home-card-head">
+              <span className="home-card-head-title">候補戦略 / Candidates</span>
+              <span className="home-card-head-meta">
+                <span className="meta-chip">{dashboard.candidates.length} 件</span>
+              </span>
+            </div>
+            <div className="home-card-body flush scroll">
+              {dashboard.candidates.length === 0 ? (
+                <div className="home-insight-empty">AI候補戦略はまだ承認されていません</div>
+              ) : (
+                dashboard.candidates.map((candidate) => {
+                  const status = candidate.strategyRunStatus ?? candidate.status;
+                  return (
+                    <article className="home-candidate" key={candidate.id}>
+                      <div className="home-candidate-meta">
+                        <span className="home-candidate-name">
+                          {candidate.candidateStrategyName ?? candidate.id}
+                        </span>
+                        <span className="home-candidate-source">
+                          ← {candidate.sourceStrategyName}
+                        </span>
+                        <span className="home-candidate-tags">
+                          <span className="tv-tag">{candidate.timeframe}</span>
+                          <span className={`tv-tag ${normalizeStatus(status)}`}>
+                            {translateStatus(status)}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="home-candidate-status">
+                        <span className="home-candidate-status-label">自動審査</span>
+                        <span className="home-candidate-status-value">
+                          {describeAutoStatus(status)}
+                        </span>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function KpiCell({
+  label,
+  value,
+  tone,
+  foot,
+  spark,
+  sparkTone,
+}: {
+  label: string;
+  value: string;
+  tone?: "profit" | "loss" | "accent";
+  foot?: string;
+  spark?: string;
+  sparkTone?: "profit" | "loss";
+}) {
+  return (
+    <div className="home-kpi">
+      <span className="home-kpi-label">{label}</span>
+      <span className={`home-kpi-value ${tone ?? ""}`}>{value}</span>
+      {(foot || spark) && (
+        <span className="home-kpi-foot">
+          {spark ? <span className={`home-kpi-spark ${sparkTone ?? ""}`}>{spark}</span> : null}
+          {foot ? <span>{foot}</span> : null}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -535,307 +773,58 @@ function AgentAccountRow({ agent }: { agent: AgentSummaryRaw }) {
   const account = agent.paperAccount;
   const pnl = account?.pnlJpy ?? 0;
   const balance = account?.balanceJpy ?? 0;
-  const pnlClass = pnl > 0 ? "tv-pnl profit" : pnl < 0 ? "tv-pnl loss" : undefined;
+  const pnlClass = pnl > 0 ? "profit" : pnl < 0 ? "loss" : "";
   return (
     <Link
       href={`/agents/${agent.id}`}
-      className="tv-watchlist-row tv-watchlist-row-link"
+      className="home-watchlist-row"
       data-character-id={character?.id ?? "unassigned"}
     >
-      <div className="tv-watchlist-name flex items-center gap-2">
+      <span className="home-watchlist-avatar" aria-hidden>
         {character ? (
           <Image
             src={character.avatarPath ?? character.imagePath}
             alt={`${character.name} avatar`}
-            width={28}
-            height={28}
-            className="rounded-md"
+            width={36}
+            height={36}
             unoptimized
           />
-        ) : null}
-        <span className="flex flex-col">
-          <span className="tv-watchlist-symbol">{agent.name}</span>
-          <span className="tv-watchlist-sub">
-            <span className={`tv-tag ${normalizeStatus(agent.status)}`}>
-              {translateStatus(agent.status)}
-            </span>
-            <span>{account ? `${account.openPositionCount} open` : "no account"}</span>
+        ) : (
+          (agent.name[0] ?? "?")
+        )}
+      </span>
+      <span className="home-watchlist-name">
+        <span className="home-watchlist-name-main">{agent.name}</span>
+        <span className="home-watchlist-name-sub">
+          <span className={`tv-tag ${normalizeStatus(agent.status)}`}>
+            {translateStatus(agent.status)}
           </span>
+          {account ? `${account.openPositionCount} open` : "no account"}
         </span>
-      </div>
-      <div className="tv-watchlist-balance">
-        {account ? formatJpy(balance) : "—"}
-        <small className={pnlClass}>{account ? formatJpySigned(pnl) : ""}</small>
-      </div>
+      </span>
+      <span className="home-watchlist-balance">
+        <span className="home-watchlist-balance-main">{account ? formatJpy(balance) : "—"}</span>
+        <span className={`home-watchlist-balance-sub ${pnlClass}`}>
+          {account ? formatJpySigned(pnl) : ""}
+        </span>
+      </span>
     </Link>
   );
 }
 
-function Sidebar() {
-  const upcomingTitle = "未実装 (ルート未追加)";
+function ReviewCol({ title, items }: { title: string; items: string[] }) {
   return (
-    <aside className="tv-sidebar" aria-label="メインナビゲーション">
-      <button
-        type="button"
-        className="tv-sidebar-btn active"
-        title="ダッシュボード"
-        aria-label="ダッシュボード"
-        aria-current="page"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 12 L12 3 L21 12" />
-          <path d="M5 10 L5 21 L19 21 L19 10" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="口座 (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="6" width="18" height="13" rx="2" />
-          <path d="M3 10 L21 10" />
-          <path d="M7 15 L11 15" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="チャート (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 20 L9 14 L13 17 L21 8" />
-          <path d="M15 8 L21 8 L21 14" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="戦略 (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="3.5" />
-          <path d="M12 3 L12 6 M12 18 L12 21 M3 12 L6 12 M18 12 L21 12 M5.6 5.6 L7.7 7.7 M16.3 16.3 L18.4 18.4 M5.6 18.4 L7.7 16.3 M16.3 7.7 L18.4 5.6" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="履歴 (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7 L12 12 L15.5 14" />
-        </svg>
-      </button>
-      <div className="tv-sidebar-divider" />
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="AI レビュー (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 3 L13.7 8.5 L19.5 8.5 L14.9 12.1 L16.6 17.5 L12 14 L7.4 17.5 L9.1 12.1 L4.5 8.5 L10.3 8.5 Z" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="アラート (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M6 9 A6 6 0 0 1 18 9 L18 14 L20 17 L4 17 L6 14 Z" />
-          <path d="M10 20 A2 2 0 0 0 14 20" />
-        </svg>
-      </button>
-      <span className="tv-sidebar-spacer" />
-      <button
-        type="button"
-        className="tv-sidebar-btn"
-        title={upcomingTitle}
-        aria-label="設定 (未実装)"
-        disabled
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15 A1.65 1.65 0 0 0 19.73 16.81 L19.79 16.87 A2 2 0 0 1 16.96 19.7 L16.9 19.64 A1.65 1.65 0 0 0 15.09 19.31 A1.65 1.65 0 0 0 14.04 20.82 L14.04 21 A2 2 0 0 1 10.04 21 L10.04 20.91 A1.65 1.65 0 0 0 8.96 19.4 A1.65 1.65 0 0 0 7.15 19.73 L7.09 19.79 A2 2 0 0 1 4.26 16.96 L4.32 16.9 A1.65 1.65 0 0 0 4.65 15.09 A1.65 1.65 0 0 0 3.14 14.04 L3 14.04 A2 2 0 0 1 3 10.04 L3.09 10.04 A1.65 1.65 0 0 0 4.6 8.96 A1.65 1.65 0 0 0 4.27 7.15 L4.21 7.09 A2 2 0 0 1 7.04 4.26 L7.1 4.32 A1.65 1.65 0 0 0 8.91 4.65 A1.65 1.65 0 0 0 9.96 3.14 L9.96 3 A2 2 0 0 1 13.96 3 L13.96 3.09 A1.65 1.65 0 0 0 15.04 4.6 A1.65 1.65 0 0 0 16.85 4.27 L16.91 4.21 A2 2 0 0 1 19.74 7.04 L19.68 7.1 A1.65 1.65 0 0 0 19.35 8.91 A1.65 1.65 0 0 0 20.86 9.96 L21 9.96 A2 2 0 0 1 21 13.96 L20.91 13.96 A1.65 1.65 0 0 0 19.4 15 Z" />
-        </svg>
-      </button>
-    </aside>
-  );
-}
-
-function StatusBar({
-  healthOk,
-  healthService,
-  balance,
-  pnl,
-  accounts,
-  candidates,
-}: {
-  healthOk: boolean;
-  healthService: string;
-  balance: number;
-  pnl: number;
-  accounts: number;
-  candidates: number;
-}) {
-  const pnlClass = pnl >= 0 ? "profit" : "loss";
-  return (
-    <footer className="tv-statusbar" role="contentinfo" aria-label="ステータス">
-      <span className="tv-statusbar-item">
-        <span className={`tv-status-dot sm ${healthOk ? "live" : "danger"}`} />
-        <strong>{healthOk ? "CONNECTED" : "DEGRADED"}</strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item">
-        Service <strong>{healthService}</strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item optional">
-        Mode <strong>PAPER</strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item optional">
-        Symbol <strong>USD/JPY</strong>
-      </span>
-      <span className="tv-statusbar-spacer" />
-      <span className="tv-statusbar-item optional">
-        Equity <strong>{formatJpy(balance)}</strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item">
-        PnL{" "}
-        <strong className={pnlClass === "profit" ? "text-profit-strong" : "text-loss-strong"}>
-          {formatJpySigned(pnl)}
-        </strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item">
-        Accounts <strong>{accounts}</strong>
-      </span>
-      <span className="tv-statusbar-sep" />
-      <span className="tv-statusbar-item">
-        Candidates <strong>{candidates}</strong>
-      </span>
-    </footer>
-  );
-}
-
-function TopBar({
-  healthOk,
-  healthService,
-  timestamp,
-}: {
-  healthOk: boolean;
-  healthService: string;
-  timestamp: string;
-}) {
-  return (
-    <header className="tv-topbar">
-      <div className="tv-topbar-left">
-        <div className="tv-brand">
-          <span className="tv-brand-logo">AT</span>
-          <span className="tv-brand-name">AI Trade</span>
-          <span className="tv-brand-sub">USD/JPY · Paper</span>
-        </div>
-      </div>
-      <div className="tv-topbar-right">
-        <span className="tv-system-pill" title={`Service: ${healthService}`}>
-          <span className={`tv-status-dot ${healthOk ? "live" : "danger"}`} />
-          {healthOk ? "稼働中" : "要確認"}
-        </span>
-        <span className="tv-clock">{formatDateTime(timestamp)}</span>
-      </div>
-    </header>
-  );
-}
-
-function TickerStrip({
-  balance,
-  unrealizedPnl,
-  realizedPnl,
-  winRate,
-  trades,
-  openPositions,
-}: {
-  balance: number;
-  unrealizedPnl: number;
-  realizedPnl: number;
-  winRate: number;
-  trades: number;
-  openPositions: number;
-}) {
-  return (
-    <div className="tv-ticker">
-      <div className="tv-ticker-tile">
-        <span className="tv-ticker-label">
-          <span>クルー総残高</span>
-          <span>Crew Equity</span>
-        </span>
-        <span className="tv-ticker-value">{formatJpy(balance)}</span>
-      </div>
-      <div className="tv-ticker-tile">
-        <span className="tv-ticker-label">
-          <span>含み損益</span>
-          <span>Unrealized PnL</span>
-        </span>
-        <span className={`tv-ticker-value ${unrealizedPnl >= 0 ? "profit" : "loss"}`}>
-          {formatJpySigned(unrealizedPnl)}
-        </span>
-      </div>
-      <div className="tv-ticker-tile">
-        <span className="tv-ticker-label">
-          <span>確定損益 / 勝率</span>
-          <span>Realized / Win Rate</span>
-        </span>
-        <span className={`tv-ticker-value ${realizedPnl >= 0 ? "profit" : "loss"}`}>
-          {formatJpySigned(realizedPnl)}
-          <span className="ml-2 text-[13px] text-muted">
-            {trades > 0 ? `${winRate.toFixed(1)}% (${trades})` : "—"}
-          </span>
-        </span>
-      </div>
-      <div className="tv-ticker-tile">
-        <span className="tv-ticker-label">
-          <span>オープン中</span>
-          <span>Open Positions</span>
-        </span>
-        <span className="tv-ticker-value accent">{openPositions.toLocaleString()}</span>
-      </div>
-    </div>
-  );
-}
-
-function PanelHeader({ title, meta }: { title: string; meta: string }) {
-  return (
-    <div className="tv-panel-header">
-      <div className="tv-panel-title">
-        <span className="tv-panel-title-bar" />
-        {title}
-      </div>
-      <span className="tv-panel-meta">{meta}</span>
-    </div>
-  );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="tv-empty">
-      <span className="tv-empty-icon">∅</span>
-      {text}
+    <div className="home-review-col">
+      <h4>{title}</h4>
+      {items.length === 0 ? (
+        <span className="home-review-empty">なし</span>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -848,13 +837,15 @@ function AccountStrategyPanel({ detail }: { detail: AccountDetail }) {
   const pnl = Number.isFinite(balance) && Number.isFinite(initial) ? balance - initial : 0;
   const pnlPositive = pnl >= 0;
   return (
-    <section className="tv-panel" aria-label="戦略詳細">
-      <PanelHeader
-        title={`戦略詳細 / Strategy (${detail.name})`}
-        meta={run ? run.status.toUpperCase() : "—"}
-      />
-      <div className="tv-panel-body">
-        <dl className="tv-detail-grid">
+    <div className="home-card">
+      <div className="home-card-head">
+        <span className="home-card-head-title">戦略詳細 / Strategy · {detail.name}</span>
+        <span className="home-card-head-meta">
+          <span className="meta-chip">{run ? run.status.toUpperCase() : "—"}</span>
+        </span>
+      </div>
+      <div className="home-card-body">
+        <dl className="home-strategy-grid">
           <div>
             <dt>残高 / Balance</dt>
             <dd>{formatJpy(balance)}</dd>
@@ -865,9 +856,7 @@ function AccountStrategyPanel({ detail }: { detail: AccountDetail }) {
           </div>
           <div>
             <dt>変動 / Δ</dt>
-            <dd className={pnlPositive ? "tv-pnl profit" : "tv-pnl loss"}>
-              {formatJpySigned(pnl)}
-            </dd>
+            <dd className={pnlPositive ? "profit" : "loss"}>{formatJpySigned(pnl)}</dd>
           </div>
           <div>
             <dt>戦略名 / Strategy</dt>
@@ -893,61 +882,65 @@ function AccountStrategyPanel({ detail }: { detail: AccountDetail }) {
           </details>
         )}
       </div>
-    </section>
+    </div>
   );
 }
 
 function PositionsPanel({ detail }: { detail: AccountDetail }) {
   return (
-    <section className="tv-panel" aria-label="保有ポジション">
-      <PanelHeader
-        title={`保有ポジション / Open Positions (${detail.name})`}
-        meta={`${detail.openPositions.length}`}
-      />
-      <div className="tv-panel-body">
+    <div className="home-card">
+      <div className="home-card-head">
+        <span className="home-card-head-title">保有ポジション · {detail.name}</span>
+        <span className="home-card-head-meta">
+          <span className="meta-chip">{detail.openPositions.length} 件</span>
+        </span>
+      </div>
+      <div className="home-card-body flush">
         {detail.openPositions.length === 0 ? (
-          <EmptyState text="現在この口座に保有ポジションはありません" />
+          <div className="home-insight-empty">現在この口座に保有ポジションはありません</div>
         ) : (
-          detail.openPositions.map((position) => (
-            <article className="tv-position-row" key={`${position.openedAt}-${position.symbol}`}>
-              <div className="tv-position-head">
-                <span className="tv-symbol">{formatSymbol(position.symbol)}</span>
-                <span className={`tv-side ${position.side.toLowerCase()}`}>
-                  {translateSide(position.side)}
-                </span>
-                <span className="tv-time">{formatDateTime(position.openedAt)}</span>
-              </div>
-              <dl className="tv-position-grid">
-                <div>
-                  <dt>数量</dt>
-                  <dd>{Number(position.quantity).toLocaleString()}</dd>
+          <div className="home-positions">
+            {detail.openPositions.map((position) => (
+              <article className="home-position" key={`${position.openedAt}-${position.symbol}`}>
+                <div className="home-position-head">
+                  <span className="tv-symbol">{formatSymbol(position.symbol)}</span>
+                  <span className={`tv-side ${position.side.toLowerCase()}`}>
+                    {translateSide(position.side)}
+                  </span>
+                  <span className="tv-time">{formatDateTime(position.openedAt)}</span>
                 </div>
-                <div>
-                  <dt>エントリー</dt>
-                  <dd>{Number(position.entryPrice).toFixed(3)}</dd>
-                </div>
-                <div>
-                  <dt>SL</dt>
-                  <dd>{Number(position.stopLossPrice).toFixed(3)}</dd>
-                </div>
-                <div>
-                  <dt>TP</dt>
-                  <dd>{Number(position.takeProfitPrice).toFixed(3)}</dd>
-                </div>
-                <div>
-                  <dt>最良値</dt>
-                  <dd>{Number(position.bestPriceSinceOpen).toFixed(3)}</dd>
-                </div>
-                <div>
-                  <dt>Spread</dt>
-                  <dd>{Number(position.spreadPips).toFixed(1)} pips</dd>
-                </div>
-              </dl>
-            </article>
-          ))
+                <dl className="home-position-grid">
+                  <div>
+                    <dt>数量</dt>
+                    <dd>{Number(position.quantity).toLocaleString()}</dd>
+                  </div>
+                  <div>
+                    <dt>エントリー</dt>
+                    <dd>{Number(position.entryPrice).toFixed(3)}</dd>
+                  </div>
+                  <div>
+                    <dt>SL</dt>
+                    <dd>{Number(position.stopLossPrice).toFixed(3)}</dd>
+                  </div>
+                  <div>
+                    <dt>TP</dt>
+                    <dd>{Number(position.takeProfitPrice).toFixed(3)}</dd>
+                  </div>
+                  <div>
+                    <dt>最良値</dt>
+                    <dd>{Number(position.bestPriceSinceOpen).toFixed(3)}</dd>
+                  </div>
+                  <div>
+                    <dt>Spread</dt>
+                    <dd>{Number(position.spreadPips).toFixed(1)} pips</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
         )}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -958,23 +951,6 @@ function formatStrategyDefinitionPreview(value: unknown): string | null {
   } catch {
     return null;
   }
-}
-
-function ReviewList({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className="tv-review-list">
-      <h4>{title}</h4>
-      {items.length === 0 ? (
-        <span className="tv-muted">なし</span>
-      ) : (
-        <ul>
-          {items.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 function buildCandleSeries(candles: RecentCandlesResponse["candles"]): CandlePoint[] {
@@ -1050,6 +1026,13 @@ function formatJpySigned(value: number) {
   return `${sign}${formatJpy(Math.abs(value))}`;
 }
 
+function formatCompactJpy(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 100_000_000) return `¥${(abs / 100_000_000).toFixed(2)}億`;
+  if (abs >= 10_000) return `¥${(abs / 10_000).toFixed(1)}万`;
+  return `¥${Math.round(abs).toLocaleString("ja-JP")}`;
+}
+
 function formatDateTime(value: string) {
   const date = new Date(value);
 
@@ -1110,6 +1093,7 @@ function translateStatus(status: string) {
     failed: "失敗",
     healthy: "正常",
     open: "保有中",
+    paused: "停止",
     proposed: "提案中",
     promoted_to_baseline: "Baseline昇格済み",
     rejected: "却下",
