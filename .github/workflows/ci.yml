@@ -127,28 +127,44 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-      - name: Trust deploy host key
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      - name: Install cloudflared
         run: |
           set -euo pipefail
-          test -n "$DEPLOY_HOST"
-          ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          curl -fsSL \
+            --output /tmp/cloudflared.deb \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i /tmp/cloudflared.deb
 
-      - name: Run production deploy
+      - name: Configure SSH
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CLOUDFLARE_ACCESS_SERVICE_TOKEN_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_SERVICE_TOKEN_SECRET }}
         run: |
           set -euo pipefail
           test -n "$DEPLOY_HOST"
           test -n "$DEPLOY_USER"
-          ssh \
-            -i ~/.ssh/deploy_key \
-            -p "$DEPLOY_PORT" \
-            -o BatchMode=yes \
-            -o IdentitiesOnly=yes \
-            "$DEPLOY_USER@$DEPLOY_HOST" \
-            < deploy/production-deploy.sh
+          test -n "$TUNNEL_SERVICE_TOKEN_ID"
+          test -n "$TUNNEL_SERVICE_TOKEN_SECRET"
+          cat >> ~/.ssh/config <<EOF
+          Host ai-trade-production
+            HostName $DEPLOY_HOST
+            Port $DEPLOY_PORT
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking accept-new
+            ProxyCommand cloudflared access ssh --hostname %h
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Run production deploy
+        env:
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CLOUDFLARE_ACCESS_SERVICE_TOKEN_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_SERVICE_TOKEN_SECRET }}
+        run: |
+          set -euo pipefail
+          ssh ai-trade-production < deploy/production-deploy.sh
