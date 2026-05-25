@@ -13,6 +13,7 @@
     "@ai-trade/config": "workspace:*",
     "@ai-trade/db": "workspace:*",
     "@hono/node-server": "^1.19.6",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "drizzle-orm": "^0.45.0",
     "hono": "^4.10.6",
     "pg": "^8.16.3"

@@ -57,17 +57,26 @@ export type ClaudeCliProviderOptions = {
   enabled?: boolean;
   executable?: string;
   timeoutMs?: number;
+  mcpEnabled?: boolean;
+  mcpAgentResearchUrl?: string;
 };
 
 export class ClaudeCliProvider implements StrategyProposalProvider {
   private readonly enabled: boolean;
   private readonly executable: string;
   private readonly timeoutMs: number;
+  private readonly mcpEnabled: boolean;
+  private readonly mcpAgentResearchUrl: string;
 
   constructor(options: ClaudeCliProviderOptions = {}) {
     this.enabled = options.enabled ?? process.env.CLAUDE_CLI_ENABLED === "1";
     this.executable = options.executable ?? process.env.CLAUDE_CLI_PATH ?? "claude";
     this.timeoutMs = options.timeoutMs ?? 120_000;
+    this.mcpEnabled = options.mcpEnabled ?? process.env.CLAUDE_MCP_ENABLED === "1";
+    this.mcpAgentResearchUrl =
+      options.mcpAgentResearchUrl ??
+      process.env.MCP_AGENT_RESEARCH_INTERNAL_URL ??
+      "http://localhost:8789";
   }
 
   async health(): Promise<AiRunnerProviderState> {
@@ -99,10 +108,14 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
     }
 
     try {
-      const { stdout, stderr } = await execFileAsync(this.executable, ["-p", input.prompt], {
-        timeout: timeoutMs,
-        maxBuffer: 1024 * 1024,
-      });
+      const { stdout, stderr } = await execFileAsync(
+        this.executable,
+        this.buildArgs(input.prompt),
+        {
+          timeout: timeoutMs,
+          maxBuffer: 1024 * 1024,
+        },
+      );
       const emptyOutputError = toEmptyOutputError(stdout, stderr);
 
       if (emptyOutputError) {
@@ -162,7 +175,7 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
     }
 
     try {
-      const { stdout, stderr } = await execFileAsync(this.executable, ["-p", prompt], {
+      const { stdout, stderr } = await execFileAsync(this.executable, this.buildArgs(prompt), {
         timeout: this.timeoutMs,
         maxBuffer: 1024 * 1024,
       });
@@ -249,7 +262,7 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
     }
 
     try {
-      const { stdout, stderr } = await execFileAsync(this.executable, ["-p", prompt], {
+      const { stdout, stderr } = await execFileAsync(this.executable, this.buildArgs(prompt), {
         timeout: timeoutMs,
         maxBuffer: 1024 * 1024,
       });
@@ -311,6 +324,40 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
       };
     }
   }
+
+  private buildArgs(prompt: string): string[] {
+    if (!this.mcpEnabled) {
+      return ["-p", prompt];
+    }
+
+    const mcpConfig = {
+      mcpServers: {
+        agent_research: {
+          type: "http",
+          url: new URL("/mcp", ensureTrailingSlash(this.mcpAgentResearchUrl)).toString(),
+        },
+      },
+    };
+    const allowedTools = [
+      "mcp__agent_research__read_bars",
+      "mcp__agent_research__calc_indicator",
+      "mcp__agent_research__get_candidate_performance",
+      "mcp__agent_research__get_rejection_history",
+      "mcp__agent_research__recall_memory",
+    ];
+
+    return [
+      "-p",
+      "--strict-mcp-config",
+      "--mcp-config",
+      JSON.stringify(mcpConfig),
+      "--tools",
+      "",
+      "--allowedTools",
+      ...allowedTools,
+      prompt,
+    ];
+  }
 }
 
 function buildStrategyProposalPrompt(input: StrategyProposalInput): string {
@@ -366,4 +413,8 @@ function toEmptyOutputError(stdout: string, stderr: string): string | null {
   return stderrSummary
     ? `Claude CLI returned empty stdout. stderr: ${stderrSummary}`
     : "Claude CLI returned empty stdout.";
+}
+
+function ensureTrailingSlash(url: string): string {
+  return url.endsWith("/") ? url : `${url}/`;
 }
