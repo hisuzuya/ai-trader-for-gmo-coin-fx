@@ -32,8 +32,12 @@ describe("ClaudeCliProvider", () => {
     const dir = await mkdtemp(join(tmpdir(), "claude-mcp-args-"));
     const executable = join(dir, "claude-mcp-args");
     const argsFile = join(dir, "args.json");
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    const previousNodeEnv = process.env.NODE_ENV;
 
     try {
+      process.env.DATABASE_URL = "postgresql://ai_trade:ai_trade@timescaledb:5432/ai_trade";
+      process.env.NODE_ENV = "production";
       await writeFile(
         executable,
         `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > "${argsFile}"\nprintf '{"ok":true}'\n`,
@@ -67,9 +71,23 @@ describe("ClaudeCliProvider", () => {
         type: "stdio",
         command: "/usr/local/bin/node",
         args: ["/app/apps/mcp-agent-research/dist/mcp-stdio.cjs"],
-        env: { MCP_AGENT_RESEARCH_ACTIVITY_LOG: expect.stringContaining("ai-trade-mcp-activity-") },
+        env: {
+          DATABASE_URL: "postgresql://ai_trade:ai_trade@timescaledb:5432/ai_trade",
+          NODE_ENV: "production",
+          MCP_AGENT_RESEARCH_ACTIVITY_LOG: expect.stringContaining("ai-trade-mcp-activity-"),
+        },
       });
     } finally {
+      if (previousDatabaseUrl === undefined) {
+        delete process.env.DATABASE_URL;
+      } else {
+        process.env.DATABASE_URL = previousDatabaseUrl;
+      }
+      if (previousNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
       await rm(dir, { force: true, recursive: true });
     }
   });

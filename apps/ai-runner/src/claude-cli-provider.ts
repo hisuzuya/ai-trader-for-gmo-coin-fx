@@ -355,15 +355,19 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
       return ["-p", prompt];
     }
 
+    const mcpEnv = {
+      ...(process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
+      ...(process.env.NODE_ENV ? { NODE_ENV: process.env.NODE_ENV } : {}),
+      ...(mcpActivityLogPath ? { MCP_AGENT_RESEARCH_ACTIVITY_LOG: mcpActivityLogPath } : {}),
+    };
+
     const mcpConfig = {
       mcpServers: {
         agent_research: {
           type: "stdio",
           command: this.mcpAgentResearchCommand,
           args: this.mcpAgentResearchArgs,
-          env: mcpActivityLogPath
-            ? { MCP_AGENT_RESEARCH_ACTIVITY_LOG: mcpActivityLogPath }
-            : undefined,
+          env: Object.keys(mcpEnv).length > 0 ? mcpEnv : undefined,
         },
       },
     };
