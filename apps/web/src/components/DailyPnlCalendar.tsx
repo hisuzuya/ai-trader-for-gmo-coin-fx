@@ -3,11 +3,12 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 
-export type DailyPnlAgent = {
-  agentId: string;
-  name: string;
+export type DailyPnlAccount = {
+  accountId: string;
+  accountName: string;
+  agentName: string | null;
+  displayName: string;
   characterId: string | null;
-  characterName: string;
   avatarPath: string | null;
   pnlJpy: number;
   tradeCount: number;
@@ -18,7 +19,7 @@ export type DailyPnlEntry = {
   pnlJpy: number;
   tradeCount: number;
   winCount: number;
-  agents: DailyPnlAgent[];
+  accounts: DailyPnlAccount[];
 };
 
 type Props = {
@@ -91,8 +92,7 @@ export function DailyPnlCalendar({ entries }: Props) {
             {formatJpySigned(monthTotalPnl)}
           </span>
           <span className="text-[10px] text-muted">
-            {monthTradeCount} fills ·{" "}
-            {monthTradeCount > 0 ? `${monthWinRate.toFixed(0)}% win` : "—"}
+            {monthTradeCount} fills · {monthTradeCount > 0 ? `${monthWinRate.toFixed(0)}% win` : "—"}
           </span>
         </div>
         <div className="inline-flex items-center gap-1">
@@ -135,7 +135,7 @@ export function DailyPnlCalendar({ entries }: Props) {
               <div
                 // biome-ignore lint/suspicious/noArrayIndexKey: 空白セル用
                 key={`blank-${idx}`}
-                className="min-h-[64px] bg-bg-elevated"
+                className="min-h-[72px] bg-bg-elevated"
               />
             );
           }
@@ -159,7 +159,7 @@ export function DailyPnlCalendar({ entries }: Props) {
           return (
             <div
               key={cell.date}
-              className={`flex min-h-[64px] flex-col gap-0.5 p-1 transition-colors hover:brightness-110 ${bgClass} ${
+              className={`flex min-h-[72px] flex-col gap-0.5 p-1 transition-colors hover:brightness-110 ${bgClass} ${
                 isToday ? "outline outline-1 outline-accent-strong outline-offset-[-1px]" : ""
               }`}
               title={
@@ -184,41 +184,47 @@ export function DailyPnlCalendar({ entries }: Props) {
                   </span>
                 ) : null}
               </div>
-              {entry && entry.agents.length > 0 ? (
+              {entry && entry.accounts.length > 0 ? (
                 <div className="mt-auto flex flex-col gap-px">
-                  {entry.agents.map((agent) => (
+                  {entry.accounts.slice(0, 4).map((account) => (
                     <div
-                      key={agent.agentId}
+                      key={account.accountId}
                       className="flex items-center gap-1"
-                      title={`${agent.characterName} (${agent.name}): ${formatJpySigned(agent.pnlJpy)} / ${agent.tradeCount} fills`}
+                      title={`${account.displayName} (${account.accountName}): ${formatJpySigned(account.pnlJpy)} / ${account.tradeCount} fills`}
                     >
-                      {agent.avatarPath ? (
+                      {account.avatarPath ? (
                         <Image
-                          src={agent.avatarPath}
-                          alt={agent.characterName}
+                          src={account.avatarPath}
+                          alt={account.displayName}
                           width={12}
                           height={12}
-                          className="size-3 rounded-full object-cover object-top"
+                          className="size-3 shrink-0 rounded-full object-cover object-top"
                           unoptimized
                         />
                       ) : (
-                        <span className="grid size-3 place-items-center rounded-full bg-surface-muted text-[7px] font-bold text-text-strong">
-                          {agent.name[0] ?? "?"}
+                        <span
+                          aria-hidden
+                          className="grid size-3 shrink-0 place-items-center rounded-full bg-surface-muted text-[7px] font-bold text-text-strong"
+                        >
+                          {account.displayName[0] ?? "?"}
                         </span>
                       )}
                       <span
                         className={`flex-1 truncate font-mono text-[9px] tabular-nums ${
-                          agent.pnlJpy > 0
+                          account.pnlJpy > 0
                             ? "text-profit-strong"
-                            : agent.pnlJpy < 0
+                            : account.pnlJpy < 0
                               ? "text-loss-strong"
                               : "text-muted"
                         }`}
                       >
-                        {formatCompactJpySigned(agent.pnlJpy)}
+                        {formatCompactJpySigned(account.pnlJpy)}
                       </span>
                     </div>
                   ))}
+                  {entry.accounts.length > 4 ? (
+                    <span className="text-[8px] text-muted">+{entry.accounts.length - 4} more</span>
+                  ) : null}
                 </div>
               ) : null}
             </div>

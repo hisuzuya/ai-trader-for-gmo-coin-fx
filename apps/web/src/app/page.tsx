@@ -74,9 +74,11 @@ type DashboardSummary = {
     pnlJpy: string;
     tradeCount: number;
     winCount: number;
-    agents: {
-      agentId: string;
-      agentName: string;
+    accounts: {
+      accountId: string;
+      accountName: string;
+      agentId: string | null;
+      agentName: string | null;
       characterId: string | null;
       pnlJpy: string;
       tradeCount: number;
@@ -197,16 +199,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     pnlJpy: Number(entry.pnlJpy),
     tradeCount: entry.tradeCount,
     winCount: entry.winCount,
-    agents: entry.agents.map((agent) => {
-      const character = getCharacter(agent.characterId);
+    accounts: entry.accounts.map((account) => {
+      const character = getCharacter(account.characterId);
       return {
-        agentId: agent.agentId,
-        name: agent.agentName,
-        pnlJpy: Number(agent.pnlJpy),
-        tradeCount: agent.tradeCount,
+        accountId: account.accountId,
+        accountName: account.accountName,
+        agentName: account.agentName,
+        pnlJpy: Number(account.pnlJpy),
+        tradeCount: account.tradeCount,
         characterId: character?.id ?? null,
         avatarPath: character?.avatarPath ?? character?.imagePath ?? null,
-        characterName: character?.nameJa ?? agent.agentName,
+        displayName: character?.nameJa ?? account.agentName ?? account.accountName,
       };
     }),
   }));

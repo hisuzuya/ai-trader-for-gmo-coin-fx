@@ -370,6 +370,8 @@ export class WorkerRuntime {
         db
           .select({
             date: sql<string>`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD')`,
+            accountId: paperAccounts.id,
+            accountName: paperAccounts.name,
             agentId: aiAgents.id,
             agentName: aiAgents.name,
             characterId: aiAgents.characterId,
@@ -379,10 +381,12 @@ export class WorkerRuntime {
           })
           .from(paperTrades)
           .innerJoin(paperAccounts, eq(paperAccounts.id, paperTrades.accountId))
-          .innerJoin(aiAgents, eq(aiAgents.id, paperAccounts.agentId))
+          .leftJoin(aiAgents, eq(aiAgents.id, paperAccounts.agentId))
           .where(gte(paperTrades.closedAt, calendarFromDate))
           .groupBy(
             sql`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD')`,
+            paperAccounts.id,
+            paperAccounts.name,
             aiAgents.id,
             aiAgents.name,
             aiAgents.characterId,
@@ -441,9 +445,11 @@ export class WorkerRuntime {
         createdAt: review.createdAt.toISOString(),
       })),
       dailyPnl: dailyPnlRows.map((row) => {
-        const agents = dailyAgentPnlRows
+        const accounts = dailyAgentPnlRows
           .filter((r) => r.date === row.date)
           .map((r) => ({
+            accountId: r.accountId,
+            accountName: r.accountName,
             agentId: r.agentId,
             agentName: r.agentName,
             characterId: r.characterId,
@@ -457,7 +463,7 @@ export class WorkerRuntime {
           pnlJpy: row.pnlJpy,
           tradeCount: row.tradeCount,
           winCount: row.winCount,
-          agents,
+          accounts,
         };
       }),
       accountDetail,
@@ -664,9 +670,11 @@ export type WorkerDashboardSummary = {
     pnlJpy: string;
     tradeCount: number;
     winCount: number;
-    agents: {
-      agentId: string;
-      agentName: string;
+    accounts: {
+      accountId: string;
+      accountName: string;
+      agentId: string | null;
+      agentName: string | null;
       characterId: string | null;
       pnlJpy: string;
       tradeCount: number;
