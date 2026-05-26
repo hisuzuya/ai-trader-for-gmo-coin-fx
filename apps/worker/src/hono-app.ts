@@ -137,6 +137,24 @@ export function createWorkerApp(runtime: WorkerRuntime) {
       );
     }
   });
+  app.delete("/agents/:id", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
+    try {
+      const result = await runtime.deleteAgent({ agentId: c.req.param("id") });
+      return c.json({ ok: result.deleted, ...result }, result.deleted ? 200 : 404);
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Agent delete failed.",
+        },
+        500,
+      );
+    }
+  });
   app.put("/agents/:id", async (c) => {
     if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
       return c.json({ ok: false, error: "Unauthorized." }, 401);

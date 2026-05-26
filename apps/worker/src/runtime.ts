@@ -13,7 +13,7 @@ import {
   runRecordedJob,
   strategyRuns,
 } from "@ai-trade/db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import {
   type HistoricalImporter,
   type HistoricalImportResult,
@@ -264,6 +264,16 @@ export class WorkerRuntime {
     return scheduler.createAgent(input);
   }
 
+  async deleteAgent(input: Parameters<AgentScheduler["deleteAgent"]>[0]) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.deleteAgent(input);
+  }
+
   async updateAgentSettings(input: Parameters<AgentScheduler["updateAgentSettings"]>[0]) {
     const scheduler = this.services.find(isAgentScheduler);
 
@@ -295,7 +305,11 @@ export class WorkerRuntime {
   }
 
   async dashboardSummary(options: { accountName?: string } = {}): Promise<WorkerDashboardSummary> {
-    const [accounts, candidates, dailyReviews] = await Promise.all([
+    const calendarFromDate = new Date();
+    calendarFromDate.setUTCHours(0, 0, 0, 0);
+    calendarFromDate.setUTCDate(calendarFromDate.getUTCDate() - 120);
+
+    const [accounts, candidates, dailyReviews, dailyPnlRows] = await Promise.all([
       db
         .select({
           id: paperAccounts.id,
@@ -338,6 +352,19 @@ export class WorkerRuntime {
         .from(aiDailyReviews)
         .orderBy(desc(aiDailyReviews.createdAt))
         .limit(3),
+      db
+        .select({
+          date: sql<string>`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD')`,
+          pnlJpy: sql<string>`COALESCE(SUM(${paperTrades.pnlJpy}), 0)`,
+          tradeCount: sql<number>`COUNT(*)::int`,
+          winCount: sql<number>`COUNT(*) FILTER (WHERE ${paperTrades.pnlJpy} > 0)::int`,
+        })
+        .from(paperTrades)
+        .where(gte(paperTrades.closedAt, calendarFromDate))
+        .groupBy(sql`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD')`)
+        .orderBy(
+          sql`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD') DESC`,
+        ),
     ]);
 
     const selectedAccount =
@@ -389,6 +416,12 @@ export class WorkerRuntime {
       dailyReviews: dailyReviews.map((review) => ({
         ...review,
         createdAt: review.createdAt.toISOString(),
+      })),
+      dailyPnl: dailyPnlRows.map((row) => ({
+        date: row.date,
+        pnlJpy: row.pnlJpy,
+        tradeCount: row.tradeCount,
+        winCount: row.winCount,
       })),
       accountDetail,
     };
@@ -588,6 +621,12 @@ export type WorkerDashboardSummary = {
     warnings: unknown;
     nextActions: unknown;
     createdAt: string;
+  }[];
+  dailyPnl: {
+    date: string;
+    pnlJpy: string;
+    tradeCount: number;
+    winCount: number;
   }[];
   accountDetail: AccountDetail | null;
 };
