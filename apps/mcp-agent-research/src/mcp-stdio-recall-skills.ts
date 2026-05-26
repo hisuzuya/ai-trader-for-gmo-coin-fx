@@ -53,15 +53,19 @@ function findSkills(value: unknown, depth: number): unknown[] | undefined {
 }
 
 function isSkillArray(value: unknown): value is unknown[] {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every(
-      (entry) =>
-        isRecord(entry) &&
-        typeof entry.id === "string" &&
-        typeof entry.scope === "string" &&
-        typeof entry.title === "string",
-    )
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  if (value.length === 0) {
+    return true;
+  }
+
+  return value.every(
+    (entry) =>
+      isRecord(entry) &&
+      typeof entry.id === "string" &&
+      typeof entry.scope === "string" &&
+      typeof entry.title === "string",
   );
 }
