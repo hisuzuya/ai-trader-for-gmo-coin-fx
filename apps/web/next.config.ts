@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
       "./server/validator.js": "./server/validator.ts",
     },
   },
+  async redirects() {
+    return [{ source: "/dashboard", destination: "/", permanent: false }];
+  },
 };
 
 export default nextConfig;

@@ -142,32 +142,46 @@ function StatusFilters({
   );
 }
 
+const ACTIVITY_ROW_CLS =
+  "grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3.5 rounded-lg border border-line-soft bg-surface-muted px-3.5 py-3 min-h-[64px] transition-colors hover:border-line";
+const ACTIVITY_TITLE_CLS = "truncate text-[13px] font-medium text-text-strong";
+const ACTIVITY_META_CLS = "truncate font-mono text-[11px] text-muted";
+const ACTIVITY_ERROR_CLS = "mt-1 truncate font-mono text-[11px] text-loss-strong/85";
+
 function RunList({ runs, agentMap }: { runs: RunRow[]; agentMap: Map<string, AgentSummary> }) {
   if (runs.length === 0) {
-    return <p className="text-muted">No runs match the current filter.</p>;
+    return <p className="text-xs text-muted">No runs match the current filter.</p>;
   }
 
-  return runs.map((run) => {
-    const agent = agentMap.get(run.agentId);
-    const character = getCharacter(agent?.characterId);
-    return (
-      <Link key={run.id} href={`/agents/${run.agentId}?tab=activity`} className="activity-row">
-        <CharacterAvatar character={character} size="sm" />
-        <div>
-          <div className="activity-row-title">
-            {agent?.name ?? run.agentId.slice(0, 8)} · v{run.agentVersion}
-          </div>
-          <div className="activity-row-meta">
-            {run.startedAt}
-            {run.error ? ` · ${run.error.slice(0, 60)}` : ""}
-          </div>
-        </div>
-        <span className={`status-pill ${run.status === "succeeded" ? "active" : "paused"}`}>
-          {run.status}
-        </span>
-      </Link>
-    );
-  });
+  return (
+    <div className="flex flex-col gap-2">
+      {runs.map((run) => {
+        const agent = agentMap.get(run.agentId);
+        const character = getCharacter(agent?.characterId);
+        return (
+          <Link
+            key={run.id}
+            href={`/agents/${run.agentId}?tab=activity`}
+            className={ACTIVITY_ROW_CLS}
+          >
+            <CharacterAvatar character={character} size="sm" />
+            <div className="flex min-w-0 flex-col">
+              <span className={ACTIVITY_TITLE_CLS}>
+                {agent?.name ?? run.agentId.slice(0, 8)} · v{run.agentVersion}
+              </span>
+              <span className={ACTIVITY_META_CLS}>{formatTimestamp(run.startedAt)}</span>
+              {run.error ? (
+                <span className={ACTIVITY_ERROR_CLS} title={run.error}>
+                  {run.error}
+                </span>
+              ) : null}
+            </div>
+            <span className={`status-pill ${runStatusTone(run.status)}`}>{run.status}</span>
+          </Link>
+        );
+      })}
+    </div>
+  );
 }
 
 function ProposalList({
@@ -178,34 +192,62 @@ function ProposalList({
   agentMap: Map<string, AgentSummary>;
 }) {
   if (proposals.length === 0) {
-    return <p className="text-muted">No proposals match the current filter.</p>;
+    return <p className="text-xs text-muted">No proposals match the current filter.</p>;
   }
 
-  return proposals.map((proposal) => {
-    const agent = agentMap.get(proposal.agentId);
-    const character = getCharacter(agent?.characterId);
-    return (
-      <Link
-        key={proposal.id}
-        href={`/agents/${proposal.agentId}?tab=strategy`}
-        className="activity-row"
-      >
-        <CharacterAvatar character={character} size="sm" />
-        <div>
-          <div className="activity-row-title">{proposal.strategyName}</div>
-          <div className="activity-row-meta">
-            {agent?.name ?? proposal.agentId.slice(0, 8)} · {proposal.createdAt}
-            {proposal.strategyRunStatus ? ` · ${proposal.strategyRunStatus}` : ""}
-          </div>
-        </div>
-        <span
-          className={`status-pill ${proposal.validationStatus === "accepted" ? "active" : "paused"}`}
-        >
-          {proposal.validationStatus}
-        </span>
-      </Link>
-    );
-  });
+  return (
+    <div className="flex flex-col gap-2">
+      {proposals.map((proposal) => {
+        const agent = agentMap.get(proposal.agentId);
+        const character = getCharacter(agent?.characterId);
+        const metaParts = [
+          agent?.name ?? proposal.agentId.slice(0, 8),
+          formatTimestamp(proposal.createdAt),
+        ];
+        if (proposal.strategyRunStatus) {
+          metaParts.push(proposal.strategyRunStatus);
+        }
+        return (
+          <Link
+            key={proposal.id}
+            href={`/agents/${proposal.agentId}?tab=strategy`}
+            className={ACTIVITY_ROW_CLS}
+          >
+            <CharacterAvatar character={character} size="sm" />
+            <div className="flex min-w-0 flex-col">
+              <span className={ACTIVITY_TITLE_CLS}>{proposal.strategyName}</span>
+              <span className={ACTIVITY_META_CLS}>{metaParts.join(" · ")}</span>
+            </div>
+            <span
+              className={`status-pill ${
+                proposal.validationStatus === "accepted" ? "active" : "paused"
+              }`}
+            >
+              {proposal.validationStatus}
+            </span>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function runStatusTone(status: RunStatus) {
+  if (status === "succeeded") return "active";
+  if (status === "rejected_output" || status === "timeout") return "unassigned";
+  return "paused";
+}
+
+function formatTimestamp(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
 }
 
 async function fetchRuns(filter: {
