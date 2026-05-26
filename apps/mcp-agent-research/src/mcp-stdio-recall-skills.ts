@@ -1,41 +1,67 @@
 export function extractSkills(result: unknown): unknown[] | undefined {
-  if (
-    isRecord(result) &&
-    isRecord(result.structuredContent) &&
-    "result" in result.structuredContent
-  ) {
-    const toolResult = result.structuredContent.result;
-    if (Array.isArray(toolResult)) {
-      return toolResult;
-    }
+  return findSkills(result, 0);
+}
 
-    if (isRecord(toolResult) && Array.isArray(toolResult.skills)) {
-      return toolResult.skills;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function findSkills(value: unknown, depth: number): unknown[] | undefined {
+  if (depth > 6) {
+    return undefined;
+  }
+
+  if (isSkillArray(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    try {
+      return findSkills(JSON.parse(value), depth + 1);
+    } catch {
+      return undefined;
     }
   }
 
-  if (isRecord(result) && Array.isArray(result.content)) {
-    for (const entry of result.content) {
-      if (!isRecord(entry) || entry.type !== "text" || typeof entry.text !== "string") {
-        continue;
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const found = findSkills(entry, depth + 1);
+      if (found) {
+        return found;
       }
+    }
 
-      try {
-        const parsed = JSON.parse(entry.text);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
+    return undefined;
+  }
 
-        if (isRecord(parsed) && Array.isArray(parsed.skills)) {
-          return parsed.skills;
-        }
-      } catch {}
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  if (Array.isArray(value.skills) && isSkillArray(value.skills)) {
+    return value.skills;
+  }
+
+  for (const entry of Object.values(value)) {
+    const found = findSkills(entry, depth + 1);
+    if (found) {
+      return found;
     }
   }
 
   return undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function isSkillArray(value: unknown): value is unknown[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (entry) =>
+        isRecord(entry) &&
+        typeof entry.id === "string" &&
+        typeof entry.scope === "string" &&
+        typeof entry.title === "string",
+    )
+  );
 }
