@@ -11,10 +11,6 @@ function findSkills(value: unknown, depth: number): unknown[] | undefined {
     return undefined;
   }
 
-  if (isSkillArray(value)) {
-    return value;
-  }
-
   if (typeof value === "string") {
     try {
       return findSkills(JSON.parse(value), depth + 1);
@@ -24,6 +20,21 @@ function findSkills(value: unknown, depth: number): unknown[] | undefined {
   }
 
   if (Array.isArray(value)) {
+    if (isContentArray(value)) {
+      for (const entry of value) {
+        const found = findSkills(entry, depth + 1);
+        if (found) {
+          return found;
+        }
+      }
+
+      return undefined;
+    }
+
+    if (isSkillArray(value)) {
+      return value;
+    }
+
     for (const entry of value) {
       const found = findSkills(entry, depth + 1);
       if (found) {
@@ -55,13 +66,24 @@ function findSkills(value: unknown, depth: number): unknown[] | undefined {
 function isSkillArray(value: unknown): value is unknown[] {
   return (
     Array.isArray(value) &&
+    !isContentArray(value) &&
+    (value.length === 0 ||
+      value.every(
+        (entry) =>
+          isRecord(entry) &&
+          typeof entry.id === "string" &&
+          (typeof entry.scope === "string" || typeof entry.agentId === "string"),
+      ))
+  );
+}
+
+function isContentArray(value: unknown): value is Array<Record<string, unknown>> {
+  return (
+    Array.isArray(value) &&
     value.length > 0 &&
     value.every(
       (entry) =>
-        isRecord(entry) &&
-        typeof entry.id === "string" &&
-        typeof entry.scope === "string" &&
-        typeof entry.title === "string",
+        isRecord(entry) && typeof entry.type === "string" && typeof entry.text === "string",
     )
   );
 }

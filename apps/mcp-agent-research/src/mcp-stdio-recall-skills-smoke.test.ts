@@ -52,4 +52,16 @@ describe("extractSkills", () => {
       }),
     ).toEqual(skills);
   });
+
+  it("returns empty arrays from nested result payloads", () => {
+    expect(
+      extractSkills({
+        structuredContent: {
+          result: {
+            result: [],
+          },
+        },
+      }),
+    ).toEqual([]);
+  });
 });
