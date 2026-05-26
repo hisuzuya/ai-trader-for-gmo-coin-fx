@@ -19,9 +19,16 @@ type Props = {
   initialError?: string | null;
   /** ?warning=... を server action から伝搬 */
   initialWarning?: string | null;
+  /** 既にキャラ別に何体作成されているか (重複名回避用) */
+  characterCounts?: Partial<Record<string, number>>;
 };
 
-export function CharacterPickerModal({ initialCharacterId, initialError, initialWarning }: Props) {
+export function CharacterPickerModal({
+  initialCharacterId,
+  initialError,
+  initialWarning,
+  characterCounts,
+}: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [selected, setSelected] = useState<AgentCharacter | null>(() => {
     const found = AGENT_CHARACTERS.find((c) => c.id === initialCharacterId);
@@ -156,10 +163,21 @@ export function CharacterPickerModal({ initialCharacterId, initialError, initial
                 <input
                   type="text"
                   name="name"
-                  defaultValue={`${selected.nameJa} — USDJPY`}
+                  defaultValue={(() => {
+                    const count = characterCounts?.[selected.id] ?? 0;
+                    return count > 0
+                      ? `${selected.nameJa} — USDJPY #${count + 1}`
+                      : `${selected.nameJa} — USDJPY`;
+                  })()}
                   required
                   placeholder={`例: ${selected.nameJa} — USDJPY trend`}
                 />
+                {(characterCounts?.[selected.id] ?? 0) > 0 ? (
+                  <small className="text-[11px] text-muted">
+                    同じキャラのエージェントが既に {characterCounts?.[selected.id]}{" "}
+                    体います。名前は重複しないように調整してください
+                  </small>
+                ) : null}
               </label>
               <label className="col-span-2">
                 <span>Persona summary</span>

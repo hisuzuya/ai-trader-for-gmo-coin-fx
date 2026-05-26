@@ -2,6 +2,7 @@ import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import Link from "next/link";
 import { CharacterPickerModal } from "@/components/agents/CharacterPickerModal";
 import { type CrewAgentSummary, CrewTile } from "@/components/agents/CrewTile";
+import { deleteAgent } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,12 @@ export default async function AgentsPage({ searchParams }: PageProps) {
 
   const unassignedAgents = filtered.filter((agent) => !getCharacter(agent.characterId));
   const assignedAgents = filtered.filter((agent) => getCharacter(agent.characterId));
+  const characterCounts = agents.reduce<Record<string, number>>((acc, agent) => {
+    const character = getCharacter(agent.characterId);
+    if (!character) return acc;
+    acc[character.id] = (acc[character.id] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <section className="page-shell">
@@ -154,20 +161,36 @@ export default async function AgentsPage({ searchParams }: PageProps) {
           </div>
           <p className="mb-3 text-muted">
             既存のエージェントにキャラが未割り当てです。詳細画面の Edit
-            からキャラを選択してください。
+            からキャラを選択するか、不要であれば削除してください。
           </p>
           <div className="flex flex-col gap-2">
             {unassignedAgents.map((agent) => (
-              <Link key={agent.id} href={`/agents/${agent.id}`} className="activity-row">
-                <span className="character-avatar size-unassigned placeholder" aria-hidden>
-                  ?
-                </span>
-                <div>
-                  <div className="activity-row-title">{agent.name}</div>
-                  <div className="activity-row-meta">{agent.persona}</div>
-                </div>
+              <div key={agent.id} className="activity-row">
+                <Link
+                  href={`/agents/${agent.id}`}
+                  className="flex flex-1 items-center gap-3 no-underline text-inherit"
+                >
+                  <span className="character-avatar size-unassigned placeholder" aria-hidden>
+                    ?
+                  </span>
+                  <div className="flex flex-col">
+                    <div className="activity-row-title">{agent.name}</div>
+                    <div className="activity-row-meta">{agent.persona}</div>
+                  </div>
+                </Link>
                 <span className="activity-row-status">v{agent.currentVersion}</span>
-              </Link>
+                <form action={deleteAgent}>
+                  <input type="hidden" name="agentId" value={agent.id} />
+                  <input type="hidden" name="redirectTo" value="/agents" />
+                  <button
+                    type="submit"
+                    className="btn-ghost text-loss-strong"
+                    aria-label={`${agent.name} を削除`}
+                  >
+                    削除
+                  </button>
+                </form>
+              </div>
             ))}
           </div>
         </section>
@@ -179,6 +202,7 @@ export default async function AgentsPage({ searchParams }: PageProps) {
         initialCharacterId={characterParam}
         initialError={errorParam}
         initialWarning={warningParam}
+        characterCounts={characterCounts}
       />
     </section>
   );
