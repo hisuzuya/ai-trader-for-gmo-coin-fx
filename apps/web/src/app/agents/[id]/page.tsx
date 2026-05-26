@@ -554,20 +554,53 @@ function RunsPanel({ agent }: { agent: AgentDetail }) {
         </Link>
       </div>
       {agent.runs.map((run) => (
-        <div key={run.id} className="activity-row">
-          <span className={`status-pill ${run.status === "succeeded" ? "active" : "paused"}`}>
-            {run.status}
-          </span>
-          <div>
-            <div className="activity-row-title">v{run.agentVersion}</div>
-            <div className="activity-row-meta">{run.startedAt}</div>
-          </div>
-          <span className="activity-row-status">{run.error ? "error" : "ok"}</span>
-        </div>
+        <RunActivityRow key={run.id} run={run} />
       ))}
       {agent.runs.length === 0 ? <p className="text-muted">No runs yet.</p> : null}
     </section>
   );
+}
+
+function RunActivityRow({ run }: { run: AgentDetail["runs"][number] }) {
+  const toolSummary = summarizeToolCalls(run.toolCalls);
+
+  return (
+    <div className="activity-row">
+      <span className={`status-pill ${run.status === "succeeded" ? "active" : "paused"}`}>
+        {run.status}
+      </span>
+      <div>
+        <div className="activity-row-title">v{run.agentVersion}</div>
+        <div className="activity-row-meta">
+          {run.startedAt}
+          {toolSummary ? ` · MCP/tools: ${toolSummary}` : ""}
+        </div>
+      </div>
+      <span className="activity-row-status">{run.error ? "error" : "ok"}</span>
+    </div>
+  );
+}
+
+function summarizeToolCalls(toolCalls: unknown) {
+  if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+    return "";
+  }
+
+  const names = toolCalls
+    .flatMap((call): string[] => {
+      if (typeof call !== "object" || call === null || !("name" in call)) {
+        return [];
+      }
+      return typeof call.name === "string" ? [call.name] : [];
+    })
+    .slice(0, 3);
+
+  if (names.length === 0) {
+    return `${toolCalls.length}`;
+  }
+
+  const suffix = toolCalls.length > names.length ? ` +${toolCalls.length - names.length}` : "";
+  return `${names.join(", ")}${suffix}`;
 }
 
 function SettingsPanel({

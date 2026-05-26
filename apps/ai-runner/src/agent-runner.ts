@@ -76,6 +76,7 @@ export class AiAgentRunner implements AgentRunner {
         };
       }
 
+      toolCalls.push(...(invocation.mcpToolCalls ?? []));
       totalOutputTokens += estimateTokens(invocation.stdout);
 
       if (Buffer.byteLength(invocation.stdout, "utf8") > outputSizeLimitBytes) {

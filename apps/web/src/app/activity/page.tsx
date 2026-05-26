@@ -15,6 +15,7 @@ type RunRow = {
   agentId: string;
   agentVersion: number;
   status: RunStatus;
+  toolCalls: unknown;
   error: string | null;
   startedAt: string;
 };
@@ -146,6 +147,7 @@ const ACTIVITY_ROW_CLS =
   "grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3.5 rounded-lg border border-line-soft bg-surface-muted px-3.5 py-3 min-h-[64px] transition-colors hover:border-line";
 const ACTIVITY_TITLE_CLS = "truncate text-[13px] font-medium text-text-strong";
 const ACTIVITY_META_CLS = "truncate font-mono text-[11px] text-muted";
+const ACTIVITY_TOOLS_CLS = "mt-1 truncate font-mono text-[11px] text-accent-strong/85";
 const ACTIVITY_ERROR_CLS = "mt-1 truncate font-mono text-[11px] text-loss-strong/85";
 
 function RunList({ runs, agentMap }: { runs: RunRow[]; agentMap: Map<string, AgentSummary> }) {
@@ -158,6 +160,7 @@ function RunList({ runs, agentMap }: { runs: RunRow[]; agentMap: Map<string, Age
       {runs.map((run) => {
         const agent = agentMap.get(run.agentId);
         const character = getCharacter(agent?.characterId);
+        const toolSummary = summarizeToolCalls(run.toolCalls);
         return (
           <Link
             key={run.id}
@@ -170,6 +173,11 @@ function RunList({ runs, agentMap }: { runs: RunRow[]; agentMap: Map<string, Age
                 {agent?.name ?? run.agentId.slice(0, 8)} · v{run.agentVersion}
               </span>
               <span className={ACTIVITY_META_CLS}>{formatTimestamp(run.startedAt)}</span>
+              {toolSummary ? (
+                <span className={ACTIVITY_TOOLS_CLS} title={toolSummary}>
+                  MCP/tools: {toolSummary}
+                </span>
+              ) : null}
               {run.error ? (
                 <span className={ACTIVITY_ERROR_CLS} title={run.error}>
                   {run.error}
@@ -293,6 +301,28 @@ async function fetchAgents(): Promise<AgentSummary[]> {
   if (!response?.ok) return [];
   const body = (await response.json()) as { agents?: AgentSummary[] };
   return Array.isArray(body.agents) ? body.agents : [];
+}
+
+function summarizeToolCalls(toolCalls: unknown) {
+  if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+    return "";
+  }
+
+  const names = toolCalls
+    .flatMap((call): string[] => {
+      if (typeof call !== "object" || call === null || !("name" in call)) {
+        return [];
+      }
+      return typeof call.name === "string" ? [call.name] : [];
+    })
+    .slice(0, 3);
+
+  if (names.length === 0) {
+    return `${toolCalls.length}`;
+  }
+
+  const suffix = toolCalls.length > names.length ? ` +${toolCalls.length - names.length}` : "";
+  return `${names.join(", ")}${suffix}`;
 }
 
 function parseKind(value: unknown): ActivityKind {
