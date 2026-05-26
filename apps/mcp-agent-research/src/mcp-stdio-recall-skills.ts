@@ -24,6 +24,10 @@ function findSkills(value: unknown, depth: number): unknown[] | undefined {
   }
 
   if (Array.isArray(value)) {
+    if (isPotentialSkillRecordArray(value)) {
+      return value;
+    }
+
     for (const entry of value) {
       const found = findSkills(entry, depth + 1);
       if (found) {
@@ -53,15 +57,31 @@ function findSkills(value: unknown, depth: number): unknown[] | undefined {
 }
 
 function isSkillArray(value: unknown): value is unknown[] {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every(
-      (entry) =>
-        isRecord(entry) &&
-        typeof entry.id === "string" &&
-        typeof entry.scope === "string" &&
-        typeof entry.title === "string",
-    )
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  if (value.length === 0) {
+    return true;
+  }
+
+  return value.every(
+    (entry) =>
+      isRecord(entry) &&
+      typeof entry.id === "string" &&
+      typeof entry.scope === "string" &&
+      typeof entry.title === "string",
   );
+}
+
+function isPotentialSkillRecordArray(value: unknown[]): value is Record<string, unknown>[] {
+  if (value.length === 0) {
+    return true;
+  }
+
+  return value.every((entry) => isRecord(entry) && !isMcpContentBlock(entry));
+}
+
+function isMcpContentBlock(value: Record<string, unknown>) {
+  return typeof value.type === "string" && ("text" in value || "resource" in value);
 }
