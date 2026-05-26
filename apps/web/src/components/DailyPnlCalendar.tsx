@@ -92,7 +92,8 @@ export function DailyPnlCalendar({ entries }: Props) {
             {formatJpySigned(monthTotalPnl)}
           </span>
           <span className="text-[10px] text-muted">
-            {monthTradeCount} fills · {monthTradeCount > 0 ? `${monthWinRate.toFixed(0)}% win` : "—"}
+            {monthTradeCount} fills · {" "}
+            {monthTradeCount > 0 ? `${monthWinRate.toFixed(0)}% win` : "—"}
           </span>
         </div>
         <div className="inline-flex items-center gap-1">
