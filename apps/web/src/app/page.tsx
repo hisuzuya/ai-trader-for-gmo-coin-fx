@@ -74,6 +74,14 @@ type DashboardSummary = {
     pnlJpy: string;
     tradeCount: number;
     winCount: number;
+    agents: {
+      agentId: string;
+      agentName: string;
+      characterId: string | null;
+      pnlJpy: string;
+      tradeCount: number;
+      winCount: number;
+    }[];
   }[];
   accountDetail: AccountDetail | null;
 };
@@ -189,6 +197,18 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     pnlJpy: Number(entry.pnlJpy),
     tradeCount: entry.tradeCount,
     winCount: entry.winCount,
+    agents: entry.agents.map((agent) => {
+      const character = getCharacter(agent.characterId);
+      return {
+        agentId: agent.agentId,
+        name: agent.agentName,
+        pnlJpy: Number(agent.pnlJpy),
+        tradeCount: agent.tradeCount,
+        characterId: character?.id ?? null,
+        avatarPath: character?.avatarPath ?? character?.imagePath ?? null,
+        characterName: character?.nameJa ?? agent.agentName,
+      };
+    }),
   }));
   const topPerformers = [...agentSummaries]
     .filter((agent) => agent.paperAccount !== null)
