@@ -203,12 +203,7 @@ export function DailyPnlCalendar({ entries }: Props) {
                           unoptimized
                         />
                       ) : (
-                        <span
-                          aria-hidden
-                          className="grid size-3 shrink-0 place-items-center rounded-full bg-surface-muted text-[7px] font-bold text-text-strong"
-                        >
-                          {account.displayName[0] ?? "?"}
-                        </span>
+                        <AccountBadge name={account.accountName} />
                       )}
                       <span
                         className={`flex-1 truncate font-mono text-[9px] tabular-nums ${
@@ -233,6 +228,30 @@ export function DailyPnlCalendar({ entries }: Props) {
         })}
       </div>
     </div>
+  );
+}
+
+function AccountBadge({ name }: { name: string }) {
+  const lower = name.toLowerCase();
+  let letter = name[0]?.toUpperCase() ?? "?";
+  let toneClass = "bg-surface-strong text-text-strong";
+  if (lower.startsWith("baseline")) {
+    letter = "B";
+    toneClass = "bg-accent text-bg";
+  } else if (lower.startsWith("candidate")) {
+    letter = "C";
+    toneClass = "bg-warning text-bg";
+  } else if (lower.startsWith("safe")) {
+    letter = "S";
+    toneClass = "bg-profit-strong text-bg";
+  }
+  return (
+    <span
+      aria-hidden
+      className={`grid size-3 shrink-0 place-items-center rounded-full text-[7px] font-bold ${toneClass}`}
+    >
+      {letter}
+    </span>
   );
 }
 
