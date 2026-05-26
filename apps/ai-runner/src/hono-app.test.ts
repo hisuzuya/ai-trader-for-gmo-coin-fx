@@ -219,6 +219,58 @@ describe("ai-runner Hono app", () => {
       },
     ]);
   });
+
+  it("records Claude MCP tool calls in the agent run activity", async () => {
+    const provider = fakeProvider();
+    provider.invoke.mockResolvedValueOnce({
+      ok: true,
+      provider: "claude_cli",
+      stdout:
+        '{"observations":[],"strategyProposals":[],"candidateReviews":[],"memoryWrites":[],"skillWriteIntents":[]}',
+      mcpToolCalls: [
+        {
+          name: "recall_skills",
+          argsSummary: {
+            source: "claude_mcp",
+            toolName: "mcp__agent_research__recall_skills",
+            input: { agentId: "agent-1", query: "API_TOKEN=secret-value" },
+          },
+          resultSummary: {
+            source: "claude_mcp",
+            result: { text: "PASSWORD=hidden-value" },
+          },
+        },
+      ],
+      startedAt: "2026-05-24T00:00:00.000Z",
+      finishedAt: "2026-05-24T00:00:01.000Z",
+      timeoutMs: 30000,
+    });
+    const runner = new AiAgentRunner(provider);
+
+    const response = await runner.run({
+      ...agentRunInput(),
+      agent: {
+        ...agentRunInput().agent,
+        allowedTools: ["recall_skills"],
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.toolCalls).toEqual([
+      {
+        name: "recall_skills",
+        argsSummary: {
+          source: "claude_mcp",
+          toolName: "mcp__agent_research__recall_skills",
+          input: { agentId: "agent-1", query: "[REDACTED]" },
+        },
+        resultSummary: {
+          source: "claude_mcp",
+          result: { text: "[REDACTED]" },
+        },
+      },
+    ]);
+  });
 });
 
 function fakeProvider(

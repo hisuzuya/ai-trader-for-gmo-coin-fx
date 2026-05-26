@@ -15,6 +15,7 @@ type RunRow = {
   agentId: string;
   agentVersion: number;
   status: RunStatus;
+  toolCalls: unknown;
   error: string | null;
   startedAt: string;
 };
@@ -150,6 +151,7 @@ function RunList({ runs, agentMap }: { runs: RunRow[]; agentMap: Map<string, Age
   return runs.map((run) => {
     const agent = agentMap.get(run.agentId);
     const character = getCharacter(agent?.characterId);
+    const toolSummary = summarizeToolCalls(run.toolCalls);
     return (
       <Link key={run.id} href={`/agents/${run.agentId}?tab=activity`} className="activity-row">
         <CharacterAvatar character={character} size="sm" />
@@ -159,6 +161,7 @@ function RunList({ runs, agentMap }: { runs: RunRow[]; agentMap: Map<string, Age
           </div>
           <div className="activity-row-meta">
             {run.startedAt}
+            {toolSummary ? ` · MCP/tools: ${toolSummary}` : ""}
             {run.error ? ` · ${run.error.slice(0, 60)}` : ""}
           </div>
         </div>
@@ -251,6 +254,28 @@ async function fetchAgents(): Promise<AgentSummary[]> {
   if (!response?.ok) return [];
   const body = (await response.json()) as { agents?: AgentSummary[] };
   return Array.isArray(body.agents) ? body.agents : [];
+}
+
+function summarizeToolCalls(toolCalls: unknown) {
+  if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+    return "";
+  }
+
+  const names = toolCalls
+    .flatMap((call): string[] => {
+      if (typeof call !== "object" || call === null || !("name" in call)) {
+        return [];
+      }
+      return typeof call.name === "string" ? [call.name] : [];
+    })
+    .slice(0, 3);
+
+  if (names.length === 0) {
+    return `${toolCalls.length}`;
+  }
+
+  const suffix = toolCalls.length > names.length ? ` +${toolCalls.length - names.length}` : "";
+  return `${names.join(", ")}${suffix}`;
 }
 
 function parseKind(value: unknown): ActivityKind {

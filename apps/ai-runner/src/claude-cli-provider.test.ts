@@ -72,4 +72,53 @@ describe("ClaudeCliProvider", () => {
       await rm(dir, { force: true, recursive: true });
     }
   });
+
+  it("summarizes MCP tool use from Claude transcript files", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "claude-mcp-transcript-"));
+    const executable = join(dir, "claude-mcp-transcript");
+    const configDir = join(dir, "claude-config");
+    const previousConfigDir = process.env.CLAUDE_CONFIG_DIR;
+
+    try {
+      process.env.CLAUDE_CONFIG_DIR = configDir;
+      await writeFile(
+        executable,
+        `#!/usr/bin/env bash
+mkdir -p "$CLAUDE_CONFIG_DIR/projects/-app-apps-ai-runner"
+cat > "$CLAUDE_CONFIG_DIR/projects/-app-apps-ai-runner/session.jsonl" <<'JSONL'
+{"message":{"content":[{"type":"tool_use","id":"toolu_1","name":"mcp__agent_research__recall_skills","input":{"agentId":"agent-1","limit":3}}]}}
+{"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"text","text":"{\\"skills\\":[{\\"id\\":\\"skill-1\\"}]}"}]}]}}
+JSONL
+printf '{"ok":true}'
+`,
+      );
+      await chmod(executable, 0o755);
+
+      const provider = new ClaudeCliProvider({ enabled: true, executable });
+      const result = await provider.invoke({ prompt: "Return JSON only." });
+
+      expect(result).toMatchObject({
+        ok: true,
+        provider: "claude_cli",
+        mcpToolCalls: [
+          {
+            name: "recall_skills",
+            argsSummary: {
+              source: "claude_mcp",
+              toolName: "mcp__agent_research__recall_skills",
+              toolUseId: "toolu_1",
+              input: { agentId: "agent-1", limit: 3 },
+            },
+          },
+        ],
+      });
+    } finally {
+      if (previousConfigDir === undefined) {
+        delete process.env.CLAUDE_CONFIG_DIR;
+      } else {
+        process.env.CLAUDE_CONFIG_DIR = previousConfigDir;
+      }
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
 });
