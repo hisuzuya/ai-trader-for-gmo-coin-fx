@@ -49,6 +49,7 @@ export function CharacterAvatar({
         width={pixels}
         height={pixels}
         className="character-avatar-image"
+        loading="eager"
         unoptimized
       />
     </span>

@@ -74,6 +74,22 @@ const TIMEFRAMES = [
 type TimeframeValue = (typeof TIMEFRAMES)[number]["value"];
 type PriceType = "BID" | "ASK";
 
+const KICKER_CLS =
+  "inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted before:inline-block before:h-px before:w-[18px] before:bg-accent-strong before:content-['']";
+const CARD_CLS =
+  "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-bg-elevated";
+const CARD_HEAD_CLS =
+  "flex items-center justify-between gap-2 border-b border-line bg-linear-to-b from-surface to-bg-elevated px-4 py-3";
+const CARD_HEAD_TITLE_CLS =
+  "inline-flex items-center gap-2 text-xs font-bold tracking-wide text-text-strong before:h-3.5 before:w-[3px] before:rounded-sm before:bg-accent before:content-['']";
+const CARD_HEAD_META_CLS =
+  "inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-wide text-muted";
+const META_CHIP_CLS = "rounded-full bg-surface px-2 py-0.5 text-text";
+const KPI_LABEL_CLS = "text-[10px] font-bold uppercase tracking-[0.1em] text-muted";
+const KPI_SUB_CLS = "text-[10px] text-subtle";
+const KPI_VALUE_CLS =
+  "font-mono text-[22px] font-semibold tracking-tight text-text-strong tabular-nums";
+
 export default async function MarketPage({ searchParams }: { searchParams?: MarketSearchParams }) {
   const params = (await searchParams) ?? {};
   const interval = parseTimeframe(params.interval);
@@ -83,97 +99,88 @@ export default async function MarketPage({ searchParams }: { searchParams?: Mark
   const intervalLabel = getTimeframeLabel(interval);
 
   return (
-    <main className="tv-shell tv-market-shell">
-      <aside className="tv-sidebar" aria-label="マーケットナビゲーション">
-        <Link
-          className="tv-sidebar-btn"
-          href="/"
-          title="ダッシュボード"
-          aria-label="ダッシュボード"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M3 12 L12 3 L21 12" />
-            <path d="M5 10 L5 21 L19 21 L19 10" />
-          </svg>
-        </Link>
-        <Link
-          className="tv-sidebar-btn active"
-          href="/market"
-          title="チャート"
-          aria-label="チャート"
-          aria-current="page"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 19 L4 5" />
-            <path d="M8 17 L8 8" />
-            <path d="M12 20 L12 4" />
-            <path d="M16 16 L16 9" />
-            <path d="M20 18 L20 6" />
-          </svg>
-        </Link>
-      </aside>
-
-      <header className="tv-topbar">
-        <div className="tv-topbar-left">
-          <div className="tv-brand">
-            <span className="tv-brand-logo">AT</span>
-            <span className="tv-brand-name">AI Trade</span>
-            <span className="tv-brand-sub">USD/JPY · Public Market</span>
-          </div>
+    <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 pt-6 pb-14 sm:px-6 lg:px-9">
+      {/* === Header ======================================================= */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className={KICKER_CLS}>Market · USD/JPY</p>
+          <h1 className="text-[clamp(20px,2vw,26px)] font-semibold tracking-tight text-text-strong">
+            マーケット & プライス
+          </h1>
+          <p className="max-w-[64ch] text-xs leading-relaxed text-muted">
+            GMO FX の公開 API から取得した USD/JPY のローソク足とライブレート。 時間足と BID/ASK
+            を切替えて分析できます。
+          </p>
         </div>
-        <div className="tv-topbar-right">
-          <span className="tv-system-pill">
+        <div className="inline-flex items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-muted px-2.5 py-1 text-[11px] text-muted">
             <span className={`tv-status-dot ${market.ticker ? "live" : "danger"}`} />
-            {market.ticker ? "公開API接続" : "取得失敗"}
+            <span>{market.ticker ? "PUBLIC API" : "DISCONNECTED"}</span>
+            <strong className={market.ticker ? "text-profit-strong" : "text-loss-strong"}>
+              {market.ticker ? "CONNECTED" : "DEGRADED"}
+            </strong>
           </span>
-          <span className="tv-clock">
+          <span className="font-mono text-[11px] text-muted">
             {market.ticker ? formatDateTime(market.ticker.timestamp) : "—"}
           </span>
         </div>
       </header>
 
-      <div className="tv-market-ticker">
-        <MarketTile
+      {/* === KPI row ====================================================== */}
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCell
           label="USD/JPY MID"
           sub="GMO FX Public"
           value={market.ticker ? formatFx(market.ticker.mid) : "—"}
-          accent
+          tone="accent"
         />
-        <MarketTile
+        <KpiCell
           label="BID / ASK"
           sub="Live quote"
           value={
             market.ticker ? `${formatFx(market.ticker.bid)} / ${formatFx(market.ticker.ask)}` : "—"
           }
         />
-        <MarketTile
+        <KpiCell
           label="Spread"
           sub="Execution cost"
           value={market.ticker ? `${market.ticker.spreadPips.toFixed(1)} pips` : "—"}
         />
-        <MarketTile
+        <KpiCell
           label="Session Bias"
           sub={`${intervalLabel} ${priceType}`}
           value={summary.label}
           tone={summary.directionClass}
         />
-      </div>
+      </dl>
 
-      <div className="tv-market-main">
-        <section
-          className="tv-panel tv-chart-panel tv-market-chart"
-          aria-label="USD/JPY ローソク足"
-        >
-          <PanelHeader
-            title={`USD/JPY ${intervalLabel} / Public ${priceType} Candles`}
-            meta={market.sourceDate ? `${formatDateKey(market.sourceDate)} GMO FX` : "public API"}
-          />
-          <div className="tv-panel-body">
-            <div className="tv-chart-toolbar">
-              <nav className="tv-segment" aria-label="時間足">
+      {/* === Chart + Rate Lens =========================================== */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        {/* Chart */}
+        <section className={CARD_CLS} aria-label="USD/JPY ローソク足">
+          <div className={CARD_HEAD_CLS}>
+            <span className={CARD_HEAD_TITLE_CLS}>
+              USD/JPY · {intervalLabel} · Public {priceType} Candles
+            </span>
+            <span className={CARD_HEAD_META_CLS}>
+              <span className={META_CHIP_CLS}>
+                {market.sourceDate ? `${formatDateKey(market.sourceDate)} GMO FX` : "public API"}
+              </span>
+            </span>
+          </div>
+          <div className="flex min-h-0 flex-col gap-3 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft pb-3">
+              <nav
+                className="inline-flex items-center gap-px overflow-x-auto rounded-md border border-line bg-bg p-0.5"
+                aria-label="時間足"
+              >
                 {TIMEFRAMES.map((timeframe) => (
                   <Link
-                    className={`tv-segment-btn ${timeframe.value === interval ? "active" : ""}`}
+                    className={`inline-flex h-7 min-w-9 items-center justify-center rounded font-mono text-[11px] font-bold leading-none ${
+                      timeframe.value === interval
+                        ? "bg-accent text-text-strong"
+                        : "text-muted hover:bg-surface hover:text-text-strong"
+                    }`}
                     href={buildMarketHref(timeframe.value, priceType)}
                     key={timeframe.value}
                     aria-current={timeframe.value === interval ? "page" : undefined}
@@ -182,10 +189,17 @@ export default async function MarketPage({ searchParams }: { searchParams?: Mark
                   </Link>
                 ))}
               </nav>
-              <nav className="tv-segment compact" aria-label="価格種別">
+              <nav
+                className="inline-flex items-center gap-px overflow-x-auto rounded-md border border-line bg-bg p-0.5"
+                aria-label="価格種別"
+              >
                 {(["BID", "ASK"] as const).map((item) => (
                   <Link
-                    className={`tv-segment-btn ${item === priceType ? "active" : ""}`}
+                    className={`inline-flex h-7 min-w-10 items-center justify-center rounded font-mono text-[11px] font-bold leading-none ${
+                      item === priceType
+                        ? "bg-accent text-text-strong"
+                        : "text-muted hover:bg-surface hover:text-text-strong"
+                    }`}
                     href={buildMarketHref(interval, item)}
                     key={item}
                     aria-current={item === priceType ? "page" : undefined}
@@ -196,152 +210,176 @@ export default async function MarketPage({ searchParams }: { searchParams?: Mark
               </nav>
             </div>
 
-            <div className="tv-chart-summary">
-              <div className="tv-chart-headline">
-                <span className="tv-chart-headline-label">MID / Live Rate</span>
-                <span className={`tv-chart-headline-value ${summary.directionClass}`}>
-                  {market.ticker ? formatFx(market.ticker.mid) : "—"}
-                  <span className="tv-chart-headline-delta">
+            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-line-soft pb-3">
+              <div className="flex flex-col gap-0.5">
+                <span className={KPI_LABEL_CLS}>MID / Live Rate</span>
+                <span className="flex items-baseline gap-2.5">
+                  <span
+                    className={`font-mono text-[26px] font-semibold tracking-tight tabular-nums ${toneClass(summary.directionClass)}`}
+                  >
+                    {market.ticker ? formatFx(market.ticker.mid) : "—"}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-xs font-semibold ${toneChipClass(summary.directionClass)}`}
+                  >
                     {summary.directionMark} {formatPipsSigned(summary.movePips)}
                   </span>
                 </span>
               </div>
-              <div className="tv-chart-stats">
-                <div className="tv-chart-stat">
-                  <span className="tv-chart-stat-label">Bid / Ask</span>
-                  <span className="tv-chart-stat-value">
-                    {market.ticker
+              <div className="ml-auto flex gap-5">
+                <StatBlock
+                  label="Bid / Ask"
+                  value={
+                    market.ticker
                       ? `${formatFx(market.ticker.bid)} / ${formatFx(market.ticker.ask)}`
-                      : "—"}
-                  </span>
-                </div>
-                <div className="tv-chart-stat">
-                  <span className="tv-chart-stat-label">Spread</span>
-                  <span className="tv-chart-stat-value">
-                    {market.ticker ? `${market.ticker.spreadPips.toFixed(1)} pips` : "—"}
-                  </span>
-                </div>
-                <div className="tv-chart-stat">
-                  <span className="tv-chart-stat-label">Range</span>
-                  <span className="tv-chart-stat-value">{formatPips(summary.rangePips)}</span>
-                </div>
+                      : "—"
+                  }
+                />
+                <StatBlock
+                  label="Spread"
+                  value={market.ticker ? `${market.ticker.spreadPips.toFixed(1)} pips` : "—"}
+                />
+                <StatBlock label="Range" value={formatPips(summary.rangePips)} />
               </div>
             </div>
 
             {market.candles.length > 0 ? (
               <MarketCandleChart data={market.candles} interval={interval} />
             ) : (
-              <div className="tv-chart-empty">
+              <div className="grid min-h-[280px] place-items-center rounded-xl border border-dashed border-line p-6 text-center text-xs leading-relaxed text-muted">
                 {market.error ?? "公開 API のローソク足が取得できませんでした"}
               </div>
             )}
           </div>
         </section>
 
-        <aside className="tv-panel" aria-label="AI レート判断">
-          <PanelHeader title="AI レート判断 / Rate Lens" meta={summary.label} />
-          <div className="tv-panel-body">
-            <div className="tv-rate-lens">
-              <div className="tv-rate-lens-main">
-                <span className="tv-rate-lens-label">現在レート</span>
-                <strong>{market.ticker ? formatFx(market.ticker.mid) : "—"}</strong>
-                <span className={`tv-rate-lens-bias ${summary.directionClass}`}>
-                  {summary.label}
-                </span>
-              </div>
-              <div className="tv-rate-grid">
-                <RateCell label="BID" value={market.ticker ? formatFx(market.ticker.bid) : "—"} />
-                <RateCell label="ASK" value={market.ticker ? formatFx(market.ticker.ask) : "—"} />
-                <RateCell
-                  label="Spread"
-                  value={market.ticker ? `${market.ticker.spreadPips.toFixed(1)} pips` : "—"}
-                />
-                <RateCell label="Volatility" value={formatPips(summary.rangePips)} />
-              </div>
-              <div className="tv-ai-note">
-                <span className="tv-ai-note-title">AIメモ</span>
-                <p>{buildRateMemo(summary)}</p>
-              </div>
-              <div className="tv-rate-meta">
-                <span>API: GMO FX Public</span>
-                <span>Market: {market.marketStatus ?? "—"}</span>
-                <span>Tick: {market.symbolRule ? market.symbolRule.tickSize : "—"}</span>
-                <span>
-                  Updated: {market.ticker ? formatDateTime(market.ticker.timestamp) : "—"}
-                </span>
-              </div>
+        {/* Rate Lens */}
+        <aside className={CARD_CLS} aria-label="AI レート判断">
+          <div className={CARD_HEAD_CLS}>
+            <span className={CARD_HEAD_TITLE_CLS}>AI レート判断 / Rate Lens</span>
+            <span className={CARD_HEAD_META_CLS}>
+              <span className={`${META_CHIP_CLS} ${toneClass(summary.directionClass)}`}>
+                {summary.label}
+              </span>
+            </span>
+          </div>
+          <div className="flex flex-col gap-3 p-4">
+            <div className="rounded-xl border border-line-soft bg-surface-muted p-4">
+              <span className={KPI_LABEL_CLS}>現在レート</span>
+              <strong
+                className={`mt-1 block font-mono text-[28px] font-semibold tracking-tight tabular-nums ${toneClass(summary.directionClass)}`}
+              >
+                {market.ticker ? formatFx(market.ticker.mid) : "—"}
+              </strong>
+              <span
+                className={`mt-1 inline-flex w-max items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[11px] font-bold tracking-wide ${toneChipClass(summary.directionClass)}`}
+              >
+                {summary.label}
+              </span>
             </div>
+
+            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line-soft bg-line-soft">
+              <RateCell label="BID" value={market.ticker ? formatFx(market.ticker.bid) : "—"} />
+              <RateCell label="ASK" value={market.ticker ? formatFx(market.ticker.ask) : "—"} />
+              <RateCell
+                label="Spread"
+                value={market.ticker ? `${market.ticker.spreadPips.toFixed(1)} pips` : "—"}
+              />
+              <RateCell label="Volatility" value={formatPips(summary.rangePips)} />
+            </div>
+
+            <div className="rounded-xl border-l-2 border-accent bg-surface-muted px-3 py-2.5">
+              <span className={KPI_LABEL_CLS}>AIメモ</span>
+              <p className="mt-1.5 text-xs leading-relaxed text-text">{buildRateMemo(summary)}</p>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-y-1 font-mono text-[10px] text-muted">
+              <dt>API</dt>
+              <dd className="text-right text-text">GMO FX Public</dd>
+              <dt>Market</dt>
+              <dd className="text-right text-text">{market.marketStatus ?? "—"}</dd>
+              <dt>Tick</dt>
+              <dd className="text-right text-text">
+                {market.symbolRule ? market.symbolRule.tickSize : "—"}
+              </dd>
+              <dt>Updated</dt>
+              <dd className="text-right text-text">
+                {market.ticker ? formatDateTime(market.ticker.timestamp) : "—"}
+              </dd>
+            </dl>
           </div>
         </aside>
       </div>
-
-      <footer className="tv-statusbar" role="contentinfo" aria-label="ステータス">
-        <span className="tv-statusbar-item">
-          <span className={`tv-status-dot sm ${market.ticker ? "live" : "danger"}`} />
-          <strong>{market.ticker ? "CONNECTED" : "DEGRADED"}</strong>
-        </span>
-        <span className="tv-statusbar-sep" />
-        <span className="tv-statusbar-item">
-          Source <strong>GMO FX PUBLIC</strong>
-        </span>
-        <span className="tv-statusbar-sep" />
-        <span className="tv-statusbar-item optional">
-          Symbol <strong>USD/JPY</strong>
-        </span>
-        <span className="tv-statusbar-spacer" />
-        <span className="tv-statusbar-item">
-          Bias <strong>{summary.label}</strong>
-        </span>
-      </footer>
-    </main>
+    </div>
   );
 }
 
-function MarketTile({
+function KpiCell({
   label,
   sub,
   value,
-  accent = false,
   tone,
 }: {
   label: string;
   sub: string;
   value: string;
-  accent?: boolean;
-  tone?: MarketSummary["directionClass"];
+  tone?: "profit" | "loss" | "flat" | "accent";
 }) {
   return (
-    <div className="tv-ticker-tile">
-      <span className="tv-ticker-label">
-        <span>{label}</span>
-        <span>{sub}</span>
-      </span>
-      <span className={`tv-ticker-value compact ${accent ? "accent" : ""} ${tone ?? ""}`}>
-        {value}
-      </span>
+    <div className="relative flex min-w-0 flex-col gap-1 bg-bg-elevated p-4">
+      <span className={KPI_LABEL_CLS}>{label}</span>
+      <span className={KPI_SUB_CLS}>{sub}</span>
+      <span className={`mt-1 truncate ${KPI_VALUE_CLS} ${toneClass(tone)}`}>{value}</span>
     </div>
   );
 }
 
-function PanelHeader({ title, meta }: { title: string; meta: string }) {
+function StatBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="tv-panel-header">
-      <div className="tv-panel-title">
-        <span className="tv-panel-title-bar" />
-        {title}
-      </div>
-      <span className="tv-panel-meta">{meta}</span>
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">{label}</span>
+      <span className="font-mono text-[13px] tabular-nums text-text-strong">{value}</span>
     </div>
   );
 }
 
 function RateCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="tv-rate-cell">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className="flex min-h-[58px] flex-col gap-1 bg-bg-elevated px-3 py-2.5">
+      <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted">{label}</span>
+      <strong className="font-mono text-[13px] font-bold tabular-nums text-text-strong">
+        {value}
+      </strong>
     </div>
   );
+}
+
+function toneClass(tone: "profit" | "loss" | "flat" | "accent" | undefined) {
+  switch (tone) {
+    case "profit":
+      return "text-profit-strong";
+    case "loss":
+      return "text-loss-strong";
+    case "flat":
+      return "text-accent-strong";
+    case "accent":
+      return "text-accent-strong";
+    default:
+      return "text-text-strong";
+  }
+}
+
+function toneChipClass(tone: "profit" | "loss" | "flat" | undefined) {
+  switch (tone) {
+    case "profit":
+      return "bg-profit-soft text-profit-strong";
+    case "loss":
+      return "bg-loss-soft text-loss-strong";
+    case "flat":
+      return "bg-accent-soft text-accent-strong";
+    default:
+      return "bg-surface text-muted";
+  }
 }
 
 async function getPublicMarketSnapshot(
