@@ -1,4 +1,5 @@
 import {
+  aiAgents,
   aiDailyReviews,
   aiTuningProposals,
   CandleRepository,
@@ -13,7 +14,7 @@ import {
   runRecordedJob,
   strategyRuns,
 } from "@ai-trade/db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import {
   type HistoricalImporter,
   type HistoricalImportResult,
@@ -264,6 +265,16 @@ export class WorkerRuntime {
     return scheduler.createAgent(input);
   }
 
+  async deleteAgent(input: Parameters<AgentScheduler["deleteAgent"]>[0]) {
+    const scheduler = this.services.find(isAgentScheduler);
+
+    if (!scheduler) {
+      throw new Error("Agent scheduler service is not registered.");
+    }
+
+    return scheduler.deleteAgent(input);
+  }
+
   async updateAgentSettings(input: Parameters<AgentScheduler["updateAgentSettings"]>[0]) {
     const scheduler = this.services.find(isAgentScheduler);
 
@@ -295,50 +306,93 @@ export class WorkerRuntime {
   }
 
   async dashboardSummary(options: { accountName?: string } = {}): Promise<WorkerDashboardSummary> {
-    const [accounts, candidates, dailyReviews] = await Promise.all([
-      db
-        .select({
-          id: paperAccounts.id,
-          strategyRunId: paperAccounts.strategyRunId,
-          name: paperAccounts.name,
-          balanceJpy: paperAccounts.balanceJpy,
-          initialBalanceJpy: paperAccounts.initialBalanceJpy,
-          status: paperAccounts.status,
-          updatedAt: paperAccounts.updatedAt,
-        })
-        .from(paperAccounts)
-        .orderBy(desc(paperAccounts.updatedAt))
-        .limit(20),
-      db
-        .select({
-          id: aiTuningProposals.id,
-          sourceStrategyName: aiTuningProposals.sourceStrategyName,
-          candidateStrategyName: aiTuningProposals.candidateStrategyName,
-          status: aiTuningProposals.status,
-          strategyRunStatus: strategyRuns.status,
-          timeframe: aiTuningProposals.timeframe,
-          createdAt: aiTuningProposals.createdAt,
-        })
-        .from(aiTuningProposals)
-        .leftJoin(strategyRuns, eq(strategyRuns.id, aiTuningProposals.id))
-        .where(eq(aiTuningProposals.insertedIntoPaper, true))
-        .orderBy(desc(aiTuningProposals.createdAt))
-        .limit(6),
-      db
-        .select({
-          reviewDate: aiDailyReviews.reviewDate,
-          status: aiDailyReviews.status,
-          summary: aiDailyReviews.summary,
-          baselinePromotionCandidates: aiDailyReviews.baselinePromotionCandidates,
-          candidateRetirementCandidates: aiDailyReviews.candidateRetirementCandidates,
-          warnings: aiDailyReviews.warnings,
-          nextActions: aiDailyReviews.nextActions,
-          createdAt: aiDailyReviews.createdAt,
-        })
-        .from(aiDailyReviews)
-        .orderBy(desc(aiDailyReviews.createdAt))
-        .limit(3),
-    ]);
+    const calendarFromDate = new Date();
+    calendarFromDate.setUTCHours(0, 0, 0, 0);
+    calendarFromDate.setUTCDate(calendarFromDate.getUTCDate() - 120);
+
+    const [accounts, candidates, dailyReviews, dailyPnlRows, dailyAgentPnlRows] = await Promise.all(
+      [
+        db
+          .select({
+            id: paperAccounts.id,
+            strategyRunId: paperAccounts.strategyRunId,
+            name: paperAccounts.name,
+            balanceJpy: paperAccounts.balanceJpy,
+            initialBalanceJpy: paperAccounts.initialBalanceJpy,
+            status: paperAccounts.status,
+            updatedAt: paperAccounts.updatedAt,
+          })
+          .from(paperAccounts)
+          .orderBy(desc(paperAccounts.updatedAt))
+          .limit(20),
+        db
+          .select({
+            id: aiTuningProposals.id,
+            sourceStrategyName: aiTuningProposals.sourceStrategyName,
+            candidateStrategyName: aiTuningProposals.candidateStrategyName,
+            status: aiTuningProposals.status,
+            strategyRunStatus: strategyRuns.status,
+            timeframe: aiTuningProposals.timeframe,
+            createdAt: aiTuningProposals.createdAt,
+          })
+          .from(aiTuningProposals)
+          .leftJoin(strategyRuns, eq(strategyRuns.id, aiTuningProposals.id))
+          .where(eq(aiTuningProposals.insertedIntoPaper, true))
+          .orderBy(desc(aiTuningProposals.createdAt))
+          .limit(6),
+        db
+          .select({
+            reviewDate: aiDailyReviews.reviewDate,
+            status: aiDailyReviews.status,
+            summary: aiDailyReviews.summary,
+            baselinePromotionCandidates: aiDailyReviews.baselinePromotionCandidates,
+            candidateRetirementCandidates: aiDailyReviews.candidateRetirementCandidates,
+            warnings: aiDailyReviews.warnings,
+            nextActions: aiDailyReviews.nextActions,
+            createdAt: aiDailyReviews.createdAt,
+          })
+          .from(aiDailyReviews)
+          .orderBy(desc(aiDailyReviews.createdAt))
+          .limit(3),
+        db
+          .select({
+            date: sql<string>`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD')`,
+            pnlJpy: sql<string>`COALESCE(SUM(${paperTrades.pnlJpy}), 0)`,
+            tradeCount: sql<number>`COUNT(*)::int`,
+            winCount: sql<number>`COUNT(*) FILTER (WHERE ${paperTrades.pnlJpy} > 0)::int`,
+          })
+          .from(paperTrades)
+          .where(gte(paperTrades.closedAt, calendarFromDate))
+          .groupBy(sql`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD')`)
+          .orderBy(
+            sql`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD') DESC`,
+          ),
+        db
+          .select({
+            date: sql<string>`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD')`,
+            accountId: paperAccounts.id,
+            accountName: paperAccounts.name,
+            agentId: aiAgents.id,
+            agentName: aiAgents.name,
+            characterId: aiAgents.characterId,
+            pnlJpy: sql<string>`COALESCE(SUM(${paperTrades.pnlJpy}), 0)`,
+            tradeCount: sql<number>`COUNT(*)::int`,
+            winCount: sql<number>`COUNT(*) FILTER (WHERE ${paperTrades.pnlJpy} > 0)::int`,
+          })
+          .from(paperTrades)
+          .innerJoin(paperAccounts, eq(paperAccounts.id, paperTrades.accountId))
+          .leftJoin(aiAgents, eq(aiAgents.id, paperAccounts.agentId))
+          .where(gte(paperTrades.closedAt, calendarFromDate))
+          .groupBy(
+            sql`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD')`,
+            paperAccounts.id,
+            paperAccounts.name,
+            aiAgents.id,
+            aiAgents.name,
+            aiAgents.characterId,
+          ),
+      ],
+    );
 
     const selectedAccount =
       options.accountName !== undefined
@@ -390,6 +444,28 @@ export class WorkerRuntime {
         ...review,
         createdAt: review.createdAt.toISOString(),
       })),
+      dailyPnl: dailyPnlRows.map((row) => {
+        const accounts = dailyAgentPnlRows
+          .filter((r) => r.date === row.date)
+          .map((r) => ({
+            accountId: r.accountId,
+            accountName: r.accountName,
+            agentId: r.agentId,
+            agentName: r.agentName,
+            characterId: r.characterId,
+            pnlJpy: r.pnlJpy,
+            tradeCount: r.tradeCount,
+            winCount: r.winCount,
+          }))
+          .sort((a, b) => Number(b.pnlJpy) - Number(a.pnlJpy));
+        return {
+          date: row.date,
+          pnlJpy: row.pnlJpy,
+          tradeCount: row.tradeCount,
+          winCount: row.winCount,
+          accounts,
+        };
+      }),
       accountDetail,
     };
   }
@@ -588,6 +664,22 @@ export type WorkerDashboardSummary = {
     warnings: unknown;
     nextActions: unknown;
     createdAt: string;
+  }[];
+  dailyPnl: {
+    date: string;
+    pnlJpy: string;
+    tradeCount: number;
+    winCount: number;
+    accounts: {
+      accountId: string;
+      accountName: string;
+      agentId: string | null;
+      agentName: string | null;
+      characterId: string | null;
+      pnlJpy: string;
+      tradeCount: number;
+      winCount: number;
+    }[];
   }[];
   accountDetail: AccountDetail | null;
 };

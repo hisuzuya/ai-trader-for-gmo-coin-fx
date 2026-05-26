@@ -1,10 +1,10 @@
-import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
 import type { UTCTimestamp } from "lightweight-charts";
 import Image from "next/image";
 import Link from "next/link";
 import { type AgentSummaryRaw, fetchAgentSummaries } from "@/components/agents/CrewPanelSection";
 import { CrewTile } from "@/components/agents/CrewTile";
-import { type CandlePoint, CandlestickChart } from "@/components/CandlestickChart";
+import { DailyPnlCalendar, type DailyPnlEntry } from "@/components/DailyPnlCalendar";
 import { PnlChart, type PnlPoint } from "@/components/PnlChart";
 import { appRouter } from "@/server/trpc/root";
 
@@ -69,6 +69,22 @@ type DashboardSummary = {
     nextActions: unknown;
     createdAt: string;
   }[];
+  dailyPnl: {
+    date: string;
+    pnlJpy: string;
+    tradeCount: number;
+    winCount: number;
+    accounts: {
+      accountId: string;
+      accountName: string;
+      agentId: string | null;
+      agentName: string | null;
+      characterId: string | null;
+      pnlJpy: string;
+      tradeCount: number;
+      winCount: number;
+    }[];
+  }[];
   accountDetail: AccountDetail | null;
 };
 
@@ -78,6 +94,7 @@ const EMPTY_DASHBOARD: DashboardSummary = {
   trades: [],
   candidates: [],
   dailyReviews: [],
+  dailyPnl: [],
   accountDetail: null,
 };
 
@@ -107,44 +124,8 @@ async function getDashboardSummary(accountName?: string): Promise<DashboardSumma
     trades: Array.isArray(summary.trades) ? summary.trades : [],
     candidates: Array.isArray(summary.candidates) ? summary.candidates : [],
     dailyReviews: Array.isArray(summary.dailyReviews) ? summary.dailyReviews : [],
+    dailyPnl: Array.isArray(summary.dailyPnl) ? summary.dailyPnl : [],
     accountDetail: summary.accountDetail ?? null,
-  };
-}
-
-type RecentCandlesResponse = {
-  symbol: string;
-  timeframe: string;
-  priceType: "bid" | "ask" | "mid";
-  candles: {
-    openedAt: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-  }[];
-};
-
-async function getRecentCandles(): Promise<RecentCandlesResponse> {
-  const baseUrl = process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787";
-  const url = new URL("/candles", baseUrl);
-  url.searchParams.set("symbol", "USD_JPY");
-  url.searchParams.set("timeframe", "1m");
-  url.searchParams.set("priceType", "mid");
-  url.searchParams.set("limit", "1000");
-
-  const response = await fetch(url, { cache: "no-store" }).catch(() => null);
-
-  if (!response?.ok) {
-    return { symbol: "USD_JPY", timeframe: "1m", priceType: "mid", candles: [] };
-  }
-
-  const body = (await response.json()) as Partial<RecentCandlesResponse> & { ok?: boolean };
-
-  return {
-    symbol: body.symbol ?? "USD_JPY",
-    timeframe: body.timeframe ?? "1m",
-    priceType: isPriceType(body.priceType) ? body.priceType : "mid",
-    candles: Array.isArray(body.candles) ? body.candles : [],
   };
 }
 
@@ -184,10 +165,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         ? rawAccount[0]
         : undefined;
 
-  const [health, dashboard, recentCandles, agentSummaries] = await Promise.all([
+  const [health, dashboard, agentSummaries] = await Promise.all([
     getHealth(),
     getDashboardSummary(accountParam),
-    getRecentCandles(),
     fetchAgentSummaries(),
   ]);
   const selectedAccountName = dashboard.selectedAccountName;
@@ -214,15 +194,25 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const latestReview = dashboard.dailyReviews[0];
   const pnlSeries = buildPnlSeries(dashboard.trades);
   const pnlPositive = totalPnl >= 0;
-  const candleSeries = buildCandleSeries(recentCandles.candles);
-  const lastCandle = candleSeries.at(-1) ?? null;
-  const firstCandle = candleSeries.at(0) ?? null;
-  const candleChange = lastCandle && firstCandle ? lastCandle.close - firstCandle.open : 0;
-  const candleChangePct =
-    lastCandle && firstCandle && firstCandle.open !== 0
-      ? (candleChange / firstCandle.open) * 100
-      : 0;
-  const candleUp = candleChange >= 0;
+  const dailyPnlEntries: DailyPnlEntry[] = dashboard.dailyPnl.map((entry) => ({
+    date: entry.date,
+    pnlJpy: Number(entry.pnlJpy),
+    tradeCount: entry.tradeCount,
+    winCount: entry.winCount,
+    accounts: entry.accounts.map((account) => {
+      const character = getCharacter(account.characterId);
+      return {
+        accountId: account.accountId,
+        accountName: account.accountName,
+        agentName: account.agentName,
+        pnlJpy: Number(account.pnlJpy),
+        tradeCount: account.tradeCount,
+        characterId: character?.id ?? null,
+        avatarPath: character?.avatarPath ?? character?.imagePath ?? null,
+        displayName: character?.nameJa ?? account.agentName ?? account.accountName,
+      };
+    }),
+  }));
   const topPerformers = [...agentSummaries]
     .filter((agent) => agent.paperAccount !== null)
     .sort((a, b) => (b.paperAccount?.pnlJpy ?? 0) - (a.paperAccount?.pnlJpy ?? 0))
@@ -296,7 +286,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             />
             <KpiCell
               label="Active Agents"
-              value={`${activeAgents} / ${AGENT_CHARACTERS.length}`}
+              value={`${activeAgents} / ${agentSummaries.length}`}
               tone="accent"
               foot={`${totalOpenPositions} open positions`}
             />
@@ -377,7 +367,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             <p className={KICKER_CLS}>AI Crew</p>
             <h2 className={SECTION_TITLE_CLS}>エージェント・クルー</h2>
             <p className={SECTION_DESC_CLS}>
-              各キャラクターは独自のペルソナを持ち、専用のペーパー口座で戦略を運用します。タイルから個別の詳細画面に遷移できます。
+              配属済みのエージェントを一覧表示。タイルから個別の詳細画面に遷移できます。
             </p>
           </div>
           <div className="inline-flex items-center gap-1.5">
@@ -389,117 +379,61 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </Link>
           </div>
         </header>
-        <div className="crew-grid">
-          {AGENT_CHARACTERS.map((character) => {
-            const agent = agentSummaries.find((a) => a.characterId === character.id) ?? null;
-            const summary = agent
-              ? {
-                  id: agent.id,
-                  name: agent.name,
-                  status: agent.status,
-                  currentVersion: agent.currentVersion,
-                  acceptedProposalCount: agent.acceptedProposalCount,
-                  proposalCount: agent.proposalCount,
-                  succeededRunCount: agent.succeededRunCount,
-                  failedRunCount: agent.failedRunCount,
-                  latestRunStatus: agent.latestRun?.status ?? null,
-                  balanceJpy: agent.paperAccount?.balanceJpy ?? null,
-                  initialBalanceJpy: agent.paperAccount?.initialBalanceJpy ?? null,
-                  pnlJpy: agent.paperAccount?.pnlJpy ?? null,
-                  openPositionCount: agent.paperAccount?.openPositionCount ?? null,
-                }
-              : null;
-            return <CrewTile key={character.id} character={character} agent={summary} />;
-          })}
-        </div>
-      </section>
-
-      {/* === Market ====================================================== */}
-      <section aria-label="Market" className={SECTION_CLS}>
-        <header className={SECTION_HEAD_CLS}>
-          <div className="flex min-w-0 flex-col gap-1">
-            <p className={KICKER_CLS}>Market · USD/JPY</p>
-            <h2 className={SECTION_TITLE_CLS}>マーケット & プライス</h2>
-            <p className={SECTION_DESC_CLS}>
-              内部蓄積のローソク足からダッシュボード用のスナップショットを表示。詳細な時間足/BID-ASK切替は
-              Market 画面で。
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-1.5">
-            <Link href="/market" className="btn-primary">
-              📈 フルチャートを開く
+        {agentSummaries.length === 0 ? (
+          <div className={EMPTY_CLS}>
+            まだエージェントがいません。
+            <br />
+            <Link href="/agents#picker" className="text-accent-strong">
+              ＋ クルーを配属する →
             </Link>
           </div>
-        </header>
+        ) : (
+          <div className="crew-grid">
+            {agentSummaries.map((agent) => {
+              const character = getCharacter(agent.characterId);
+              if (!character) return null;
+              const summary = {
+                id: agent.id,
+                name: agent.name,
+                status: agent.status,
+                currentVersion: agent.currentVersion,
+                acceptedProposalCount: agent.acceptedProposalCount,
+                proposalCount: agent.proposalCount,
+                succeededRunCount: agent.succeededRunCount,
+                failedRunCount: agent.failedRunCount,
+                latestRunStatus: agent.latestRun?.status ?? null,
+                balanceJpy: agent.paperAccount?.balanceJpy ?? null,
+                initialBalanceJpy: agent.paperAccount?.initialBalanceJpy ?? null,
+                pnlJpy: agent.paperAccount?.pnlJpy ?? null,
+                openPositionCount: agent.paperAccount?.openPositionCount ?? null,
+              };
+              return <CrewTile key={agent.id} character={character} agent={summary} />;
+            })}
+          </div>
+        )}
+      </section>
 
+      {/* === Calendar =================================================== */}
+      <section aria-label="日次損益カレンダー" className={SECTION_CLS}>
+        <header className={SECTION_HEAD_CLS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className={KICKER_CLS}>Daily PnL · Calendar</p>
+            <h2 className={SECTION_TITLE_CLS}>日次損益カレンダー</h2>
+            <p className={SECTION_DESC_CLS}>
+              JST
+              日付で集計した、全エージェント合算のペーパー確定損益。月送りで過去の成績も確認できます。
+            </p>
+          </div>
+        </header>
         <div className={CARD_CLS}>
           <div className={CARD_HEAD_CLS}>
-            <span className={CARD_HEAD_TITLE_CLS}>
-              {formatSymbol(recentCandles.symbol)} · {recentCandles.timeframe.toUpperCase()} ·{" "}
-              {recentCandles.priceType.toUpperCase()}
-            </span>
+            <span className={CARD_HEAD_TITLE_CLS}>日次 PnL / Daily PnL</span>
             <span className={CARD_HEAD_META_CLS}>
-              <span className={META_CHIP_CLS}>{candleSeries.length} bars</span>
-              <Link href="/market" className={`${META_CHIP_CLS} hover:text-text-strong`}>
-                Market →
-              </Link>
+              <span className={META_CHIP_CLS}>{dailyPnlEntries.length} days w/ fills</span>
             </span>
           </div>
           <div className={CARD_BODY_CLS}>
-            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-line-soft pb-2.5">
-              <div className="flex items-baseline gap-3">
-                <span
-                  className={`font-mono text-[30px] font-semibold tabular-nums tracking-tight ${
-                    candleUp ? "text-profit-strong" : "text-loss-strong"
-                  }`}
-                >
-                  {lastCandle ? lastCandle.close.toFixed(3) : "—"}
-                </span>
-                {lastCandle && firstCandle ? (
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-sm font-semibold ${
-                      candleUp
-                        ? "bg-profit-soft text-profit-strong"
-                        : "bg-loss-soft text-loss-strong"
-                    }`}
-                  >
-                    {candleUp ? "▲" : "▼"} {Math.abs(candleChange).toFixed(3)}
-                    <span className="opacity-75">
-                      ({candleChangePct >= 0 ? "+" : "−"}
-                      {Math.abs(candleChangePct).toFixed(2)}%)
-                    </span>
-                  </span>
-                ) : null}
-              </div>
-              <div className="ml-auto flex gap-5">
-                <StatBlock label="High" value={lastCandle ? lastCandle.high.toFixed(3) : "—"} />
-                <StatBlock label="Low" value={lastCandle ? lastCandle.low.toFixed(3) : "—"} />
-                <StatBlock label="Bars" value={candleSeries.length.toLocaleString()} />
-              </div>
-            </div>
-            <div className="flex min-h-[360px] flex-1 flex-col">
-              {candleSeries.length > 0 ? (
-                <CandlestickChart
-                  data={candleSeries}
-                  query={{
-                    symbol: recentCandles.symbol,
-                    timeframe: recentCandles.timeframe,
-                    priceType: recentCandles.priceType,
-                  }}
-                  initialLimit={1000}
-                />
-              ) : (
-                <div className="grid min-h-[280px] place-items-center rounded-xl border border-dashed border-line p-6 text-center text-xs leading-relaxed text-muted">
-                  USD/JPYのMIDキャンドルが取得できていません
-                  <br />
-                  (worker未起動 / データ未蓄積)
-                  <br />
-                  <Link href="/market" className="text-accent-strong">
-                    Market画面で公開APIのレートを確認 →
-                  </Link>
-                </div>
-              )}
-            </div>
+            <DailyPnlCalendar entries={dailyPnlEntries} />
           </div>
         </div>
       </section>
@@ -876,15 +810,6 @@ function KpiCell({
   );
 }
 
-function StatBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">{label}</span>
-      <span className="font-mono text-[13px] tabular-nums text-text-strong">{value}</span>
-    </div>
-  );
-}
-
 function WatchlistRow({
   href,
   scroll,
@@ -1131,36 +1056,6 @@ function formatStrategyDefinitionPreview(value: unknown): string | null {
   } catch {
     return null;
   }
-}
-
-function buildCandleSeries(candles: RecentCandlesResponse["candles"]): CandlePoint[] {
-  if (candles.length === 0) return [];
-
-  const seenTimes = new Set<number>();
-  const points: CandlePoint[] = [];
-
-  for (const candle of candles) {
-    const ms = new Date(candle.openedAt).getTime();
-    if (Number.isNaN(ms)) continue;
-    let time = Math.floor(ms / 1000);
-    while (seenTimes.has(time)) {
-      time += 1;
-    }
-    seenTimes.add(time);
-    points.push({
-      time: time as UTCTimestamp,
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    });
-  }
-
-  return points;
-}
-
-function isPriceType(value: unknown): value is RecentCandlesResponse["priceType"] {
-  return value === "bid" || value === "ask" || value === "mid";
 }
 
 function buildPnlSeries(trades: DashboardSummary["trades"]): PnlPoint[] {

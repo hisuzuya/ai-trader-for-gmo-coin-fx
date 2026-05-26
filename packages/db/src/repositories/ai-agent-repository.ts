@@ -22,6 +22,7 @@ import {
   aiAgents,
   aiAgentVersions,
   paperAccounts,
+  paperOrders,
   paperPositions,
   paperTrades,
   strategyRuns,
@@ -467,58 +468,52 @@ export class AiAgentRepository {
   }
 
   async seedResearchAgent(): Promise<void> {
-    await this.database
-      .insert(aiAgents)
-      .values([toResearchAgentSeedRow(), toResearchAgent1hSeedRow()])
-      .onConflictDoNothing({ target: aiAgents.id });
+    // The legacy Research Agent 01 / 1H seed has been retired. Agents are created
+    // through the character picker UI; nothing is auto-seeded here.
+  }
 
-    await this.database
-      .insert(aiAgentVersions)
-      .values([
-        {
-          id: "22222222-2222-4222-8222-222222222222",
-          agentId: RESEARCH_AGENT_SEED_ID,
-          version: "1",
-          systemPrompt: RESEARCH_AGENT_SYSTEM_PROMPT,
-          allowedTools: [...AGENT_RESEARCH_TOOL_NAMES],
-          note: "Initial Research Agent 01 seed.",
-        },
-        {
-          id: "44444444-4444-4444-8444-444444444444",
-          agentId: RESEARCH_AGENT_1H_SEED_ID,
-          version: "1",
-          systemPrompt: RESEARCH_AGENT_1H_SYSTEM_PROMPT,
-          allowedTools: [...AGENT_RESEARCH_TOOL_NAMES],
-          note: "Initial Research Agent 1H seed.",
-        },
-      ])
-      .onConflictDoNothing({
-        target: [aiAgentVersions.agentId, aiAgentVersions.version],
-      });
+  async deleteAgent(input: { agentId: string }): Promise<{ deleted: boolean }> {
+    return this.database.transaction(async (tx) => {
+      const accountRows = await tx
+        .select({ id: paperAccounts.id })
+        .from(paperAccounts)
+        .where(eq(paperAccounts.agentId, input.agentId));
+      const accountIds = accountRows.map((row) => row.id);
 
-    await this.database
-      .insert(paperAccounts)
-      .values([
-        {
-          agentId: RESEARCH_AGENT_SEED_ID,
-          name: "Research Agent 01 paper account",
-          currency: "JPY",
-          initialBalanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
-          balanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
-          leverage: "1.00",
-          status: "active",
-        },
-        {
-          agentId: RESEARCH_AGENT_1H_SEED_ID,
-          name: "Research Agent 1H paper account",
-          currency: "JPY",
-          initialBalanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
-          balanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
-          leverage: "1.00",
-          status: "active",
-        },
-      ])
-      .onConflictDoNothing({ target: paperAccounts.agentId });
+      if (accountIds.length > 0) {
+        for (const accountId of accountIds) {
+          await tx.delete(paperTrades).where(eq(paperTrades.accountId, accountId));
+          await tx.delete(paperOrders).where(eq(paperOrders.accountId, accountId));
+          await tx.delete(paperPositions).where(eq(paperPositions.accountId, accountId));
+        }
+
+        await tx.delete(paperAccounts).where(eq(paperAccounts.agentId, input.agentId));
+      }
+
+      await tx
+        .update(strategyRuns)
+        .set({ sourceAgentId: null })
+        .where(eq(strategyRuns.sourceAgentId, input.agentId));
+
+      await tx
+        .delete(aiAgentCandidateReviews)
+        .where(eq(aiAgentCandidateReviews.agentId, input.agentId));
+      await tx
+        .delete(aiAgentStrategyProposals)
+        .where(eq(aiAgentStrategyProposals.agentId, input.agentId));
+      await tx.delete(aiAgentObservations).where(eq(aiAgentObservations.agentId, input.agentId));
+      await tx.delete(aiAgentSkills).where(eq(aiAgentSkills.agentId, input.agentId));
+      await tx.delete(aiAgentMemories).where(eq(aiAgentMemories.agentId, input.agentId));
+      await tx.delete(aiAgentRuns).where(eq(aiAgentRuns.agentId, input.agentId));
+      await tx.delete(aiAgentVersions).where(eq(aiAgentVersions.agentId, input.agentId));
+
+      const removed = await tx
+        .delete(aiAgents)
+        .where(eq(aiAgents.id, input.agentId))
+        .returning({ id: aiAgents.id });
+
+      return { deleted: removed.length > 0 };
+    });
   }
 
   async createVersion(input: AgentVersionInput): Promise<{ version: number }> {
