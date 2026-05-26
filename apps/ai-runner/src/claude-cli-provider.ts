@@ -1,7 +1,15 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 
+import {
+  AGENT_RESEARCH_TOOL_NAMES,
+  type AgentResearchToolName,
+  type AgentToolCallLog,
+} from "@ai-trade/domain/ai-agents";
 import type {
   AiDailyReviewResponse,
   AiStrategyProposalResponse,
@@ -32,6 +40,7 @@ export type ClaudeCliInvocationResult =
       ok: true;
       provider: "claude_cli";
       stdout: string;
+      mcpToolCalls?: AgentToolCallLog[];
       stderrSummary?: string;
       startedAt: string;
       finishedAt: string;
@@ -114,6 +123,7 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
     }
 
     try {
+      const transcriptBaseline = captureClaudeTranscriptBaseline();
       const { stdout, stderr } = await execFileAsync(
         this.executable,
         this.buildArgs(input.prompt),
@@ -139,6 +149,7 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
         ok: true,
         provider: "claude_cli",
         stdout,
+        mcpToolCalls: collectMcpToolCallsSince(transcriptBaseline),
         stderrSummary: summarizeStderr(stderr),
         startedAt: startedAt.toISOString(),
         finishedAt: new Date().toISOString(),
@@ -381,6 +392,197 @@ function parseMcpArgs(value: string | undefined): string[] | undefined {
     // Fall back to whitespace splitting for simple operational overrides.
   }
   return value.split(/\s+/).filter(Boolean);
+}
+
+type TranscriptBaseline = {
+  projectsDir: string;
+  lineCounts: Map<string, number>;
+};
+
+function captureClaudeTranscriptBaseline(): TranscriptBaseline {
+  const projectsDir = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "projects");
+
+  return {
+    projectsDir,
+    lineCounts: new Map(listJsonlFiles(projectsDir).map((path) => [path, countLines(path)])),
+  };
+}
+
+function collectMcpToolCallsSince(baseline: TranscriptBaseline): AgentToolCallLog[] {
+  if (!existsSync(baseline.projectsDir)) {
+    return [];
+  }
+
+  const toolUses = new Map<
+    string,
+    {
+      name: AgentResearchToolName;
+      rawName: string;
+      args: unknown;
+      result?: unknown;
+    }
+  >();
+
+  for (const filePath of listJsonlFiles(baseline.projectsDir)) {
+    for (const line of readJsonlLines(filePath, baseline.lineCounts.get(filePath) ?? 0)) {
+      const content = getMessageContent(line);
+      if (!Array.isArray(content)) {
+        continue;
+      }
+
+      for (const block of content) {
+        if (!isRecord(block)) {
+          continue;
+        }
+
+        if (block.type === "tool_use" && typeof block.name === "string") {
+          const toolName = toAgentResearchToolName(block.name);
+          if (toolName) {
+            const id = typeof block.id === "string" ? block.id : `${block.name}:${toolUses.size}`;
+            toolUses.set(id, {
+              name: toolName,
+              rawName: block.name,
+              args: "input" in block ? block.input : {},
+            });
+          }
+        }
+
+        if (block.type === "tool_result" && typeof block.tool_use_id === "string") {
+          const toolUse = toolUses.get(block.tool_use_id);
+          if (toolUse) {
+            toolUse.result = summarizeToolResult("content" in block ? block.content : undefined);
+          }
+        }
+      }
+    }
+  }
+
+  return [...toolUses.entries()].map(([toolUseId, call]) => ({
+    name: call.name,
+    argsSummary: {
+      source: "claude_mcp",
+      toolName: call.rawName,
+      toolUseId,
+      input: call.args,
+    },
+    resultSummary: {
+      source: "claude_mcp",
+      toolUseId,
+      result: call.result ?? { status: "not_observed" },
+    },
+  }));
+}
+
+function listJsonlFiles(root: string): string[] {
+  const files: string[] = [];
+  const entries = safeReadDir(root);
+
+  for (const entry of entries) {
+    const fullPath = join(root, entry);
+    const stat = safeStat(fullPath);
+    if (!stat) {
+      continue;
+    }
+
+    if (stat.isDirectory()) {
+      for (const child of safeReadDir(fullPath)) {
+        const childPath = join(fullPath, child);
+        const childStat = safeStat(childPath);
+        if (childStat?.isFile() && childPath.endsWith(".jsonl")) {
+          files.push(childPath);
+        }
+      }
+    }
+  }
+
+  return files.sort();
+}
+
+function countLines(filePath: string): number {
+  return readFileSync(filePath, "utf8").split(/\n/).length;
+}
+
+function readJsonlLines(filePath: string, skipLines: number): unknown[] {
+  return readFileSync(filePath, "utf8")
+    .split(/\n/)
+    .slice(skipLines)
+    .flatMap((line): unknown[] => {
+      if (!line.trim()) {
+        return [];
+      }
+      try {
+        return [JSON.parse(line)];
+      } catch {
+        return [];
+      }
+    });
+}
+
+function getMessageContent(value: unknown): unknown {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const message = value.message;
+  if (isRecord(message)) {
+    return message.content;
+  }
+  return value.content;
+}
+
+function toAgentResearchToolName(name: string): AgentResearchToolName | undefined {
+  const prefix = "mcp__agent_research__";
+  if (!name.startsWith(prefix)) {
+    return undefined;
+  }
+
+  const toolName = name.slice(prefix.length);
+  return (AGENT_RESEARCH_TOOL_NAMES as readonly string[]).includes(toolName)
+    ? (toolName as AgentResearchToolName)
+    : undefined;
+}
+
+function summarizeToolResult(value: unknown): unknown {
+  if (typeof value === "string") {
+    return truncate(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 10).map(summarizeToolResult);
+  }
+
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, 20)
+        .map(([key, entry]) => [key, summarizeToolResult(entry)]),
+    );
+  }
+
+  return value;
+}
+
+function truncate(value: string) {
+  return value.length > 2_000 ? `${value.slice(0, 2_000)}...` : value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function safeReadDir(path: string): string[] {
+  try {
+    return readdirSync(path);
+  } catch {
+    return [];
+  }
+}
+
+function safeStat(path: string) {
+  try {
+    return statSync(path);
+  } catch {
+    return undefined;
+  }
 }
 
 function buildStrategyProposalPrompt(input: StrategyProposalInput): string {
