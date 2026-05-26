@@ -234,7 +234,7 @@ export const aiAgents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
-  (table) => [uniqueIndex("ai_agents_name_idx").on(table.name)],
+  (table) => [index("ai_agents_name_idx").on(table.name)],
 );
 
 export const aiAgentVersions = pgTable(

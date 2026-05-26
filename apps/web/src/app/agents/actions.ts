@@ -174,6 +174,29 @@ export async function createAgent(formData: FormData) {
   redirect(`/agents/${body.id}?created=1`);
 }
 
+export async function deleteAgent(formData: FormData) {
+  const agentId = String(formData.get("agentId") ?? "").trim();
+  const redirectTo = String(formData.get("redirectTo") ?? "/agents").trim() || "/agents";
+
+  if (agentId.length === 0) {
+    redirect("/agents?error=invalid_agent");
+  }
+
+  const response = await fetch(
+    new URL(`/agents/${agentId}`, process.env.WORKER_INTERNAL_URL ?? "http://localhost:8787"),
+    {
+      method: "DELETE",
+      headers: authorizedJsonHeaders(),
+    },
+  );
+
+  if (!response.ok && response.status !== 404) {
+    redirect(`${redirectTo}?error=delete_failed`);
+  }
+
+  redirect(`${redirectTo}?agentDeleted=1`);
+}
+
 export async function updateAgentSettings(agentId: string, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const persona = String(formData.get("persona") ?? "").trim();

@@ -78,6 +78,13 @@
       "when": 1779903600000,
       "tag": "0010_agent_skills",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780000000000,
+      "tag": "0011_agent_name_non_unique",
+      "breakpoints": true
     }
   ]
 }

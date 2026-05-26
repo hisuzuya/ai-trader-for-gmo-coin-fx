@@ -235,6 +235,10 @@ export class AgentScheduler implements WorkerService {
     return this.repository.createAgent(input);
   }
 
+  async deleteAgent(input: Parameters<AiAgentRepository["deleteAgent"]>[0]) {
+    return this.repository.deleteAgent(input);
+  }
+
   async updateAgentSettings(input: Parameters<AiAgentRepository["updateAgentSettings"]>[0]) {
     await this.repository.seedResearchAgent();
     return this.repository.updateAgentSettings(input);
