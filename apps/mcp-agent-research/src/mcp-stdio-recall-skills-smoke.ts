@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
+import { extractSkills } from "./mcp-stdio-recall-skills.js";
+
 async function main() {
   const agentId = process.env.AGENT_ID;
   if (!agentId) {
@@ -66,46 +68,12 @@ async function main() {
   }
 }
 
-function extractSkills(result: unknown): unknown[] | undefined {
-  if (
-    isRecord(result) &&
-    isRecord(result.structuredContent) &&
-    "result" in result.structuredContent
-  ) {
-    const toolResult = result.structuredContent.result;
-    if (isRecord(toolResult) && Array.isArray(toolResult.skills)) {
-      return toolResult.skills;
-    }
-  }
-
-  if (isRecord(result) && Array.isArray(result.content)) {
-    for (const entry of result.content) {
-      if (!isRecord(entry) || entry.type !== "text" || typeof entry.text !== "string") {
-        continue;
-      }
-
-      try {
-        const parsed = JSON.parse(entry.text);
-        if (isRecord(parsed) && Array.isArray(parsed.skills)) {
-          return parsed.skills;
-        }
-      } catch {}
-    }
-  }
-
-  return undefined;
-}
-
 function firstExistingPath(paths: string[]) {
   const found = paths.find((path) => existsSync(path));
   if (!found) {
     return paths[0] ?? "";
   }
   return found;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 main().catch((error) => {
