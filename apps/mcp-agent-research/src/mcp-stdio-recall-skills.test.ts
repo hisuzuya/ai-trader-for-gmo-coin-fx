@@ -21,4 +21,14 @@ describe("extractSkills", () => {
       }),
     ).toEqual([]);
   });
+
+  it("accepts a nested record array even when fields are partial", () => {
+    expect(
+      extractSkills({
+        structuredContent: {
+          result: [{ id: "skill-1", body: "body only" }],
+        },
+      }),
+    ).toEqual([{ id: "skill-1", body: "body only" }]);
+  });
 });

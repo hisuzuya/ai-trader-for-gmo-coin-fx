@@ -45,7 +45,7 @@ async function main() {
     const skills = extractSkills(result);
 
     if (!Array.isArray(skills)) {
-      throw new Error("recall_skills did not return an array");
+      throw new Error(`recall_skills did not return an array: ${summarizeResult(result)}`);
     }
 
     if (process.argv.includes("--count")) {
@@ -74,6 +74,15 @@ function firstExistingPath(paths: string[]) {
     return paths[0] ?? "";
   }
   return found;
+}
+
+function summarizeResult(value: unknown) {
+  const text = JSON.stringify(value);
+  if (!text) {
+    return String(value);
+  }
+
+  return text.length > 1_000 ? `${text.slice(0, 1_000)}...<truncated>` : text;
 }
 
 main().catch((error) => {
