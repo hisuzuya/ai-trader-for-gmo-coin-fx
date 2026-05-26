@@ -1,12 +1,24 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
+
+export type DailyPnlAgent = {
+  agentId: string;
+  name: string;
+  characterId: string | null;
+  characterName: string;
+  avatarPath: string | null;
+  pnlJpy: number;
+  tradeCount: number;
+};
 
 export type DailyPnlEntry = {
   date: string;
   pnlJpy: number;
   tradeCount: number;
   winCount: number;
+  agents: DailyPnlAgent[];
 };
 
 type Props = {
@@ -61,14 +73,14 @@ export function DailyPnlCalendar({ entries }: Props) {
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft pb-2.5">
-        <div className="flex items-baseline gap-3">
-          <span className="font-mono text-2xl font-semibold tabular-nums text-text-strong">
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft pb-2">
+        <div className="flex items-baseline gap-2.5">
+          <span className="font-mono text-base font-semibold tabular-nums text-text-strong">
             {year}年{month}月
           </span>
           <span
-            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-sm font-semibold ${
+            className={`inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-semibold ${
               monthTotalPnl > 0
                 ? "bg-profit-soft text-profit-strong"
                 : monthTotalPnl < 0
@@ -76,31 +88,41 @@ export function DailyPnlCalendar({ entries }: Props) {
                   : "bg-surface-muted text-muted"
             }`}
           >
-            月次 {formatJpySigned(monthTotalPnl)}
+            {formatJpySigned(monthTotalPnl)}
           </span>
-          <span className="text-[11px] text-muted">
+          <span className="text-[10px] text-muted">
             {monthTradeCount} fills ·{" "}
-            {monthTradeCount > 0 ? `${monthWinRate.toFixed(1)}% win` : "—"}
+            {monthTradeCount > 0 ? `${monthWinRate.toFixed(0)}% win` : "—"}
           </span>
         </div>
-        <div className="inline-flex items-center gap-1.5">
-          <button type="button" onClick={goPrev} className="btn-ghost" aria-label="前の月">
+        <div className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={goPrev}
+            className="btn-ghost px-1.5 py-0.5 text-xs"
+            aria-label="前の月"
+          >
             ←
           </button>
-          <button type="button" onClick={goToday} className="btn-ghost">
+          <button type="button" onClick={goToday} className="btn-ghost px-1.5 py-0.5 text-xs">
             今日
           </button>
-          <button type="button" onClick={goNext} className="btn-ghost" aria-label="次の月">
+          <button
+            type="button"
+            onClick={goNext}
+            className="btn-ghost px-1.5 py-0.5 text-xs"
+            aria-label="次の月"
+          >
             →
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-line bg-line">
+      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-line bg-line text-[10px]">
         {WEEK_LABELS.map((label, idx) => (
           <div
             key={label}
-            className={`bg-bg-elevated px-2 py-1.5 text-center text-[10px] font-bold uppercase tracking-[0.08em] ${
+            className={`bg-bg-elevated px-1 py-0.5 text-center text-[9px] font-bold uppercase tracking-[0.06em] ${
               idx === 0 ? "text-loss-strong" : idx === 6 ? "text-accent-strong" : "text-muted"
             }`}
           >
@@ -113,7 +135,7 @@ export function DailyPnlCalendar({ entries }: Props) {
               <div
                 // biome-ignore lint/suspicious/noArrayIndexKey: 空白セル用
                 key={`blank-${idx}`}
-                className="aspect-square bg-bg-elevated"
+                className="min-h-[64px] bg-bg-elevated"
               />
             );
           }
@@ -134,16 +156,10 @@ export function DailyPnlCalendar({ entries }: Props) {
               : tone === "loss"
                 ? "bg-loss-soft"
                 : "bg-bg-elevated";
-          const fgClass =
-            tone === "profit"
-              ? "text-profit-strong"
-              : tone === "loss"
-                ? "text-loss-strong"
-                : "text-muted";
           return (
             <div
               key={cell.date}
-              className={`flex aspect-square flex-col justify-between p-1.5 transition-colors hover:brightness-110 ${bgClass} ${
+              className={`flex min-h-[64px] flex-col gap-0.5 p-1 transition-colors hover:brightness-110 ${bgClass} ${
                 isToday ? "outline outline-1 outline-accent-strong outline-offset-[-1px]" : ""
               }`}
               title={
@@ -152,18 +168,58 @@ export function DailyPnlCalendar({ entries }: Props) {
                   : cell.date
               }
             >
-              <span
-                className={`text-[11px] font-bold tabular-nums ${isToday ? "text-accent-strong" : "text-text"}`}
-              >
-                {cell.day}
-              </span>
-              {entry && entry.tradeCount > 0 ? (
-                <span className="flex flex-col items-end gap-0">
-                  <span className={`font-mono text-[11px] font-semibold tabular-nums ${fgClass}`}>
+              <div className="flex items-center justify-between gap-1">
+                <span
+                  className={`text-[10px] font-bold tabular-nums ${isToday ? "text-accent-strong" : "text-text"}`}
+                >
+                  {cell.day}
+                </span>
+                {entry && entry.tradeCount > 0 ? (
+                  <span
+                    className={`font-mono text-[10px] font-semibold tabular-nums ${
+                      pnl > 0 ? "text-profit-strong" : pnl < 0 ? "text-loss-strong" : "text-muted"
+                    }`}
+                  >
                     {formatCompactJpySigned(pnl)}
                   </span>
-                  <span className="text-[9px] text-muted">{entry.tradeCount}件</span>
-                </span>
+                ) : null}
+              </div>
+              {entry && entry.agents.length > 0 ? (
+                <div className="mt-auto flex flex-col gap-px">
+                  {entry.agents.map((agent) => (
+                    <div
+                      key={agent.agentId}
+                      className="flex items-center gap-1"
+                      title={`${agent.characterName} (${agent.name}): ${formatJpySigned(agent.pnlJpy)} / ${agent.tradeCount} fills`}
+                    >
+                      {agent.avatarPath ? (
+                        <Image
+                          src={agent.avatarPath}
+                          alt={agent.characterName}
+                          width={12}
+                          height={12}
+                          className="size-3 rounded-full object-cover object-top"
+                          unoptimized
+                        />
+                      ) : (
+                        <span className="grid size-3 place-items-center rounded-full bg-surface-muted text-[7px] font-bold text-text-strong">
+                          {agent.name[0] ?? "?"}
+                        </span>
+                      )}
+                      <span
+                        className={`flex-1 truncate font-mono text-[9px] tabular-nums ${
+                          agent.pnlJpy > 0
+                            ? "text-profit-strong"
+                            : agent.pnlJpy < 0
+                              ? "text-loss-strong"
+                              : "text-muted"
+                        }`}
+                      >
+                        {formatCompactJpySigned(agent.pnlJpy)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               ) : null}
             </div>
           );
@@ -185,7 +241,8 @@ function formatJpySigned(value: number) {
 function formatCompactJpySigned(value: number): string {
   const abs = Math.abs(value);
   const sign = value > 0 ? "+" : value < 0 ? "−" : "";
-  if (abs >= 100_000_000) return `${sign}¥${(abs / 100_000_000).toFixed(2)}億`;
+  if (abs >= 100_000_000) return `${sign}¥${(abs / 100_000_000).toFixed(1)}億`;
   if (abs >= 10_000) return `${sign}¥${(abs / 10_000).toFixed(1)}万`;
+  if (abs >= 1_000) return `${sign}¥${(abs / 1_000).toFixed(1)}k`;
   return `${sign}¥${Math.round(abs).toLocaleString("ja-JP")}`;
 }
