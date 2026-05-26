@@ -1,3 +1,5 @@
+import { appendFileSync } from "node:fs";
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
@@ -40,7 +42,8 @@ export function createAgentResearchMcpServer() {
         priceType: z.enum(["bid", "ask", "mid"]).default("mid"),
       }),
     },
-    async (input) => toToolResult(await readBars(input)),
+    async (input) =>
+      toToolResult(await recordToolActivity("read_bars", input, () => readBars(input))),
   );
 
   server.registerTool(
@@ -56,7 +59,8 @@ export function createAgentResearchMcpServer() {
         count: z.number().int().positive().max(500).default(100),
       }),
     },
-    async (input) => toToolResult(await calcIndicator(input)),
+    async (input) =>
+      toToolResult(await recordToolActivity("calc_indicator", input, () => calcIndicator(input))),
   );
 
   server.registerTool(
@@ -68,7 +72,12 @@ export function createAgentResearchMcpServer() {
         strategyName: z.string().min(1),
       }),
     },
-    async (input) => toToolResult(await getCandidatePerformance(input)),
+    async (input) =>
+      toToolResult(
+        await recordToolActivity("get_candidate_performance", input, () =>
+          getCandidatePerformance(input),
+        ),
+      ),
   );
 
   server.registerTool(
@@ -81,7 +90,10 @@ export function createAgentResearchMcpServer() {
         limit: z.number().int().positive().max(500).optional(),
       }),
     },
-    async (input) => toToolResult(await getRejectionHistory(input)),
+    async (input) =>
+      toToolResult(
+        await recordToolActivity("get_rejection_history", input, () => getRejectionHistory(input)),
+      ),
   );
 
   server.registerTool(
@@ -96,7 +108,8 @@ export function createAgentResearchMcpServer() {
         limit: z.number().int().positive().max(500).optional(),
       }),
     },
-    async (input) => toToolResult(await recallMemory(input)),
+    async (input) =>
+      toToolResult(await recordToolActivity("recall_memory", input, () => recallMemory(input))),
   );
 
   server.registerTool(
@@ -112,7 +125,8 @@ export function createAgentResearchMcpServer() {
         limit: z.number().int().positive().max(500).optional(),
       }),
     },
-    async (input) => toToolResult(await recallSkills(input)),
+    async (input) =>
+      toToolResult(await recordToolActivity("recall_skills", input, () => recallSkills(input))),
   );
 
   server.registerTool(
@@ -125,10 +139,53 @@ export function createAgentResearchMcpServer() {
         skillId: z.string().min(1),
       }),
     },
-    async (input) => toToolResult(await getSkill(input)),
+    async (input) =>
+      toToolResult(await recordToolActivity("get_skill", input, () => getSkill(input))),
   );
 
   return server;
+}
+
+async function recordToolActivity<T>(
+  toolName: (typeof MCP_TOOL_NAMES)[number],
+  input: unknown,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const startedAt = new Date();
+
+  try {
+    const result = await callback();
+    appendToolActivity({
+      transport: "stdio",
+      toolName,
+      input,
+      status: "succeeded",
+      result: summarizeActivityValue(result),
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+    });
+    return result;
+  } catch (error) {
+    appendToolActivity({
+      transport: "stdio",
+      toolName,
+      input,
+      status: "failed",
+      error: error instanceof Error ? error.message : String(error),
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+    });
+    throw error;
+  }
+}
+
+function appendToolActivity(entry: unknown) {
+  const filePath = process.env.MCP_AGENT_RESEARCH_ACTIVITY_LOG;
+  if (!filePath) {
+    return;
+  }
+
+  appendFileSync(filePath, `${JSON.stringify(entry)}\n`, { encoding: "utf8" });
 }
 
 function toToolResult(result: unknown) {
@@ -136,4 +193,28 @@ function toToolResult(result: unknown) {
     content: [{ type: "text" as const, text: JSON.stringify(result) }],
     structuredContent: { result },
   };
+}
+
+function summarizeActivityValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return truncate(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 10).map(summarizeActivityValue);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, 20)
+        .map(([key, entry]) => [key, summarizeActivityValue(entry)]),
+    );
+  }
+
+  return value;
+}
+
+function truncate(value: string) {
+  return value.length > 2_000 ? `${value.slice(0, 2_000)}...<truncated>` : value;
 }
