@@ -40,9 +40,7 @@ describe("extractSkills", () => {
   });
 
   it("returns nested arrays from recursively wrapped result payloads", () => {
-    const skills = [
-      { id: "skill-4", scope: "private", title: "Title", body: "Body", tags: [] },
-    ];
+    const skills = [{ id: "skill-4", scope: "private", title: "Title", body: "Body", tags: [] }];
 
     expect(
       extractSkills({
