@@ -67,6 +67,7 @@ describe("ClaudeCliProvider", () => {
         type: "stdio",
         command: "/usr/local/bin/node",
         args: ["/app/apps/mcp-agent-research/dist/mcp-stdio.cjs"],
+        env: { MCP_AGENT_RESEARCH_ACTIVITY_LOG: expect.stringContaining("ai-trade-mcp-activity-") },
       });
     } finally {
       await rm(dir, { force: true, recursive: true });
@@ -118,6 +119,51 @@ printf '{"ok":true}'
       } else {
         process.env.CLAUDE_CONFIG_DIR = previousConfigDir;
       }
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+
+  it("summarizes MCP tool use from the stdio activity log", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "claude-mcp-activity-"));
+    const executable = join(dir, "claude-mcp-activity");
+
+    try {
+      await writeFile(
+        executable,
+        `#!/usr/bin/env bash
+cat >> "$MCP_AGENT_RESEARCH_ACTIVITY_LOG" <<'JSONL'
+{"transport":"stdio","toolName":"recall_skills","input":{"agentId":"agent-1","limit":3},"status":"succeeded","result":[{"id":"skill-1"}],"startedAt":"2026-05-26T00:00:00.000Z","finishedAt":"2026-05-26T00:00:01.000Z"}
+JSONL
+printf '{"ok":true}'
+`,
+      );
+      await chmod(executable, 0o755);
+
+      const provider = new ClaudeCliProvider({ enabled: true, executable });
+      const result = await provider.invoke({ prompt: "Return JSON only." });
+
+      expect(result).toMatchObject({
+        ok: true,
+        provider: "claude_cli",
+        mcpToolCalls: [
+          {
+            name: "recall_skills",
+            argsSummary: {
+              source: "mcp_activity_log",
+              transport: "stdio",
+              toolName: "recall_skills",
+              input: { agentId: "agent-1", limit: 3 },
+            },
+            resultSummary: {
+              source: "mcp_activity_log",
+              transport: "stdio",
+              status: "succeeded",
+              result: [{ id: "skill-1" }],
+            },
+          },
+        ],
+      });
+    } finally {
       await rm(dir, { force: true, recursive: true });
     }
   });

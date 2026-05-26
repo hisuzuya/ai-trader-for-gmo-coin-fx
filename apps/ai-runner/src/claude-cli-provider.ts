@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -124,10 +124,15 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
 
     try {
       const transcriptBaseline = captureClaudeTranscriptBaseline();
+      const mcpActivityLogPath = join(tmpdir(), `ai-trade-mcp-activity-${randomUUID()}.jsonl`);
       const { stdout, stderr } = await execFileAsync(
         this.executable,
-        this.buildArgs(input.prompt),
+        this.buildArgs(input.prompt, mcpActivityLogPath),
         {
+          env: {
+            ...process.env,
+            MCP_AGENT_RESEARCH_ACTIVITY_LOG: mcpActivityLogPath,
+          },
           timeout: timeoutMs,
           maxBuffer: 1024 * 1024,
         },
@@ -149,7 +154,10 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
         ok: true,
         provider: "claude_cli",
         stdout,
-        mcpToolCalls: collectMcpToolCallsSince(transcriptBaseline),
+        mcpToolCalls: [
+          ...collectMcpActivityLog(mcpActivityLogPath),
+          ...collectMcpToolCallsSince(transcriptBaseline),
+        ],
         stderrSummary: summarizeStderr(stderr),
         startedAt: startedAt.toISOString(),
         finishedAt: new Date().toISOString(),
@@ -342,7 +350,7 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
     }
   }
 
-  private buildArgs(prompt: string): string[] {
+  private buildArgs(prompt: string, mcpActivityLogPath?: string): string[] {
     if (!this.mcpEnabled) {
       return ["-p", prompt];
     }
@@ -353,6 +361,9 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
           type: "stdio",
           command: this.mcpAgentResearchCommand,
           args: this.mcpAgentResearchArgs,
+          env: mcpActivityLogPath
+            ? { MCP_AGENT_RESEARCH_ACTIVITY_LOG: mcpActivityLogPath }
+            : undefined,
         },
       },
     };
@@ -396,7 +407,7 @@ function parseMcpArgs(value: string | undefined): string[] | undefined {
 
 type TranscriptBaseline = {
   projectsDir: string;
-  lineCounts: Map<string, number>;
+  byteOffsets: Map<string, number>;
 };
 
 function captureClaudeTranscriptBaseline(): TranscriptBaseline {
@@ -404,7 +415,9 @@ function captureClaudeTranscriptBaseline(): TranscriptBaseline {
 
   return {
     projectsDir,
-    lineCounts: new Map(listJsonlFiles(projectsDir).map((path) => [path, countLines(path)])),
+    byteOffsets: new Map(
+      listJsonlFiles(projectsDir).map((path) => [path, safeStat(path)?.size ?? 0]),
+    ),
   };
 }
 
@@ -424,7 +437,7 @@ function collectMcpToolCallsSince(baseline: TranscriptBaseline): AgentToolCallLo
   >();
 
   for (const filePath of listJsonlFiles(baseline.projectsDir)) {
-    for (const line of readJsonlLines(filePath, baseline.lineCounts.get(filePath) ?? 0)) {
+    for (const line of readJsonlLinesSince(filePath, baseline.byteOffsets.get(filePath) ?? 0)) {
       const content = getMessageContent(line);
       if (!Array.isArray(content)) {
         continue;
@@ -473,6 +486,50 @@ function collectMcpToolCallsSince(baseline: TranscriptBaseline): AgentToolCallLo
   }));
 }
 
+function collectMcpActivityLog(filePath: string): AgentToolCallLog[] {
+  if (!existsSync(filePath)) {
+    return [];
+  }
+
+  try {
+    return readJsonlFile(filePath).flatMap((entry): AgentToolCallLog[] => {
+      if (!isRecord(entry) || entry.transport !== "stdio" || typeof entry.toolName !== "string") {
+        return [];
+      }
+
+      const toolName = (AGENT_RESEARCH_TOOL_NAMES as readonly string[]).includes(entry.toolName)
+        ? (entry.toolName as AgentResearchToolName)
+        : undefined;
+      if (!toolName) {
+        return [];
+      }
+
+      return [
+        {
+          name: toolName,
+          argsSummary: {
+            source: "mcp_activity_log",
+            transport: entry.transport,
+            toolName: entry.toolName,
+            input: isRecord(entry.input) ? entry.input : {},
+            startedAt: typeof entry.startedAt === "string" ? entry.startedAt : undefined,
+          },
+          resultSummary: {
+            source: "mcp_activity_log",
+            transport: entry.transport,
+            status: typeof entry.status === "string" ? entry.status : "unknown",
+            result: "result" in entry ? summarizeToolResult(entry.result) : undefined,
+            error: typeof entry.error === "string" ? entry.error : undefined,
+            finishedAt: typeof entry.finishedAt === "string" ? entry.finishedAt : undefined,
+          },
+        },
+      ];
+    });
+  } finally {
+    rmSync(filePath, { force: true });
+  }
+}
+
 function listJsonlFiles(root: string): string[] {
   const files: string[] = [];
   const entries = safeReadDir(root);
@@ -498,14 +555,26 @@ function listJsonlFiles(root: string): string[] {
   return files.sort();
 }
 
-function countLines(filePath: string): number {
-  return readFileSync(filePath, "utf8").split(/\n/).length;
+function readJsonlLinesSince(filePath: string, byteOffset: number): unknown[] {
+  return readFileSync(filePath)
+    .subarray(byteOffset)
+    .toString("utf8")
+    .split(/\n/)
+    .flatMap((line): unknown[] => {
+      if (!line.trim()) {
+        return [];
+      }
+      try {
+        return [JSON.parse(line)];
+      } catch {
+        return [];
+      }
+    });
 }
 
-function readJsonlLines(filePath: string, skipLines: number): unknown[] {
+function readJsonlFile(filePath: string): unknown[] {
   return readFileSync(filePath, "utf8")
     .split(/\n/)
-    .slice(skipLines)
     .flatMap((line): unknown[] => {
       if (!line.trim()) {
         return [];
