@@ -12,7 +12,9 @@ async function main() {
 
   const limit = Number.parseInt(process.env.RECALL_SKILLS_LIMIT ?? "3", 10);
   if (!Number.isInteger(limit) || limit < 1) {
-    throw new Error(`RECALL_SKILLS_LIMIT must be a positive integer: ${process.env.RECALL_SKILLS_LIMIT}`);
+    throw new Error(
+      `RECALL_SKILLS_LIMIT must be a positive integer: ${process.env.RECALL_SKILLS_LIMIT}`,
+    );
   }
 
   const serverScript =
@@ -65,7 +67,11 @@ async function main() {
 }
 
 function extractSkills(result: unknown): unknown[] | undefined {
-  if (isRecord(result) && isRecord(result.structuredContent) && "result" in result.structuredContent) {
+  if (
+    isRecord(result) &&
+    isRecord(result.structuredContent) &&
+    "result" in result.structuredContent
+  ) {
     const toolResult = result.structuredContent.result;
     if (isRecord(toolResult) && Array.isArray(toolResult.skills)) {
       return toolResult.skills;
@@ -83,9 +89,7 @@ function extractSkills(result: unknown): unknown[] | undefined {
         if (isRecord(parsed) && Array.isArray(parsed.skills)) {
           return parsed.skills;
         }
-      } catch {
-        continue;
-      }
+      } catch {}
     }
   }
 
