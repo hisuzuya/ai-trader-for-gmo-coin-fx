@@ -85,6 +85,7 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
 
 COPY --from=builder --chown=node:node /app/apps/ai-runner/dist/main.cjs ./apps/ai-runner/dist/main.cjs
 COPY --from=builder --chown=node:node /app/apps/mcp-agent-research/dist/mcp-stdio.cjs ./apps/mcp-agent-research/dist/mcp-stdio.cjs
+COPY --from=builder --chown=node:node /app/apps/mcp-agent-research/dist/mcp-stdio-context-snapshot-smoke.cjs ./apps/mcp-agent-research/dist/mcp-stdio-context-snapshot-smoke.cjs
 COPY --from=builder --chown=node:node /app/apps/mcp-agent-research/dist/mcp-stdio-recall-skills-smoke.cjs ./apps/mcp-agent-research/dist/mcp-stdio-recall-skills-smoke.cjs
 COPY --from=builder --chown=node:node /app/apps/mcp-agent-research/dist/mcp-stdio-smoke.cjs ./apps/mcp-agent-research/dist/mcp-stdio-smoke.cjs
 
