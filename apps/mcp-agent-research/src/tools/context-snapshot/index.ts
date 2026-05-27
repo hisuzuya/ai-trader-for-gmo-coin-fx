@@ -10,6 +10,42 @@ export async function getContextSnapshot(input: { agentId: string; timeframe?: s
   const timeframe = input.timeframe ?? "1m";
   const [marketData, candidates, rejections, dailyReviews, memories] = await Promise.all([
     readMarketData(timeframe),
+    readCandidates(),
+    readSource("rejectionHistory", () => getRejectionHistory({ limit: 10 })),
+    readDailyReviews(),
+    readSource("memories", () => recallMemory({ agentId: input.agentId, limit: 10 })),
+  ]);
+
+  return {
+    timeframe,
+    sourceErrors: {
+      market: marketData.error,
+      candidates: candidates.error,
+      rejectionHistory: rejections.error,
+      dailyReviews: dailyReviews.error,
+      memories: memories.error,
+    },
+    market: {
+      latestCandleOpenedAt: marketData.bars.at(0)?.openedAt ?? null,
+      candleCount: marketData.bars.length,
+      dataError: marketData.error,
+      recentCloses: marketData.bars.map((bar) => ({ openedAt: bar.openedAt, close: bar.close })),
+    },
+    candidates: candidates.value.map((candidate) => ({
+      ...candidate,
+      startedAt: candidate.startedAt.toISOString(),
+    })),
+    rejectionHistory: rejections.value,
+    dailyReviews: dailyReviews.value.map((review) => ({
+      ...review,
+      createdAt: review.createdAt.toISOString(),
+    })),
+    memories: memories.value,
+  };
+}
+
+async function readCandidates() {
+  return readSource("candidates", () =>
     readOnlyDb
       .select({
         strategyName: strategyRuns.strategyName,
@@ -22,7 +58,11 @@ export async function getContextSnapshot(input: { agentId: string; timeframe?: s
       .from(strategyRuns)
       .orderBy(desc(strategyRuns.startedAt))
       .limit(20),
-    getRejectionHistory({ limit: 10 }),
+  );
+}
+
+async function readDailyReviews() {
+  return readSource("dailyReviews", () =>
     readOnlyDb
       .select({
         reviewDate: aiDailyReviews.reviewDate,
@@ -33,28 +73,7 @@ export async function getContextSnapshot(input: { agentId: string; timeframe?: s
       .from(aiDailyReviews)
       .orderBy(desc(aiDailyReviews.createdAt))
       .limit(3),
-    recallMemory({ agentId: input.agentId, limit: 10 }),
-  ]);
-
-  return {
-    timeframe,
-    market: {
-      latestCandleOpenedAt: marketData.bars.at(0)?.openedAt ?? null,
-      candleCount: marketData.bars.length,
-      dataError: marketData.error,
-      recentCloses: marketData.bars.map((bar) => ({ openedAt: bar.openedAt, close: bar.close })),
-    },
-    candidates: candidates.map((candidate) => ({
-      ...candidate,
-      startedAt: candidate.startedAt.toISOString(),
-    })),
-    rejectionHistory: rejections,
-    dailyReviews: dailyReviews.map((review) => ({
-      ...review,
-      createdAt: review.createdAt.toISOString(),
-    })),
-    memories,
-  };
+  );
 }
 
 async function readMarketData(timeframe: string) {
@@ -67,6 +86,20 @@ async function readMarketData(timeframe: string) {
     return {
       bars: [],
       error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function readSource<T>(source: string, read: () => Promise<T[]>) {
+  try {
+    return {
+      value: await read(),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      value: [],
+      error: `${source}: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
