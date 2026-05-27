@@ -1,4 +1,7 @@
 import {
+  aiAgentObservations,
+  aiAgentRuns,
+  aiAgentStrategyProposals,
   aiAgents,
   aiDailyReviews,
   aiTuningProposals,
@@ -394,6 +397,186 @@ export class WorkerRuntime {
       ],
     );
 
+    // -- All open positions (across crew) with agent info ---------------------
+    const openPositionRows = await db
+      .select({
+        id: paperPositions.id,
+        accountId: paperPositions.accountId,
+        accountName: paperAccounts.name,
+        agentId: aiAgents.id,
+        agentName: aiAgents.name,
+        characterId: aiAgents.characterId,
+        symbol: paperPositions.symbol,
+        side: paperPositions.side,
+        quantity: paperPositions.quantity,
+        entryPrice: paperPositions.entryPrice,
+        stopLossPrice: paperPositions.stopLossPrice,
+        takeProfitPrice: paperPositions.takeProfitPrice,
+        bestPriceSinceOpen: paperPositions.bestPriceSinceOpen,
+        spreadPips: paperPositions.spreadPips,
+        openedAt: paperPositions.openedAt,
+      })
+      .from(paperPositions)
+      .innerJoin(paperAccounts, eq(paperAccounts.id, paperPositions.accountId))
+      .leftJoin(aiAgents, eq(aiAgents.id, paperAccounts.agentId))
+      .where(eq(paperPositions.status, "open"))
+      .orderBy(desc(paperPositions.openedAt));
+
+    // -- Latest mid price per symbol for unrealized PnL calc -------------------
+    const distinctSymbols = Array.from(new Set(openPositionRows.map((p) => p.symbol)));
+    const symbolPriceMap = new Map<string, number>();
+    await Promise.all(
+      distinctSymbols.map(async (symbol) => {
+        const candles = await this.candleReader.getRecent({
+          symbol,
+          timeframe: "1m",
+          priceType: "mid",
+          limit: 1,
+        });
+        const latest = candles[candles.length - 1];
+        if (latest) symbolPriceMap.set(symbol, latest.close);
+      }),
+    );
+
+    const openPositions: OpenPositionRow[] = openPositionRows.map((p) => {
+      const current = symbolPriceMap.get(p.symbol) ?? null;
+      const entry = Number(p.entryPrice);
+      const qty = Number(p.quantity);
+      const unrealized =
+        current !== null
+          ? Math.round((p.side === "long" ? current - entry : entry - current) * qty)
+          : null;
+      return {
+        id: p.id,
+        accountId: p.accountId,
+        accountName: p.accountName,
+        agentId: p.agentId,
+        agentName: p.agentName,
+        characterId: p.characterId,
+        symbol: p.symbol,
+        side: p.side,
+        quantity: p.quantity,
+        entryPrice: p.entryPrice,
+        stopLossPrice: p.stopLossPrice,
+        takeProfitPrice: p.takeProfitPrice,
+        bestPriceSinceOpen: p.bestPriceSinceOpen,
+        spreadPips: p.spreadPips,
+        currentPrice: current !== null ? current.toFixed(6) : null,
+        unrealizedPnlJpy: unrealized !== null ? unrealized.toString() : null,
+        openedAt: p.openedAt.toISOString(),
+      };
+    });
+
+    // -- Per-agent briefings (latest thinking + today PnL + daily FB) ---------
+    const agentRows = await db
+      .select({
+        id: aiAgents.id,
+        name: aiAgents.name,
+        status: aiAgents.status,
+        characterId: aiAgents.characterId,
+      })
+      .from(aiAgents);
+
+    const todayJst = sql<string>`to_char(now() AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD')`;
+    const latestReviewSummary = dailyReviews[0]?.summary ?? null;
+
+    const agentBriefings: AgentBriefingRow[] = await Promise.all(
+      agentRows.map(async (agent) => {
+        const [latestRunRows, todayTradeRows] = await Promise.all([
+          db
+            .select({
+              id: aiAgentRuns.id,
+              startedAt: aiAgentRuns.startedAt,
+              finishedAt: aiAgentRuns.finishedAt,
+              status: aiAgentRuns.status,
+            })
+            .from(aiAgentRuns)
+            .where(eq(aiAgentRuns.agentId, agent.id))
+            .orderBy(desc(aiAgentRuns.startedAt))
+            .limit(1),
+          db
+            .select({
+              pnlJpy: paperTrades.pnlJpy,
+            })
+            .from(paperTrades)
+            .innerJoin(paperAccounts, eq(paperAccounts.id, paperTrades.accountId))
+            .where(
+              and(
+                eq(paperAccounts.agentId, agent.id),
+                sql`to_char(${paperTrades.closedAt} AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD') = ${todayJst}`,
+              ),
+            ),
+        ]);
+
+        const latestRunRow = latestRunRows[0] ?? null;
+        let observations: { kind: string; summary: string; tags: string[] }[] = [];
+        let proposals: { strategyName: string; validationStatus: string }[] = [];
+
+        if (latestRunRow) {
+          const [observationRows, proposalRows] = await Promise.all([
+            db
+              .select({
+                kind: aiAgentObservations.kind,
+                summary: aiAgentObservations.summary,
+                tags: aiAgentObservations.tags,
+              })
+              .from(aiAgentObservations)
+              .where(eq(aiAgentObservations.runId, latestRunRow.id))
+              .limit(5),
+            db
+              .select({
+                strategyName: aiAgentStrategyProposals.strategyName,
+                validationStatus: aiAgentStrategyProposals.validationStatus,
+              })
+              .from(aiAgentStrategyProposals)
+              .where(eq(aiAgentStrategyProposals.runId, latestRunRow.id))
+              .limit(5),
+          ]);
+          observations = observationRows.map((row) => ({
+            kind: row.kind,
+            summary: row.summary,
+            tags: row.tags ?? [],
+          }));
+          proposals = proposalRows.map((row) => ({
+            strategyName: row.strategyName,
+            validationStatus: row.validationStatus,
+          }));
+        }
+
+        const todayRealizedPnl = todayTradeRows.reduce((sum, row) => sum + Number(row.pnlJpy), 0);
+        const todayTradeCount = todayTradeRows.length;
+        const todayWinCount = todayTradeRows.filter((row) => Number(row.pnlJpy) > 0).length;
+        const agentOpenPositions = openPositions.filter((p) => p.agentId === agent.id);
+        const todayUnrealizedPnl = agentOpenPositions.reduce(
+          (sum, p) => sum + (p.unrealizedPnlJpy !== null ? Number(p.unrealizedPnlJpy) : 0),
+          0,
+        );
+
+        return {
+          agentId: agent.id,
+          agentName: agent.name,
+          characterId: agent.characterId,
+          status: agent.status,
+          todayRealizedPnlJpy: todayRealizedPnl.toString(),
+          todayUnrealizedPnlJpy: todayUnrealizedPnl.toString(),
+          todayTradeCount,
+          todayWinCount,
+          openPositionCount: agentOpenPositions.length,
+          latestRun: latestRunRow
+            ? {
+                id: latestRunRow.id,
+                startedAt: latestRunRow.startedAt.toISOString(),
+                finishedAt: latestRunRow.finishedAt?.toISOString() ?? null,
+                status: latestRunRow.status,
+                observations,
+                proposals,
+              }
+            : null,
+          dailyFeedback: latestReviewSummary,
+        };
+      }),
+    );
+
     const selectedAccount =
       options.accountName !== undefined
         ? (accounts.find((account) => account.name === options.accountName) ?? null)
@@ -466,6 +649,8 @@ export class WorkerRuntime {
           accounts,
         };
       }),
+      openPositions,
+      agentBriefings,
       accountDetail,
     };
   }
@@ -681,7 +866,57 @@ export type WorkerDashboardSummary = {
       winCount: number;
     }[];
   }[];
+  openPositions: OpenPositionRow[];
+  agentBriefings: AgentBriefingRow[];
   accountDetail: AccountDetail | null;
+};
+
+export type OpenPositionRow = {
+  id: string;
+  accountId: string;
+  accountName: string;
+  agentId: string | null;
+  agentName: string | null;
+  characterId: string | null;
+  symbol: string;
+  side: "long" | "short";
+  quantity: string;
+  entryPrice: string;
+  stopLossPrice: string;
+  takeProfitPrice: string;
+  bestPriceSinceOpen: string;
+  spreadPips: string;
+  currentPrice: string | null;
+  unrealizedPnlJpy: string | null;
+  openedAt: string;
+};
+
+export type AgentBriefingRow = {
+  agentId: string;
+  agentName: string;
+  characterId: string | null;
+  status: string;
+  todayRealizedPnlJpy: string;
+  todayUnrealizedPnlJpy: string;
+  todayTradeCount: number;
+  todayWinCount: number;
+  openPositionCount: number;
+  latestRun: {
+    id: string;
+    startedAt: string;
+    finishedAt: string | null;
+    status: string;
+    observations: {
+      kind: string;
+      summary: string;
+      tags: string[];
+    }[];
+    proposals: {
+      strategyName: string;
+      validationStatus: string;
+    }[];
+  } | null;
+  dailyFeedback: string | null;
 };
 
 export type AccountDetail = {
