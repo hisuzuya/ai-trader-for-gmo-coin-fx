@@ -8,8 +8,8 @@ import { getRejectionHistory } from "../rejection-history/index.js";
 
 export async function getContextSnapshot(input: { agentId: string; timeframe?: string }) {
   const timeframe = input.timeframe ?? "1m";
-  const [recentBars, candidates, rejections, dailyReviews, memories] = await Promise.all([
-    readBars({ symbol: "USD_JPY", timeframe, priceType: "mid", count: 20 }),
+  const [marketData, candidates, rejections, dailyReviews, memories] = await Promise.all([
+    readMarketData(timeframe),
     readOnlyDb
       .select({
         strategyName: strategyRuns.strategyName,
@@ -39,9 +39,10 @@ export async function getContextSnapshot(input: { agentId: string; timeframe?: s
   return {
     timeframe,
     market: {
-      latestCandleOpenedAt: recentBars.at(0)?.openedAt ?? null,
-      candleCount: recentBars.length,
-      recentCloses: recentBars.map((bar) => ({ openedAt: bar.openedAt, close: bar.close })),
+      latestCandleOpenedAt: marketData.bars.at(0)?.openedAt ?? null,
+      candleCount: marketData.bars.length,
+      dataError: marketData.error,
+      recentCloses: marketData.bars.map((bar) => ({ openedAt: bar.openedAt, close: bar.close })),
     },
     candidates: candidates.map((candidate) => ({
       ...candidate,
@@ -54,4 +55,18 @@ export async function getContextSnapshot(input: { agentId: string; timeframe?: s
     })),
     memories,
   };
+}
+
+async function readMarketData(timeframe: string) {
+  try {
+    return {
+      bars: await readBars({ symbol: "USD_JPY", timeframe, priceType: "mid", count: 20 }),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      bars: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
