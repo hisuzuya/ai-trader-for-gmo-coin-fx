@@ -10,7 +10,7 @@ async function main() {
     throw new Error("AGENT_ID is required");
   }
 
-  const timeframe = process.env.CONTEXT_SNAPSHOT_TIMEFRAME ?? "1h";
+  const timeframe = process.env.CONTEXT_SNAPSHOT_TIMEFRAME ?? "1m";
   const serverScript =
     process.env.MCP_STDIO_SERVER_SCRIPT ??
     firstExistingPath([
