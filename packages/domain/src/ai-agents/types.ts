@@ -3,6 +3,7 @@ import type { StrategyDefinition } from "../strategies/types";
 import type { CharacterId } from "./characters";
 
 export const AGENT_RESEARCH_TOOL_NAMES = [
+  "get_context_snapshot",
   "read_bars",
   "calc_indicator",
   "get_candidate_performance",
@@ -93,7 +94,7 @@ export type AgentDefinition = {
 
 export type AgentRunRequest = {
   agent: AgentDefinition;
-  contextSummary: string;
+  runEnvelope: string;
   version: number;
   maxToolHops?: number;
   timeoutMs?: number;

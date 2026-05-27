@@ -15,12 +15,12 @@ import {
   strategyRuns,
 } from "@ai-trade/db";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
+import type { AgentScheduler } from "./pipelines/agent-evaluation/scheduler.js";
 import {
   type HistoricalImporter,
   type HistoricalImportResult,
   StubHistoricalImporter,
-} from "./jobs/historical-importer.js";
-import type { AgentScheduler } from "./services/agent-pipeline.js";
+} from "./pipelines/market-data/historical-importer.js";
 import type { AiDailyReviewerService, DailyReviewRunResult } from "./services/ai-daily-reviewer.js";
 import type { AiTunerService, AiTuningRunResult } from "./services/ai-tuner.js";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "./types.js";

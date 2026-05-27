@@ -1,113 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { env } from "@ai-trade/config";
-import {
-  AiAgentRepository,
-  aiAgentMemories,
-  aiDailyReviews,
-  aiTuningProposals,
-  CandleRepository,
-  db,
-  paperAccounts,
-  paperTrades,
-  strategyRuns,
-} from "@ai-trade/db";
+import { AiAgentRepository } from "@ai-trade/db";
 import type {
   AgentDefinition,
   AgentRunRequest,
   AgentRunResponse,
 } from "@ai-trade/domain/ai-agents";
-import { and, desc, eq, sql } from "drizzle-orm";
 
-import type { ServiceHealth, ServiceState, WorkerService } from "../types.js";
+import type { ServiceHealth, ServiceState, WorkerService } from "../../types.js";
 
-export class AgentContextBuilder {
-  constructor(private readonly candleReader = new CandleRepository()) {}
-
-  async build(agent: AgentDefinition): Promise<string> {
+export class AgentRunEnvelopeBuilder {
+  build(agent: AgentDefinition): string {
     const timeframe = selectAgentTimeframe(agent);
-    const [candles, candidates, rejections, reviews, accounts, sharedMemories] = await Promise.all([
-      this.candleReader.getRecent({
-        symbol: "USD_JPY",
-        timeframe,
-        priceType: "mid",
-        limit: 20,
-      }),
-      db
-        .select({
-          strategyName: strategyRuns.strategyName,
-          status: strategyRuns.status,
-          timeframe: strategyRuns.timeframe,
-          sourceAgentId: strategyRuns.sourceAgentId,
-          sourceProposalId: strategyRuns.sourceProposalId,
-          startedAt: strategyRuns.startedAt,
-        })
-        .from(strategyRuns)
-        .orderBy(desc(strategyRuns.startedAt))
-        .limit(20),
-      db
-        .select({
-          candidateStrategyName: aiTuningProposals.candidateStrategyName,
-          sourceStrategyName: aiTuningProposals.sourceStrategyName,
-          rejectReasons: aiTuningProposals.rejectReasons,
-          createdAt: aiTuningProposals.createdAt,
-        })
-        .from(aiTuningProposals)
-        .where(eq(aiTuningProposals.status, "rejected"))
-        .orderBy(desc(aiTuningProposals.createdAt))
-        .limit(10),
-      db
-        .select({
-          reviewDate: aiDailyReviews.reviewDate,
-          summary: aiDailyReviews.summary,
-          warnings: aiDailyReviews.warnings,
-          createdAt: aiDailyReviews.createdAt,
-        })
-        .from(aiDailyReviews)
-        .orderBy(desc(aiDailyReviews.createdAt))
-        .limit(3),
-      db
-        .select({
-          name: paperAccounts.name,
-          balanceJpy: paperAccounts.balanceJpy,
-          initialBalanceJpy: paperAccounts.initialBalanceJpy,
-          status: paperAccounts.status,
-          updatedAt: paperAccounts.updatedAt,
-        })
-        .from(paperAccounts)
-        .orderBy(desc(paperAccounts.updatedAt))
-        .limit(10),
-      agent.sharedMemoryEnabled
-        ? db
-            .select({
-              id: aiAgentMemories.id,
-              agentId: aiAgentMemories.agentId,
-              type: aiAgentMemories.type,
-              content: aiAgentMemories.content,
-              tags: aiAgentMemories.tags,
-              sourceRefs: aiAgentMemories.sourceRefs,
-              createdAt: aiAgentMemories.createdAt,
-            })
-            .from(aiAgentMemories)
-            .where(
-              and(
-                sql`${aiAgentMemories.tags} @> ARRAY['shared_memory']::text[]`,
-                sql`${aiAgentMemories.agentId} <> ${agent.id}`,
-              ),
-            )
-            .orderBy(desc(aiAgentMemories.createdAt))
-            .limit(10)
-        : Promise.resolve([]),
-    ]);
-    const latestTrades = await db
-      .select({
-        symbol: paperTrades.symbol,
-        side: paperTrades.side,
-        pnlJpy: paperTrades.pnlJpy,
-        closedAt: paperTrades.closedAt,
-      })
-      .from(paperTrades)
-      .orderBy(desc(paperTrades.closedAt))
-      .limit(20);
 
     return JSON.stringify({
       agent: {
@@ -117,38 +21,10 @@ export class AgentContextBuilder {
         timeframe,
         sharedMemoryEnabled: agent.sharedMemoryEnabled,
       },
-      market: {
-        latestCandleOpenedAt: candles.at(0)?.openedAt.toISOString() ?? null,
-        candleCount: candles.length,
-        recentCloses: candles.map((candle) => ({
-          openedAt: candle.openedAt.toISOString(),
-          close: candle.close,
-        })),
+      requiredInitialToolRequest: {
+        name: "get_context_snapshot",
+        args: { agentId: agent.id, timeframe },
       },
-      paperAccounts: accounts.map((account) => ({
-        ...account,
-        updatedAt: account.updatedAt.toISOString(),
-      })),
-      latestTrades: latestTrades.map((trade) => ({
-        ...trade,
-        closedAt: trade.closedAt.toISOString(),
-      })),
-      candidates: candidates.map((candidate) => ({
-        ...candidate,
-        startedAt: candidate.startedAt.toISOString(),
-      })),
-      rejectionHistory: rejections.map((rejection) => ({
-        ...rejection,
-        createdAt: rejection.createdAt.toISOString(),
-      })),
-      dailyReviews: reviews.map((review) => ({
-        ...review,
-        createdAt: review.createdAt.toISOString(),
-      })),
-      sharedMemoryShelf: sharedMemories.map((memory) => ({
-        ...memory,
-        createdAt: memory.createdAt.toISOString(),
-      })),
     });
   }
 }
@@ -179,7 +55,7 @@ export class AgentScheduler implements WorkerService {
 
   constructor(
     private readonly repository = new AiAgentRepository(),
-    private readonly contextBuilder = new AgentContextBuilder(),
+    private readonly runEnvelopeBuilder = new AgentRunEnvelopeBuilder(),
     private readonly outputProcessor = new AgentOutputProcessor(repository),
     private readonly aiRunnerUrl = env.AI_RUNNER_INTERNAL_URL,
   ) {}
@@ -275,10 +151,10 @@ export class AgentScheduler implements WorkerService {
       throw new Error("No runnable AI Agent was found.");
     }
 
-    const contextSummary = await this.contextBuilder.build(agent);
+    const runEnvelope = this.runEnvelopeBuilder.build(agent);
     const request: AgentRunRequest = {
       agent,
-      contextSummary,
+      runEnvelope,
       version: agent.currentVersion,
       maxToolHops: 5,
       timeoutMs: 120_000,
@@ -289,7 +165,7 @@ export class AgentScheduler implements WorkerService {
       runId: randomUUID(),
       agent,
       requestSummary: {
-        contextSummaryBytes: Buffer.byteLength(contextSummary, "utf8"),
+        runEnvelopeBytes: Buffer.byteLength(runEnvelope, "utf8"),
         allowedTools: agent.allowedTools,
       },
       response,

@@ -52,6 +52,7 @@ apps/
           market-data/
           paper-trading/
           strategies/
+          agents/
           reviews/
 
       server/
@@ -67,6 +68,8 @@ apps/
           ui/
         strategies/
           ui/
+        agents/
+          ui/
         ai-tuning/
           ui/
 
@@ -75,27 +78,66 @@ apps/
       main.ts
       runtime.ts
       hono-app.ts
+      api/
+        admin-routes.ts
+        status-routes.ts
+      pipelines/
+        market-data/
+          collector.ts
+          historical-importer.ts
+        paper-trading/
+          paper-trader.ts
+        agent-evaluation/
+          scheduler.ts
+          run-envelope-builder.ts
+          output-processor.ts
+        strategy-evaluation/
+          proposal-ingestion.ts
+          candidate-slot-manager.ts
+          adoption-runner.ts
+          baseline-rollback-runner.ts
       services/
-        collector.ts
-        paper-trader.ts
         ai-tuner.ts
         ai-daily-reviewer.ts
-      admin/
-        routes.ts
 
   ai-runner/
     src/
       main.ts
       hono-app.ts
-      claude-cli-provider.ts
-      agent-runner.ts
+      providers/
+        claude-cli-provider.ts
+      agent-loop/
+        agent-runner.ts
+        tool-client.ts
+        prompt-builder.ts
+        output-parser.ts
+      policy/
+        budget-guard.ts
+        secret-redaction.ts
 
   mcp-agent-research/
     src/
       main.ts
       hono-app.ts
       read-only-db.ts
-      tools.ts
+      server/
+        mcp-server.ts
+        transport.ts
+      tools/
+        context-snapshot/
+        market-data/
+        candidate-performance/
+        rejection-history/
+        memory/
+        skills/
+      data-sources/
+        agent-context-reader.ts
+        market-data-reader.ts
+        strategy-performance-reader.ts
+        agent-memory-reader.ts
+      policy/
+        tool-allowlist.ts
+        read-only-guard.ts
 
 packages/
   db/
@@ -105,9 +147,15 @@ packages/
         features.ts
         strategies.ts
         paper-trading.ts
-        ai.ts
+        ai-invocations.ts
+        ai-agents.ts
       client.ts
       repositories/
+        candles.ts
+        strategy-runs.ts
+        paper-trading.ts
+        ai-agents.ts
+        ai-tuning.ts
       migrations/
 
   domain/
@@ -128,6 +176,11 @@ packages/
         account.ts
       risk/
         gates.ts
+      strategy-evaluation/
+        candidate-similarity.ts
+        candidate-slots.ts
+        adoption-gate.ts
+        baseline-rollbacks.ts
       ai-tuning/
         proposal-schema.ts
 
@@ -138,15 +191,19 @@ packages/
       time.ts
 ```
 
-`apps/web`はNext.jsのrouting、dashboard UI、tRPC routerに限定する。`apps/worker`はHono API、scheduler、collector、paper trader、AI provider呼び出しに限定する。
+`apps/web`はNext.jsのrouting、dashboard UI、tRPC routerに限定する。Agent UIはprompt/tool allowlist/version、run log、memory/skills、proposal/review状態を表示・編集するが、AI Agent実行、Paper Account更新、Baseline Strategy昇格/停止の判定は持たない。`apps/worker`はHono API、scheduler、collector、paper trader、AI Runner呼び出し、Deterministic Control Planeのorchestrationに限定する。worker内部はpipeline単位に分け、AI Agent実行、Paper Trading、Strategy Evaluationを同じservice fileへ混在させない。
 
-`apps/ai-runner`はClaude CLIの実行とAI Agent tool loopだけを担当する。DB接続、repository、scheduler、Paper Account更新、Candidate Strategy投入、Risk Gate判定は持たない。
+`apps/ai-runner`はClaude CLIの実行とAI Agent tool loopだけを担当する。provider、tool loop、prompt assembly、output parsing、budget guard、secret redactionを持つが、DB接続、repository、scheduler、Paper Account更新、Candidate Strategy投入、Risk Gate判定は持たない。
 
-`apps/mcp-agent-research`はAI Agent向けread-only tool APIを担当する。DB接続はread-onlyに固定し、write SQL、mutation repository、paper execution API、Risk Gate decisionは持たない。
+`apps/mcp-agent-research`はAI Agent向けread-only tool APIを担当する。Research Tool Serverは当面1つのappに集約し、tool、data source、policyを内部featureとして分ける。DB接続はread-onlyに固定し、write SQL、mutation repository、paper execution API、Risk Gate decisionは持たない。
 
-`packages/db`はDrizzle schema、DB client、migration、repositoryを持つ。DB接続を使う処理は`apps/web`と`apps/worker`から`packages/db`経由で行い、schema定義を重複させない。
+AI Agent / LLM tool loopが観察するデータは必ずResearch Tool Server経由で取得する。workerのDeterministic Control Plane、Paper Trading、Adoption Gate、Baseline Strategy昇格/停止はMCPを経由せず、`packages/db` repositoryと`packages/domain`の純粋ロジックを直接使う。dashboardはtRPC/API経由で読み、AI Agent向けtool境界とは分ける。
 
-`packages/domain`はDBやHTTP serverに依存しない純粋ロジックだけを置く。market-data normalization、candle aggregation、Strategy DSL validation、paper execution model、Risk Gateはここに置き、Next.jsとworkerの両方から再利用する。
+Market dataの永続化用collector、normalizer、candle aggregationはworker側に残す。Research Tool ServerはAI Agent向けに保存済みデータとread-only外部参照を取得する境界であり、system of recordへ書き込むingestion pipelineではない。
+
+`packages/db`はDrizzle schema、DB client、migration、repositoryを持つ。DB接続を使う処理は`apps/web`、`apps/worker`、`apps/mcp-agent-research`から`packages/db`経由で行い、schema定義を重複させない。repositoryは永続化とquery shapeに限定し、Candidate Slot選択、Adoption Gate、Risk Gateなどの判断は`packages/domain`またはworker pipelineに置く。
+
+`packages/domain`はDBやHTTP serverに依存しない純粋ロジックだけを置く。market-data normalization、candle aggregation、Strategy DSL validation、paper execution model、Risk Gateはここに置き、Next.jsとworkerの両方から再利用する。Candidate Similarity Check、Candidate Slot、Adoption Gate、Shadow Baseline Run、Baseline Rollbackは `strategy-evaluation/` に集約し、AI AgentやMCP toolの責務にしない。
 
 アプリ固有のcomposition、scheduler、Hono route、tRPC procedure、UI stateはpackage化しない。これにより共通化しすぎによる依存逆転を避ける。
 

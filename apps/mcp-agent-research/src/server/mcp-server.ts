@@ -6,15 +6,17 @@ import { z } from "zod";
 import {
   calcIndicator,
   getCandidatePerformance,
+  getContextSnapshot,
   getRejectionHistory,
   getSkill,
   readBars,
   recallMemory,
   recallSkills,
-} from "./tools.js";
+} from "../tools/index.js";
 
 export const MCP_SERVER_NAME = "agent_research";
 export const MCP_TOOL_NAMES = [
+  "get_context_snapshot",
   "read_bars",
   "calc_indicator",
   "get_candidate_performance",
@@ -29,6 +31,22 @@ export function createAgentResearchMcpServer() {
     name: "ai-trade-agent-research",
     version: "1.0.0",
   });
+
+  server.registerTool(
+    "get_context_snapshot",
+    {
+      title: "Get Context Snapshot",
+      description: "Read the initial market, candidate, review, rejection, and memory snapshot.",
+      inputSchema: z.object({
+        agentId: z.string().min(1),
+        timeframe: z.string().optional(),
+      }),
+    },
+    async (input) =>
+      toToolResult(
+        await recordToolActivity("get_context_snapshot", input, () => getContextSnapshot(input)),
+      ),
+  );
 
   server.registerTool(
     "read_bars",

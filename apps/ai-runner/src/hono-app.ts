@@ -2,12 +2,12 @@ import type { AgentRunRequest } from "@ai-trade/domain/ai-agents";
 import type { DailyReviewInput, StrategyProposalInput } from "@ai-trade/domain/ai-tuning";
 import { Hono } from "hono";
 
-import { type AgentRunner, AiAgentRunner } from "./agent-runner.js";
+import { type AgentRunner, AiAgentRunner } from "./agent-loop/agent-runner.js";
 import {
   type AiRunnerProviderState,
   ClaudeCliProvider,
   type StrategyProposalProvider,
-} from "./claude-cli-provider.js";
+} from "./providers/claude-cli-provider.js";
 
 export type { AiRunnerProviderState };
 
@@ -109,7 +109,7 @@ export function createAiRunnerApp(
         {
           ok: false,
           error:
-            "Request body must include agent, contextSummary, and version. Agent definition is supplied by worker.",
+            "Request body must include agent, runEnvelope, and version. Agent definition is supplied by worker.",
         },
         400,
       );
@@ -127,9 +127,9 @@ function isAgentRunRequest(input: unknown): input is AgentRunRequest {
     typeof input === "object" &&
     input !== null &&
     "agent" in input &&
-    "contextSummary" in input &&
+    "runEnvelope" in input &&
     "version" in input &&
-    typeof input.contextSummary === "string" &&
+    typeof input.runEnvelope === "string" &&
     typeof input.version === "number" &&
     typeof input.agent === "object" &&
     input.agent !== null &&

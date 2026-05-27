@@ -3,13 +3,16 @@ import { CandleRepository } from "@ai-trade/db";
 import { serve } from "@hono/node-server";
 
 import { createWorkerApp } from "./hono-app.js";
-import { GmoHistoricalImporter } from "./jobs/historical-importer.js";
+import { AgentScheduler } from "./pipelines/agent-evaluation/scheduler.js";
+import { CollectorService } from "./pipelines/market-data/collector.js";
+import { GmoHistoricalImporter } from "./pipelines/market-data/historical-importer.js";
+import {
+  DbCandidateStrategyRepository,
+  PaperTraderService,
+} from "./pipelines/paper-trading/paper-trader.js";
 import { WorkerRuntime } from "./runtime.js";
-import { AgentScheduler } from "./services/agent-pipeline.js";
 import { AiDailyReviewerService } from "./services/ai-daily-reviewer.js";
 import { AiTunerService } from "./services/ai-tuner.js";
-import { CollectorService } from "./services/collector.js";
-import { DbCandidateStrategyRepository, PaperTraderService } from "./services/paper-trader.js";
 
 const runtime = new WorkerRuntime(
   [

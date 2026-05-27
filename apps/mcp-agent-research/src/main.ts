@@ -4,7 +4,7 @@ import { getRequestListener } from "@hono/node-server";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
 import { createMcpAgentResearchApp } from "./hono-app.js";
-import { createAgentResearchMcpServer } from "./mcp-server.js";
+import { createAgentResearchMcpServer } from "./server/mcp-server.js";
 
 const port = env.MCP_AGENT_RESEARCH_PORT;
 const app = createMcpAgentResearchApp();

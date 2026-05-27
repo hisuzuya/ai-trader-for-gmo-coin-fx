@@ -8,7 +8,7 @@ import {
   parseGmoWebSocketTickerMessage,
 } from "@ai-trade/domain/market-data";
 
-import type { ServiceHealth, ServiceState, WorkerService } from "../types.js";
+import type { ServiceHealth, ServiceState, WorkerService } from "../../types.js";
 
 type WebSocketListener = (event: unknown) => void;
 

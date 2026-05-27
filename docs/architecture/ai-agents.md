@@ -33,9 +33,9 @@ Phase 1のAI Agentは **Research + Evaluation Agent** とする。
 
 ```text
 AgentScheduler
-  -> AgentContextBuilder
-      -> deterministic context summary
-      -> read-only tool allowlist
+  -> AgentRunEnvelopeBuilder
+      -> agent id / version / prompt
+      -> read-only tool allowlist / budgets
   -> AiAgentRunner
       -> LLM tool loop
       -> AgentRunOutput
@@ -182,9 +182,11 @@ type AgentSkillWriteIntent = {
 
 ## Observation Input
 
-AI Agent入力は **deterministic context summary + read-only tool access** にする。
+AI Agent入力は **minimal run envelope + read-only tool access** にする。
 
-AgentContextBuilderは、LLM呼び出し前に以下を要約する。
+workerがAI Runnerへ渡すrun envelopeは、agent id、agent version、system prompt、tool allowlist、budget、実行理由などの制御情報に限定する。市場状態、Candidate Strategy成績、reject履歴、Daily Review、memoryなどの観察データはrun envelopeに含めない。
+
+Research Tool Serverは `get_context_snapshot` toolで、LLM呼び出し前後に必要な初期観察snapshotを返す。snapshotには以下を含める。
 
 - 現在のBaseline Strategy / Candidate Strategy一覧。
 - 評価中Candidate Strategyの直近PnL、trade count、drawdown、status。
@@ -193,11 +195,12 @@ AgentContextBuilderは、LLM呼び出し前に以下を要約する。
 - market status、最新Canonical Candle時刻、spread状態。
 - memory recallの初期結果。
 
-AI Agentは必要な場合だけread-only toolを呼ぶ。
+AI Agentはまず `get_context_snapshot` を呼び、必要な場合だけ追加のread-only toolを呼ぶ。
 
 Phase 1のtool allowlist:
 
 ```text
+get_context_snapshot(agentId, timeframe?)
 read_bars(symbol, timeframe, count, priceType)
 calc_indicator(symbol, timeframe, indicator, params, count)
 get_candidate_performance(strategyName)
@@ -216,10 +219,13 @@ write toolは持たせない。`save_memory` は存在させず、`memoryWrites`
 
 read-only toolsはMCP互換のtool serverとして分離する。Claude CLIには `--mcp-config` で `mcp-agent-research` のStreamable HTTP endpointを渡す。これにより、`apps/ai-runner` はDB credentialを持たず、DB readは `mcp-agent-research` 側に閉じる。
 
+AI Agent / LLM tool loopの観察データはすべてResearch Tool Server経由にする。初期context summaryも例外にしない。一方で、workerのAgentOutputProcessor、StrategyEvaluationPipeline、Paper Trading、Adoption GateはMCPを経由しない。これらはDeterministic Control Planeとして、DB repositoryとdomain logicを直接使い、transaction境界と再現性を保つ。
+
 ```text
 apps/ai-runner
   -> Claude CLI --mcp-config
   -> http://mcp-agent-research:8789/mcp
+       -> get_context_snapshot
        -> read_bars / calc_indicator
        -> get_candidate_performance / get_rejection_history
        -> recall_memory / recall_skills / get_skill
@@ -228,6 +234,8 @@ apps/ai-runner
 MCP serverはDB readだけを許可する。writeが必要な処理は、workerのAgentOutputProcessorがDB repository経由で行う。
 
 Phase 1では、process数を抑えるためにread-only MCP serverを1つの `mcp-agent-research` serviceとして実装してもよい。ただしtool権限はread-onlyに固定する。
+
+Research Tool ServerはAI Agentの観察インターフェースであり、market data collectorやcandle aggregationの実行主体ではない。保存済みmarket data、評価済みCandidate Strategy成績、reject履歴、memory、skillsを読み、必要な外部参照が増えた場合もread-only toolとして追加する。system of recordへの書き込みはworker pipelineだけが行う。
 
 ## Strategy Evaluation Pipeline
 
@@ -481,9 +489,9 @@ status: active
 ```text
 Phase 1
   - ai_agents / versions / runs / memories / observations / proposals / reviews schema追加
-  - read-only research tools実装
+  - `get_context_snapshot` を含むread-only research tools実装
   - AiAgentRunner実装
-  - AgentScheduler / AgentContextBuilder / AgentOutputProcessor実装
+  - AgentScheduler / AgentRunEnvelopeBuilder / AgentOutputProcessor実装
 - StrategyEvaluationPipelineにAI Agent source proposalを接続
 - /agents UI追加
 - seed AI Agent 1体投入

@@ -1,21 +1,25 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
-import { createAgentResearchMcpServer } from "./mcp-server.js";
+import { createAgentResearchMcpServer } from "./server/mcp-server.js";
 import {
   calcIndicator,
   getCandidatePerformance,
+  getContextSnapshot,
   getRejectionHistory,
   getSkill,
   readBars,
   recallMemory,
   recallSkills,
-} from "./tools.js";
+} from "./tools/index.js";
 
 export function createMcpAgentResearchApp() {
   const app = new Hono();
 
   app.get("/health", (c) => c.json({ ok: true, service: "mcp-agent-research" }));
   app.all("/mcp", async (c) => handleMcpHttpRequest(c.req.raw));
+  app.post("/tools/get_context_snapshot", async (c) =>
+    c.json({ ok: true, result: await getContextSnapshot(await c.req.json()) }),
+  );
   app.post("/tools/read_bars", async (c) =>
     c.json({ ok: true, result: await readBars(await c.req.json()) }),
   );
