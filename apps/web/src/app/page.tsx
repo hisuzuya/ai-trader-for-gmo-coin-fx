@@ -3,7 +3,6 @@ import type { UTCTimestamp } from "lightweight-charts";
 import Image from "next/image";
 import Link from "next/link";
 import { type AgentSummaryRaw, fetchAgentSummaries } from "@/components/agents/CrewPanelSection";
-import { CrewTile } from "@/components/agents/CrewTile";
 import { DailyPnlCalendar, type DailyPnlEntry } from "@/components/DailyPnlCalendar";
 import { PnlChart, type PnlPoint } from "@/components/PnlChart";
 import { appRouter } from "@/server/trpc/root";
@@ -34,6 +33,47 @@ type AccountDetail = {
     startedAt: string;
     strategyDefinition: unknown;
   } | null;
+};
+
+type OpenPositionRow = {
+  id: string;
+  accountId: string;
+  accountName: string;
+  agentId: string | null;
+  agentName: string | null;
+  characterId: string | null;
+  symbol: string;
+  side: "long" | "short";
+  quantity: string;
+  entryPrice: string;
+  stopLossPrice: string;
+  takeProfitPrice: string;
+  bestPriceSinceOpen: string;
+  spreadPips: string;
+  currentPrice: string | null;
+  unrealizedPnlJpy: string | null;
+  openedAt: string;
+};
+
+type AgentBriefingRow = {
+  agentId: string;
+  agentName: string;
+  characterId: string | null;
+  status: string;
+  todayRealizedPnlJpy: string;
+  todayUnrealizedPnlJpy: string;
+  todayTradeCount: number;
+  todayWinCount: number;
+  openPositionCount: number;
+  latestRun: {
+    id: string;
+    startedAt: string;
+    finishedAt: string | null;
+    status: string;
+    observations: { kind: string; summary: string; tags: string[] }[];
+    proposals: { strategyName: string; validationStatus: string }[];
+  } | null;
+  dailyFeedback: string | null;
 };
 
 type DashboardSummary = {
@@ -85,6 +125,8 @@ type DashboardSummary = {
       winCount: number;
     }[];
   }[];
+  openPositions: OpenPositionRow[];
+  agentBriefings: AgentBriefingRow[];
   accountDetail: AccountDetail | null;
 };
 
@@ -95,6 +137,8 @@ const EMPTY_DASHBOARD: DashboardSummary = {
   candidates: [],
   dailyReviews: [],
   dailyPnl: [],
+  openPositions: [],
+  agentBriefings: [],
   accountDetail: null,
 };
 
@@ -125,6 +169,8 @@ async function getDashboardSummary(accountName?: string): Promise<DashboardSumma
     candidates: Array.isArray(summary.candidates) ? summary.candidates : [],
     dailyReviews: Array.isArray(summary.dailyReviews) ? summary.dailyReviews : [],
     dailyPnl: Array.isArray(summary.dailyPnl) ? summary.dailyPnl : [],
+    openPositions: Array.isArray(summary.openPositions) ? summary.openPositions : [],
+    agentBriefings: Array.isArray(summary.agentBriefings) ? summary.agentBriefings : [],
     accountDetail: summary.accountDetail ?? null,
   };
 }
@@ -183,15 +229,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const totalUnrealizedPnl = totalBalance - totalInitialBalance;
   const totalUnrealizedPnlPct =
     totalInitialBalance > 0 ? (totalUnrealizedPnl / totalInitialBalance) * 100 : 0;
-  const totalOpenPositions = agentSummaries.reduce(
-    (sum, agent) => sum + (agent.paperAccount?.openPositionCount ?? 0),
+  const totalOpenPositions = dashboard.openPositions.length;
+  const totalOpenUnrealizedPnl = dashboard.openPositions.reduce(
+    (sum, p) => sum + (p.unrealizedPnlJpy !== null ? Number(p.unrealizedPnlJpy) : 0),
     0,
   );
   const activeAgents = agentSummaries.filter((agent) => agent.status === "active").length;
   const totalPnl = dashboard.trades.reduce((sum, trade) => sum + Number(trade.pnlJpy), 0);
   const winningTrades = dashboard.trades.filter((trade) => Number(trade.pnlJpy) > 0).length;
   const winRate = dashboard.trades.length > 0 ? (winningTrades / dashboard.trades.length) * 100 : 0;
-  const latestReview = dashboard.dailyReviews[0];
   const pnlSeries = buildPnlSeries(dashboard.trades);
   const pnlPositive = totalPnl >= 0;
   const dailyPnlEntries: DailyPnlEntry[] = dashboard.dailyPnl.map((entry) => ({
@@ -232,7 +278,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       >
         <div className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className={KICKER_CLS}>AI Crew Overview · USD/JPY · Paper</p>
+            <p className={KICKER_CLS}>AI Crew Overview · USD/JPY · Paper · いま現在</p>
             <div className="inline-flex items-center gap-3.5">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-muted px-2.5 py-1 text-[11px] text-muted">
                 <span className={`tv-status-dot ${health.ok ? "live" : "danger"}`} />
@@ -257,11 +303,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </h1>
             <p className="mt-2 max-w-[56ch] text-[13px] leading-relaxed text-muted">
               {agentSummaries.length}体のクルーがUSD/JPYのペーパー取引を運用中。
-              残高・確定損益・候補戦略・AI日次レビューを一画面で確認できます。
+              「いま現在」の口座状態と保有ポジションを上に、確定パフォーマンスは下に表示します。
             </p>
           </div>
 
-          <dl className="mt-auto grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="mt-auto grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-3">
             <KpiCell
               label="Crew Equity"
               value={formatJpy(totalBalance)}
@@ -277,18 +323,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               sparkTone={totalUnrealizedPnl >= 0 ? "profit" : "loss"}
             />
             <KpiCell
-              label="Realized PnL"
-              value={formatJpySigned(totalPnl)}
-              tone={totalPnl > 0 ? "profit" : totalPnl < 0 ? "loss" : undefined}
-              foot={`${dashboard.trades.length} fills · ${
-                dashboard.trades.length > 0 ? `${winRate.toFixed(1)}%` : "—"
-              } win`}
-            />
-            <KpiCell
-              label="Active Agents"
-              value={`${activeAgents} / ${agentSummaries.length}`}
+              label="Open Positions"
+              value={`${totalOpenPositions}`}
               tone="accent"
-              foot={`${totalOpenPositions} open positions`}
+              foot={`${activeAgents}/${agentSummaries.length} active · 含み ${formatJpySigned(totalOpenUnrealizedPnl)}`}
             />
           </dl>
         </div>
@@ -317,6 +355,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           ) : (
             <div className="flex flex-col gap-2">
               {topPerformers.map((agent) => {
+                const character = getCharacter(agent.characterId);
                 const pnl = agent.paperAccount?.pnlJpy ?? 0;
                 const balance = agent.paperAccount?.balanceJpy ?? 0;
                 const initial = agent.paperAccount?.initialBalanceJpy ?? 0;
@@ -331,10 +370,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   <Link
                     key={agent.id}
                     href={`/agents/${agent.id}`}
-                    className="grid grid-cols-[80px_1fr_auto] items-center gap-2.5 text-[11px] hover:text-text-strong"
+                    className="grid grid-cols-[20px_72px_1fr_auto] items-center gap-2 text-[11px] hover:text-text-strong"
                     aria-label={`${agent.name} の口座`}
                   >
-                    <span className="text-muted">{agent.name}</span>
+                    <FaceIcon
+                      avatarPath={character?.avatarPath}
+                      alt={character?.name ?? agent.name}
+                      size={20}
+                    />
+                    <span className="truncate text-muted">{agent.name}</span>
                     <span
                       aria-hidden
                       className="relative h-1 overflow-hidden rounded-full bg-surface-muted"
@@ -360,80 +404,145 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </aside>
       </section>
 
-      {/* === AI Crew Tiles ================================================ */}
-      <section aria-label="AI Crew" className={SECTION_CLS}>
+      {/* === OPEN POSITIONS (全クルー合算) ================================= */}
+      <section aria-label="保有ポジション" className={SECTION_CLS}>
         <header className={SECTION_HEAD_CLS}>
           <div className="flex min-w-0 flex-col gap-1">
-            <p className={KICKER_CLS}>AI Crew</p>
-            <h2 className={SECTION_TITLE_CLS}>エージェント・クルー</h2>
+            <p className={KICKER_CLS}>Open Positions · 全クルー</p>
+            <h2 className={SECTION_TITLE_CLS}>保有ポジション</h2>
             <p className={SECTION_DESC_CLS}>
-              配属済みのエージェントを一覧表示。タイルから個別の詳細画面に遷移できます。
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-1.5">
-            <Link href="/agents#picker" className="btn-primary">
-              ＋ New Agent
-            </Link>
-            <Link href="/agents" className="btn-secondary">
-              一覧へ
-            </Link>
-          </div>
-        </header>
-        {agentSummaries.length === 0 ? (
-          <div className={EMPTY_CLS}>
-            まだエージェントがいません。
-            <br />
-            <Link href="/agents#picker" className="text-accent-strong">
-              ＋ クルーを配属する →
-            </Link>
-          </div>
-        ) : (
-          <div className="crew-grid">
-            {agentSummaries.map((agent) => {
-              const character = getCharacter(agent.characterId);
-              if (!character) return null;
-              const summary = {
-                id: agent.id,
-                name: agent.name,
-                status: agent.status,
-                currentVersion: agent.currentVersion,
-                acceptedProposalCount: agent.acceptedProposalCount,
-                proposalCount: agent.proposalCount,
-                succeededRunCount: agent.succeededRunCount,
-                failedRunCount: agent.failedRunCount,
-                latestRunStatus: agent.latestRun?.status ?? null,
-                balanceJpy: agent.paperAccount?.balanceJpy ?? null,
-                initialBalanceJpy: agent.paperAccount?.initialBalanceJpy ?? null,
-                pnlJpy: agent.paperAccount?.pnlJpy ?? null,
-                openPositionCount: agent.paperAccount?.openPositionCount ?? null,
-              };
-              return <CrewTile key={agent.id} character={character} agent={summary} />;
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* === Calendar =================================================== */}
-      <section aria-label="日次損益カレンダー" className={SECTION_CLS}>
-        <header className={SECTION_HEAD_CLS}>
-          <div className="flex min-w-0 flex-col gap-1">
-            <p className={KICKER_CLS}>Daily PnL · Calendar</p>
-            <h2 className={SECTION_TITLE_CLS}>日次損益カレンダー</h2>
-            <p className={SECTION_DESC_CLS}>
-              JST
-              日付で集計した、全エージェント合算のペーパー確定損益。月送りで過去の成績も確認できます。
+              いま全エージェントが持っているポジションと、現在価格・含み損益・経過時間。
             </p>
           </div>
         </header>
         <div className={CARD_CLS}>
           <div className={CARD_HEAD_CLS}>
-            <span className={CARD_HEAD_TITLE_CLS}>日次 PnL / Daily PnL</span>
+            <span className={CARD_HEAD_TITLE_CLS}>Open Positions / 全クルー</span>
             <span className={CARD_HEAD_META_CLS}>
-              <span className={META_CHIP_CLS}>{dailyPnlEntries.length} days w/ fills</span>
+              <span className={META_CHIP_CLS}>{totalOpenPositions} open</span>
+              <span
+                className={`${META_CHIP_CLS} ${
+                  totalOpenUnrealizedPnl > 0
+                    ? "text-profit-strong"
+                    : totalOpenUnrealizedPnl < 0
+                      ? "text-loss-strong"
+                      : ""
+                }`}
+              >
+                含み {formatJpySigned(totalOpenUnrealizedPnl)}
+              </span>
             </span>
           </div>
-          <div className={CARD_BODY_CLS}>
-            <DailyPnlCalendar entries={dailyPnlEntries} />
+          <div className="flex min-h-0 flex-col">
+            {dashboard.openPositions.length === 0 ? (
+              <div className="m-4">
+                <div className={EMPTY_CLS}>現在ポジションを持っているエージェントはいません</div>
+              </div>
+            ) : (
+              <div className="overflow-auto">
+                <table className="w-full border-collapse text-xs">
+                  <thead>
+                    <tr>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                        エージェント
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-2 py-2 text-left text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                        通貨ペア
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-2 py-2 text-left text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                        売買
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-2 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        数量
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-2 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        エントリー
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-2 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        現在
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-2 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        SL
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-2 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        TP
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-2 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        含み損益
+                      </th>
+                      <th className="sticky top-0 z-[1] border-b border-line bg-bg-elevated px-2 py-2 text-right font-mono text-[10px] font-bold uppercase tracking-[0.08em] text-muted tabular-nums">
+                        経過
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.openPositions.map((position) => {
+                      const character = getCharacter(position.characterId);
+                      const displayName =
+                        character?.nameJa ?? position.agentName ?? position.accountName;
+                      const sideLower = position.side.toLowerCase();
+                      const sideLabel = position.side === "long" ? "BUY" : "SELL";
+                      const unrealized =
+                        position.unrealizedPnlJpy !== null
+                          ? Number(position.unrealizedPnlJpy)
+                          : null;
+                      return (
+                        <tr
+                          key={position.id}
+                          className="border-b border-line-soft transition-colors last:border-b-0 hover:bg-surface-muted"
+                        >
+                          <td className="px-3 py-2.5">
+                            <span className="inline-flex items-center gap-2">
+                              <FaceIcon
+                                avatarPath={character?.avatarPath}
+                                alt={displayName}
+                                size={20}
+                              />
+                              <span className="truncate text-[12px] font-semibold text-text-strong">
+                                {displayName}
+                              </span>
+                            </span>
+                          </td>
+                          <td className="px-2 py-2.5">
+                            <span className="tv-symbol">{formatSymbol(position.symbol)}</span>
+                          </td>
+                          <td className="px-2 py-2.5">
+                            <span className={`tv-side ${sideLower}`}>{sideLabel}</span>
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-mono tabular-nums">
+                            {Number(position.quantity).toLocaleString()}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-mono tabular-nums">
+                            {Number(position.entryPrice).toFixed(3)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-mono tabular-nums">
+                            {position.currentPrice ? Number(position.currentPrice).toFixed(3) : "—"}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-mono tabular-nums text-loss-strong">
+                            {Number(position.stopLossPrice).toFixed(3)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-mono tabular-nums text-profit-strong">
+                            {Number(position.takeProfitPrice).toFixed(3)}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-mono tabular-nums">
+                            {unrealized !== null ? (
+                              <span className={`tv-pnl ${unrealized >= 0 ? "profit" : "loss"}`}>
+                                {formatJpySigned(unrealized)}
+                              </span>
+                            ) : (
+                              <span className="text-subtle">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-mono tabular-nums">
+                            <span className="tv-time">{formatElapsed(position.openedAt)}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -442,10 +551,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       <section aria-label="Performance" className={SECTION_CLS}>
         <header className={SECTION_HEAD_CLS}>
           <div className="flex min-w-0 flex-col gap-1">
-            <p className={KICKER_CLS}>Performance</p>
+            <p className={KICKER_CLS}>Performance · 確定済み</p>
             <h2 className={SECTION_TITLE_CLS}>パフォーマンス</h2>
             <p className={SECTION_DESC_CLS}>
-              確定済みのペーパー取引から累積損益と直近の約定を集計。クルー別の口座状況も切り替え可能です。
+              確定したペーパー取引から累積損益と直近の約定を集計。クルー別の口座状況も切り替え可能です。
             </p>
           </div>
           <div className="inline-flex items-center gap-1.5">
@@ -517,35 +626,24 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 </div>
               ) : (
                 <div className="flex flex-col">
-                  <WatchlistRow
-                    href="/"
-                    scroll={false}
-                    avatar={
-                      <span
-                        aria-hidden
-                        className="grid size-9 place-items-center rounded-lg border border-line bg-surface text-[11px] font-bold text-text-strong"
-                      >
-                        Σ
-                      </span>
-                    }
-                    name="クルー合計"
-                    sub={
-                      <>
-                        <span className="tv-tag">ALL</span>
-                        {agentSummaries.length} agents
-                      </>
-                    }
-                    balance={formatJpy(totalBalance)}
-                    delta={formatJpySigned(totalUnrealizedPnl)}
-                    deltaTone={
-                      totalUnrealizedPnl > 0
-                        ? "profit"
-                        : totalUnrealizedPnl < 0
-                          ? "loss"
-                          : undefined
-                    }
-                    active={!isAccountView}
-                  />
+                  {!isAccountView ? null : (
+                    <WatchlistRow
+                      href="/"
+                      scroll={false}
+                      avatar={
+                        <span
+                          aria-hidden
+                          className="grid size-9 place-items-center rounded-lg border border-line bg-surface text-[11px] font-bold text-text-strong"
+                        >
+                          ←
+                        </span>
+                      }
+                      name="全クルー表示に戻る"
+                      sub={<span className="tv-tag">ALL</span>}
+                      balance=""
+                      delta=""
+                    />
+                  )}
                   {agentSummaries.map((agent) => (
                     <AgentAccountRow key={agent.id} agent={agent} />
                   ))}
@@ -624,140 +722,242 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           </div>
         </div>
 
-        {dashboard.accountDetail ? (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-            <AccountStrategyPanel detail={dashboard.accountDetail} />
-            <PositionsPanel detail={dashboard.accountDetail} />
-          </div>
-        ) : null}
+        {dashboard.accountDetail ? <AccountStrategyPanel detail={dashboard.accountDetail} /> : null}
       </section>
 
-      {/* === AI Insights =================================================== */}
-      <section aria-label="AI Insights" className={SECTION_CLS}>
+      {/* === Calendar =================================================== */}
+      <section aria-label="日次損益カレンダー" className={SECTION_CLS}>
         <header className={SECTION_HEAD_CLS}>
           <div className="flex min-w-0 flex-col gap-1">
-            <p className={KICKER_CLS}>AI Insights</p>
-            <h2 className={SECTION_TITLE_CLS}>AIインサイト</h2>
+            <p className={KICKER_CLS}>Daily PnL · Calendar</p>
+            <h2 className={SECTION_TITLE_CLS}>日次損益カレンダー</h2>
             <p className={SECTION_DESC_CLS}>
-              AIの日次レビューと審査中の候補戦略を要約。詳細は Activity 画面で時系列に確認できます。
+              JST
+              日付で集計した、全エージェント合算のペーパー確定損益。月送りで過去の成績も確認できます。
             </p>
           </div>
-          <div className="inline-flex items-center gap-1.5">
-            <Link href="/activity?kind=proposals" className="btn-ghost">
-              提案を見る →
-            </Link>
-            <Link href="/activity?kind=runs" className="btn-ghost">
-              実行を見る →
-            </Link>
-          </div>
         </header>
-
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className={CARD_CLS}>
-            <div className={CARD_HEAD_CLS}>
-              <span className={CARD_HEAD_TITLE_CLS}>AI日次レビュー / Daily Review</span>
-              <span className={CARD_HEAD_META_CLS}>
-                <span className={META_CHIP_CLS}>
-                  {latestReview ? formatDate(latestReview.reviewDate) : "—"}
-                </span>
-              </span>
-            </div>
-            <div className={CARD_BODY_CLS}>
-              {dashboard.dailyReviews.length === 0 ? (
-                <div className={EMPTY_CLS}>AI日次レビューはまだ記録されていません</div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {dashboard.dailyReviews.slice(0, 2).map((review) => (
-                    <article
-                      key={`${review.reviewDate}-${review.createdAt}`}
-                      className="flex flex-col gap-3 rounded-xl border border-line bg-linear-to-b from-accent-soft to-surface-muted p-3.5"
-                    >
-                      <header className="flex flex-wrap items-center justify-between gap-2.5">
-                        <div className="inline-flex items-center gap-2.5">
-                          <span className="font-mono text-sm font-bold text-text-strong">
-                            {formatDate(review.reviewDate)}
-                          </span>
-                          <span className={`tv-tag ${normalizeStatus(review.status)}`}>
-                            {translateStatus(review.status)}
-                          </span>
-                        </div>
-                        <span className="font-mono text-[10px] text-subtle">
-                          {formatDateTime(review.createdAt)}
-                        </span>
-                      </header>
-                      <p className="text-xs leading-relaxed text-text">
-                        {review.summary ?? "レビューは却下、または要約が返されませんでした。"}
-                      </p>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <ReviewCol
-                          title="採用候補"
-                          items={formatRecommendationItems(review.baselinePromotionCandidates)}
-                        />
-                        <ReviewCol
-                          title="停止候補"
-                          items={formatRecommendationItems(review.candidateRetirementCandidates)}
-                        />
-                        <ReviewCol title="警告" items={formatWarningItems(review.warnings)} />
-                        <ReviewCol title="次の対応" items={formatStringItems(review.nextActions)} />
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
+        <div className={CARD_CLS}>
+          <div className={CARD_HEAD_CLS}>
+            <span className={CARD_HEAD_TITLE_CLS}>日次 PnL / Daily PnL</span>
+            <span className={CARD_HEAD_META_CLS}>
+              <span className={META_CHIP_CLS}>{dailyPnlEntries.length} days w/ fills</span>
+            </span>
           </div>
-
-          <div className={CARD_CLS}>
-            <div className={CARD_HEAD_CLS}>
-              <span className={CARD_HEAD_TITLE_CLS}>候補戦略 / Candidates</span>
-              <span className={CARD_HEAD_META_CLS}>
-                <span className={META_CHIP_CLS}>{dashboard.candidates.length} 件</span>
-              </span>
-            </div>
-            <div className="flex max-h-[360px] min-h-0 flex-col overflow-auto">
-              {dashboard.candidates.length === 0 ? (
-                <div className="m-4">
-                  <div className={EMPTY_CLS}>AI候補戦略はまだ承認されていません</div>
-                </div>
-              ) : (
-                dashboard.candidates.map((candidate) => {
-                  const status = candidate.strategyRunStatus ?? candidate.status;
-                  return (
-                    <article
-                      key={candidate.id}
-                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 border-b border-line-soft px-3.5 py-3 last:border-b-0"
-                    >
-                      <div className="flex min-w-0 flex-col gap-1">
-                        <span className="truncate text-[13px] font-semibold text-text-strong">
-                          {candidate.candidateStrategyName ?? candidate.id}
-                        </span>
-                        <span className="truncate font-mono text-[10px] text-muted">
-                          ← {candidate.sourceStrategyName}
-                        </span>
-                        <span className="mt-1 inline-flex flex-wrap gap-1">
-                          <span className="tv-tag">{candidate.timeframe}</span>
-                          <span className={`tv-tag ${normalizeStatus(status)}`}>
-                            {translateStatus(status)}
-                          </span>
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-end gap-0.5 text-right whitespace-nowrap">
-                        <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted">
-                          自動審査
-                        </span>
-                        <span className="max-w-[200px] font-mono text-[11px] leading-snug font-semibold whitespace-normal text-text-strong">
-                          {describeAutoStatus(status)}
-                        </span>
-                      </div>
-                    </article>
-                  );
-                })
-              )}
-            </div>
+          <div className={CARD_BODY_CLS}>
+            <DailyPnlCalendar entries={dailyPnlEntries} />
           </div>
         </div>
       </section>
+
+      {/* === Today's Crew Briefing ======================================= */}
+      <section aria-label="本日のクルー報告" className={SECTION_CLS}>
+        <header className={SECTION_HEAD_CLS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className={KICKER_CLS}>Today&apos;s Crew Briefing</p>
+            <h2 className={SECTION_TITLE_CLS}>本日のクルー報告</h2>
+            <p className={SECTION_DESC_CLS}>
+              各エージェントの「いま考えていること」「本日の損益(確定+含み)」「日次フィードバック」をまとめて表示します。
+            </p>
+          </div>
+        </header>
+        {dashboard.agentBriefings.length === 0 ? (
+          <div className={EMPTY_CLS}>エージェントの活動がまだ記録されていません</div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {dashboard.agentBriefings.map((briefing) => (
+              <CrewBriefingCard key={briefing.agentId} briefing={briefing} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
+  );
+}
+
+function CrewBriefingCard({ briefing }: { briefing: AgentBriefingRow }) {
+  const character = getCharacter(briefing.characterId);
+  const displayName = character?.nameJa ?? briefing.agentName;
+  const subType = character?.type ?? "";
+  const todayRealized = Number(briefing.todayRealizedPnlJpy);
+  const todayUnrealized = Number(briefing.todayUnrealizedPnlJpy);
+  const todayTotal = todayRealized + todayUnrealized;
+  const observations = briefing.latestRun?.observations ?? [];
+  const proposals = briefing.latestRun?.proposals ?? [];
+
+  return (
+    <article className={CARD_CLS}>
+      <div className={CARD_HEAD_CLS}>
+        <span className="inline-flex min-w-0 items-center gap-2.5">
+          <FaceIcon avatarPath={character?.avatarPath} alt={displayName} size={36} />
+          <span className="flex min-w-0 flex-col leading-tight">
+            <span className="truncate text-sm font-bold text-text-strong">
+              {displayName}
+              <small className="ml-1 font-normal text-muted">{briefing.agentName}</small>
+            </span>
+            <span className="truncate text-[10px] text-muted">{subType}</span>
+          </span>
+        </span>
+        <span className={CARD_HEAD_META_CLS}>
+          <span className={`tv-tag ${normalizeStatus(briefing.status)}`}>
+            {translateStatus(briefing.status)}
+          </span>
+          <span
+            className={`${META_CHIP_CLS} font-mono ${
+              todayTotal > 0 ? "text-profit-strong" : todayTotal < 0 ? "text-loss-strong" : ""
+            }`}
+          >
+            本日 {formatJpySigned(todayTotal)}
+          </span>
+        </span>
+      </div>
+      <div className="flex flex-col gap-2.5 p-4">
+        {/* 思考 */}
+        <div className="flex flex-col gap-1.5 rounded-lg border border-line-soft bg-bg p-3">
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-muted">
+            <span aria-hidden>💭</span>
+            <span>今の思考</span>
+            {briefing.latestRun ? (
+              <span className="ml-1 font-mono text-[10px] font-normal normal-case text-subtle">
+                {formatDateTime(briefing.latestRun.startedAt)} ·{" "}
+                {translateStatus(briefing.latestRun.status)}
+              </span>
+            ) : null}
+          </span>
+          {observations.length === 0 && proposals.length === 0 ? (
+            <span className="text-[11px] text-subtle">
+              {briefing.latestRun ? "観測・提案は出力されていません" : "最新の実行がまだありません"}
+            </span>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {observations.slice(0, 3).map((obs) => (
+                <li
+                  key={`obs-${obs.kind}-${obs.summary}`}
+                  className="relative break-words pl-3 text-[11px] leading-snug text-text before:absolute before:left-0 before:text-accent-strong before:content-['›']"
+                >
+                  <span className="mr-1 inline-block rounded-sm bg-surface-muted px-1 text-[9px] font-mono uppercase tracking-wide text-muted">
+                    {obs.kind}
+                  </span>
+                  {obs.summary}
+                </li>
+              ))}
+              {proposals.slice(0, 2).map((prop) => (
+                <li
+                  key={`prop-${prop.strategyName}-${prop.validationStatus}`}
+                  className="relative break-words pl-3 text-[11px] leading-snug text-text before:absolute before:left-0 before:text-profit-strong before:content-['→']"
+                >
+                  <span className="mr-1 inline-block rounded-sm bg-accent-soft px-1 text-[9px] font-mono uppercase tracking-wide text-accent-strong">
+                    propose
+                  </span>
+                  {prop.strategyName} ({translateStatus(prop.validationStatus)})
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* 当日損益 + 日次FB */}
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <div className="flex flex-col gap-1 rounded-lg border border-line-soft bg-bg p-3">
+            <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">
+              📊 当日損益
+            </span>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+              <dt className="text-muted">確定</dt>
+              <dd
+                className={`m-0 text-right font-mono tabular-nums ${
+                  todayRealized > 0
+                    ? "text-profit-strong"
+                    : todayRealized < 0
+                      ? "text-loss-strong"
+                      : "text-text"
+                }`}
+              >
+                {formatJpySigned(todayRealized)}
+              </dd>
+              <dt className="text-muted">含み</dt>
+              <dd
+                className={`m-0 text-right font-mono tabular-nums ${
+                  todayUnrealized > 0
+                    ? "text-profit-strong"
+                    : todayUnrealized < 0
+                      ? "text-loss-strong"
+                      : "text-text"
+                }`}
+              >
+                {formatJpySigned(todayUnrealized)}
+              </dd>
+              <dt className="font-bold text-text-strong">計</dt>
+              <dd
+                className={`m-0 text-right font-mono font-bold tabular-nums ${
+                  todayTotal > 0
+                    ? "text-profit-strong"
+                    : todayTotal < 0
+                      ? "text-loss-strong"
+                      : "text-text-strong"
+                }`}
+              >
+                {formatJpySigned(todayTotal)}
+              </dd>
+              <dt className="text-muted">取引</dt>
+              <dd className="m-0 text-right font-mono text-muted tabular-nums">
+                {briefing.todayTradeCount} fills ·{" "}
+                {briefing.todayTradeCount > 0
+                  ? `${((briefing.todayWinCount / briefing.todayTradeCount) * 100).toFixed(0)}%`
+                  : "—"}
+              </dd>
+              <dt className="text-muted">保有</dt>
+              <dd className="m-0 text-right font-mono text-muted tabular-nums">
+                {briefing.openPositionCount} open
+              </dd>
+            </dl>
+          </div>
+          <div className="flex flex-col gap-1 rounded-lg border border-line-soft bg-bg p-3">
+            <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted">
+              🔁 日次FB
+            </span>
+            <p className="text-[11px] leading-relaxed text-text">
+              {briefing.dailyFeedback ?? (
+                <span className="text-subtle">本日の日次レビューはまだ生成されていません</span>
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function FaceIcon({
+  avatarPath,
+  alt,
+  size,
+}: {
+  avatarPath: string | undefined;
+  alt: string;
+  size: number;
+}) {
+  if (avatarPath) {
+    return (
+      <Image
+        src={avatarPath}
+        alt={`${alt} avatar`}
+        width={size}
+        height={size}
+        className="shrink-0 rounded-full border border-line object-cover"
+        style={{ width: size, height: size }}
+        unoptimized
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className="grid shrink-0 place-items-center rounded-full border border-line bg-surface text-[10px] font-bold text-text-strong"
+      style={{ width: size, height: size }}
+    >
+      {alt[0]?.toUpperCase() ?? "?"}
+    </span>
   );
 }
 
@@ -871,25 +1071,11 @@ function AgentAccountRow({ agent }: { agent: AgentSummaryRaw }) {
     <WatchlistRow
       href={`/agents/${agent.id}`}
       avatar={
-        <span
-          aria-hidden
-          className="grid size-9 overflow-hidden rounded-lg border border-line bg-surface"
-        >
-          {character ? (
-            <Image
-              src={character.avatarPath ?? character.imagePath}
-              alt={`${character.name} avatar`}
-              width={36}
-              height={36}
-              className="size-full object-cover object-top"
-              unoptimized
-            />
-          ) : (
-            <span className="grid place-items-center text-xs font-bold text-text-strong">
-              {agent.name[0] ?? "?"}
-            </span>
-          )}
-        </span>
+        <FaceIcon
+          avatarPath={character?.avatarPath}
+          alt={character?.name ?? agent.name}
+          size={36}
+        />
       }
       name={agent.name}
       sub={
@@ -904,28 +1090,6 @@ function AgentAccountRow({ agent }: { agent: AgentSummaryRaw }) {
       delta={account ? formatJpySigned(pnl) : ""}
       deltaTone={deltaTone}
     />
-  );
-}
-
-function ReviewCol({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className="flex flex-col gap-1.5 rounded-lg border border-line-soft bg-bg-elevated p-2.5">
-      <h4 className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">{title}</h4>
-      {items.length === 0 ? (
-        <span className="text-[11px] text-subtle">なし</span>
-      ) : (
-        <ul className="flex flex-col gap-1">
-          {items.map((item) => (
-            <li
-              key={item}
-              className="relative break-words pl-3 text-[11px] leading-snug text-text before:absolute before:left-0 before:text-accent-strong before:content-['›']"
-            >
-              {item}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   );
 }
 
@@ -994,57 +1158,6 @@ function DetailItem({
       <dd className={`m-0 truncate font-mono text-xs font-semibold tabular-nums ${toneClass}`}>
         {value}
       </dd>
-    </div>
-  );
-}
-
-function PositionsPanel({ detail }: { detail: AccountDetail }) {
-  return (
-    <div className={CARD_CLS}>
-      <div className={CARD_HEAD_CLS}>
-        <span className={CARD_HEAD_TITLE_CLS}>保有ポジション · {detail.name}</span>
-        <span className={CARD_HEAD_META_CLS}>
-          <span className={META_CHIP_CLS}>{detail.openPositions.length} 件</span>
-        </span>
-      </div>
-      <div className="flex min-h-0 flex-col">
-        {detail.openPositions.length === 0 ? (
-          <div className="m-4">
-            <div className={EMPTY_CLS}>現在この口座に保有ポジションはありません</div>
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            {detail.openPositions.map((position) => (
-              <article
-                key={`${position.openedAt}-${position.symbol}`}
-                className="flex flex-col gap-2 border-b border-line-soft px-3.5 py-3 last:border-b-0"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="tv-symbol">{formatSymbol(position.symbol)}</span>
-                  <span className={`tv-side ${position.side.toLowerCase()}`}>
-                    {translateSide(position.side)}
-                  </span>
-                  <span className="tv-time">{formatDateTime(position.openedAt)}</span>
-                </div>
-                <dl className="grid grid-cols-3 gap-x-5 gap-y-1.5">
-                  <DetailItem label="数量" value={Number(position.quantity).toLocaleString()} />
-                  <DetailItem label="エントリー" value={Number(position.entryPrice).toFixed(3)} />
-                  <DetailItem label="SL" value={Number(position.stopLossPrice).toFixed(3)} />
-                  <DetailItem label="TP" value={Number(position.takeProfitPrice).toFixed(3)} />
-                  <DetailItem
-                    label="最良値"
-                    value={Number(position.bestPriceSinceOpen).toFixed(3)}
-                  />
-                  <DetailItem
-                    label="Spread"
-                    value={`${Number(position.spreadPips).toFixed(1)} pips`}
-                  />
-                </dl>
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -1123,18 +1236,19 @@ function formatDateTime(value: string) {
   }).format(date);
 }
 
-function formatDate(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+function formatElapsed(value: string): string {
+  const opened = new Date(value).getTime();
+  if (Number.isNaN(opened)) return "—";
+  const ms = Date.now() - opened;
+  if (ms < 0) return "—";
+  const totalMin = Math.floor(ms / 60_000);
+  if (totalMin < 60) return `${totalMin}分`;
+  const hours = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  if (hours < 24) return min > 0 ? `${hours}時間${min}分` : `${hours}時間`;
+  const days = Math.floor(hours / 24);
+  const remH = hours % 24;
+  return remH > 0 ? `${days}日${remH}時間` : `${days}日`;
 }
 
 function formatSymbol(symbol: string) {
@@ -1174,80 +1288,11 @@ function translateStatus(status: string) {
     rejected: "却下",
     retired: "停止済み",
     running: "実行中",
+    succeeded: "成功",
+    timeout: "タイムアウト",
+    rejected_output: "出力却下",
     unhealthy: "異常",
   };
 
   return labels[status.toLowerCase()] ?? status;
-}
-
-function describeAutoStatus(status: string): string {
-  const normalized = status.toLowerCase();
-  switch (normalized) {
-    case "proposed":
-      return "自動審査中(次回 Daily Review で判定)";
-    case "promoted_to_baseline":
-      return "自動採用済み → Baseline 昇格";
-    case "retired":
-      return "自動停止済み";
-    case "running_paper":
-      return "Paper 評価中";
-    case "validated":
-      return "Validation 通過";
-    case "rejected":
-      return "却下";
-    case "failed":
-      return "失敗";
-    default:
-      return status;
-  }
-}
-
-function formatRecommendationItems(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item) => {
-    if (
-      typeof item === "object" &&
-      item !== null &&
-      "strategyName" in item &&
-      "reason" in item &&
-      typeof item.strategyName === "string" &&
-      typeof item.reason === "string"
-    ) {
-      return [`${item.strategyName}: ${item.reason}`];
-    }
-
-    return [];
-  });
-}
-
-function formatWarningItems(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item) => {
-    if (
-      typeof item === "object" &&
-      item !== null &&
-      "severity" in item &&
-      "message" in item &&
-      typeof item.severity === "string" &&
-      typeof item.message === "string"
-    ) {
-      return [`${item.severity}: ${item.message}`];
-    }
-
-    return [];
-  });
-}
-
-function formatStringItems(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.filter((item): item is string => typeof item === "string");
 }
