@@ -371,15 +371,7 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
         },
       },
     };
-    const allowedTools = [
-      "mcp__agent_research__read_bars",
-      "mcp__agent_research__calc_indicator",
-      "mcp__agent_research__get_candidate_performance",
-      "mcp__agent_research__get_rejection_history",
-      "mcp__agent_research__recall_memory",
-      "mcp__agent_research__recall_skills",
-      "mcp__agent_research__get_skill",
-    ];
+    const allowedTools = AGENT_RESEARCH_TOOL_NAMES.map((name) => `mcp__agent_research__${name}`);
 
     return [
       "-p",
