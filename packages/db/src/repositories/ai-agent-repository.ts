@@ -14,9 +14,12 @@ import {
   isCharacterId,
 } from "@ai-trade/domain/ai-agents";
 import {
+  type AgentRoleActivity,
   type AgentScorecard,
   type AgentScorecardMetrics,
   computeAgentScore,
+  type SkillCurationAction,
+  type SkillCurationCandidate,
 } from "@ai-trade/domain/ai-tuning";
 import { validateAiStrategyProposal } from "@ai-trade/domain/strategies";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
@@ -28,6 +31,7 @@ import {
   aiAgentObservations,
   aiAgentPromptOptimizations,
   aiAgentRuns,
+  aiAgentSkillCurations,
   aiAgentSkills,
   aiAgentStrategyProposals,
   aiAgents,
@@ -91,6 +95,63 @@ export type PromptOptimizationRecord = {
   reasoning: string;
   promptHash: string | null;
   createdAt: string;
+};
+
+/** Audit-log status for a single skill-curation decision. */
+export type SkillCurationDecisionStatus = "applied" | "skipped" | "rejected";
+
+export type SkillCurationRecordInput = {
+  curatorAgentId: string;
+  action: SkillCurationAction;
+  status: SkillCurationDecisionStatus;
+  skillId: string;
+  /** New shared skill id for an applied promotion; null for retire/skip. */
+  resultSkillId?: string | null;
+  confidence: "low" | "medium" | "high";
+  reason: string;
+};
+
+export type SkillCurationRecord = {
+  id: string;
+  curatorAgentId: string;
+  action: SkillCurationAction;
+  status: SkillCurationDecisionStatus;
+  skillId: string;
+  resultSkillId: string | null;
+  confidence: "low" | "medium" | "high";
+  reason: string;
+  createdAt: string;
+};
+
+/** Outcome of applying a promote decision (idempotent, original preserved). */
+export type PromoteSkillResult = {
+  status: "promoted" | "skipped";
+  resultSkillId: string | null;
+  reason?: "not_found" | "already_shared" | "already_promoted";
+};
+
+/** Outcome of applying a retire decision (reversible archive, idempotent). */
+export type RetireSkillResult = {
+  status: "retired" | "skipped";
+  reason?: "not_found" | "already_archived";
+};
+
+/**
+ * Lightweight curator productivity snapshot. The numeric reward (consumed by the
+ * optimizer) is intentionally deferred to Phase C role-aware scoring; this is
+ * just the raw counts the curator generated over the window.
+ */
+export type CuratorScorecard = {
+  curatorAgentId: string;
+  windowDays: number;
+  /** Active shared skills across all agents right now (the curated commons). */
+  sharedSkillCount: number;
+  /** Promote decisions applied within the window. */
+  promotionCount: number;
+  /** Retire decisions applied within the window. */
+  retirementCount: number;
+  /** Total curation decisions recorded within the window (any status). */
+  decisionCount: number;
 };
 
 export type AgentVersionInput = {
@@ -975,37 +1036,60 @@ export class AiAgentRepository {
    * as the reward signal for prompt optimization. Proposal/adoption counts and
    * realized PnL come from the window; net account PnL is lifetime (secondary).
    */
-  async getAgentScorecard(agentId: string, windowDays: number): Promise<AgentScorecard> {
+  async getAgentScorecard(
+    agentId: string,
+    windowDays: number,
+    role: AgentRole = "trader",
+  ): Promise<AgentScorecard> {
     const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
 
-    const [proposalRows, adoptedRows, tradeRows, accountRows] = await Promise.all([
-      this.database
-        .select({ validationStatus: aiAgentStrategyProposals.validationStatus })
-        .from(aiAgentStrategyProposals)
-        .where(
-          and(
-            eq(aiAgentStrategyProposals.agentId, agentId),
-            gte(aiAgentStrategyProposals.createdAt, since),
+    const [proposalRows, adoptedRows, tradeRows, accountRows, observationRows, reviewRows] =
+      await Promise.all([
+        this.database
+          .select({ validationStatus: aiAgentStrategyProposals.validationStatus })
+          .from(aiAgentStrategyProposals)
+          .where(
+            and(
+              eq(aiAgentStrategyProposals.agentId, agentId),
+              gte(aiAgentStrategyProposals.createdAt, since),
+            ),
           ),
-        ),
-      this.database
-        .select({ status: strategyRuns.status })
-        .from(strategyRuns)
-        .where(and(eq(strategyRuns.sourceAgentId, agentId), gte(strategyRuns.startedAt, since))),
-      this.database
-        .select({ pnlJpy: paperTrades.pnlJpy })
-        .from(paperTrades)
-        .innerJoin(paperAccounts, eq(paperAccounts.id, paperTrades.accountId))
-        .where(and(eq(paperAccounts.agentId, agentId), gte(paperTrades.closedAt, since))),
-      this.database
-        .select({
-          balanceJpy: paperAccounts.balanceJpy,
-          initialBalanceJpy: paperAccounts.initialBalanceJpy,
-        })
-        .from(paperAccounts)
-        .where(eq(paperAccounts.agentId, agentId))
-        .limit(1),
-    ]);
+        this.database
+          .select({ status: strategyRuns.status })
+          .from(strategyRuns)
+          .where(and(eq(strategyRuns.sourceAgentId, agentId), gte(strategyRuns.startedAt, since))),
+        this.database
+          .select({ pnlJpy: paperTrades.pnlJpy })
+          .from(paperTrades)
+          .innerJoin(paperAccounts, eq(paperAccounts.id, paperTrades.accountId))
+          .where(and(eq(paperAccounts.agentId, agentId), gte(paperTrades.closedAt, since))),
+        this.database
+          .select({
+            balanceJpy: paperAccounts.balanceJpy,
+            initialBalanceJpy: paperAccounts.initialBalanceJpy,
+          })
+          .from(paperAccounts)
+          .where(eq(paperAccounts.agentId, agentId))
+          .limit(1),
+        this.database
+          .select({ id: aiAgentObservations.id })
+          .from(aiAgentObservations)
+          .where(
+            and(
+              eq(aiAgentObservations.agentId, agentId),
+              gte(aiAgentObservations.createdAt, since),
+            ),
+          ),
+        this.database
+          .select({ applied: aiAgentCandidateReviews.applied })
+          .from(aiAgentCandidateReviews)
+          .where(
+            and(
+              eq(aiAgentCandidateReviews.agentId, agentId),
+              gte(aiAgentCandidateReviews.createdAt, since),
+            ),
+          ),
+      ]);
 
     const proposalCount = proposalRows.length;
     const acceptedProposalCount = proposalRows.filter(
@@ -1021,15 +1105,31 @@ export class AiAgentRepository {
       ? Number(account.balanceJpy) - Number(account.initialBalanceJpy)
       : 0;
 
+    // Curator stewardship counts are only needed (and only meaningful) for the
+    // skill_curator role, so the extra queries are skipped for everyone else.
+    const curator =
+      role === "skill_curator" ? await this.getCuratorScorecard(agentId, windowDays) : null;
+
+    const roleActivity: AgentRoleActivity = {
+      observationCount: observationRows.length,
+      candidateReviewCount: reviewRows.length,
+      appliedReviewCount: reviewRows.filter((row) => row.applied).length,
+      curationDecisionCount: curator?.decisionCount ?? 0,
+      curationAppliedCount: curator ? curator.promotionCount + curator.retirementCount : 0,
+      sharedSkillCount: curator?.sharedSkillCount ?? 0,
+    };
+
     const metrics: AgentScorecardMetrics = {
       agentId,
       windowDays,
+      role,
       proposalCount,
       acceptedProposalCount,
       adoptedStrategyCount,
       tradeCount,
       realizedPnlJpy,
       netAccountPnlJpy,
+      roleActivity,
     };
 
     return computeAgentScore(metrics);
@@ -1071,6 +1171,196 @@ export class AiAgentRepository {
       .limit(1);
 
     return row ? toPromptOptimizationRecord(row) : null;
+  }
+
+  /**
+   * Cross-agent set of active skills offered to the curator for triage. Private
+   * skills are promote candidates; shared skills are retire candidates. Bodies
+   * are truncated so the prompt stays bounded, and rows are ordered oldest-first
+   * so stale shared skills surface within the cap. The host owns these ids — the
+   * curator may only reference ids returned here.
+   */
+  async listCurationCandidates(
+    options: { limit?: number } = {},
+  ): Promise<SkillCurationCandidate[]> {
+    const limit = options.limit ?? CURATION_CANDIDATE_DEFAULT_LIMIT;
+    const rows = await this.database
+      .select({
+        skillId: aiAgentSkills.id,
+        agentId: aiAgentSkills.agentId,
+        agentName: aiAgents.name,
+        scope: aiAgentSkills.scope,
+        status: aiAgentSkills.status,
+        title: aiAgentSkills.title,
+        body: aiAgentSkills.body,
+        tags: aiAgentSkills.tags,
+        reason: aiAgentSkills.reason,
+        createdAt: aiAgentSkills.createdAt,
+      })
+      .from(aiAgentSkills)
+      .innerJoin(aiAgents, eq(aiAgents.id, aiAgentSkills.agentId))
+      .where(eq(aiAgentSkills.status, "active"))
+      .orderBy(aiAgentSkills.createdAt)
+      .limit(limit);
+
+    const now = Date.now();
+    return rows.map((row) => ({
+      skillId: row.skillId,
+      agentId: row.agentId,
+      agentName: row.agentName,
+      scope: row.scope,
+      status: row.status,
+      title: row.title,
+      tags: row.tags,
+      reason: row.reason,
+      bodyPreview: truncateSkillBody(row.body),
+      createdAt: row.createdAt.toISOString(),
+      ageDays: Math.max(0, Math.floor((now - row.createdAt.getTime()) / DAY_MS)),
+    }));
+  }
+
+  /**
+   * Promote a private skill to the shared commons by creating a NEW shared copy
+   * (scope=shared, status=active) linked to the source via promotedFromSkillId.
+   * The original is left untouched, so the action is reversible. Idempotent: a
+   * repeat call is a no-op once a shared copy exists or the skill is already
+   * shared. Runs in a transaction so the existence check and insert are atomic.
+   */
+  async promoteSkill(skillId: string): Promise<PromoteSkillResult> {
+    return this.database.transaction(async (tx) => {
+      const [source] = await tx
+        .select()
+        .from(aiAgentSkills)
+        .where(eq(aiAgentSkills.id, skillId))
+        .limit(1);
+
+      if (!source) {
+        return { status: "skipped", resultSkillId: null, reason: "not_found" };
+      }
+
+      if (source.scope === "shared") {
+        return { status: "skipped", resultSkillId: source.id, reason: "already_shared" };
+      }
+
+      const [existingCopy] = await tx
+        .select({ id: aiAgentSkills.id })
+        .from(aiAgentSkills)
+        .where(eq(aiAgentSkills.promotedFromSkillId, skillId))
+        .limit(1);
+
+      if (existingCopy) {
+        return { status: "skipped", resultSkillId: existingCopy.id, reason: "already_promoted" };
+      }
+
+      const [copy] = await tx
+        .insert(aiAgentSkills)
+        .values({
+          agentId: source.agentId,
+          scope: "shared",
+          title: source.title,
+          body: source.body,
+          tags: source.tags,
+          sourceRefs: source.sourceRefs,
+          reason: source.reason,
+          status: "active",
+          promotedFromSkillId: source.id,
+        })
+        .returning({ id: aiAgentSkills.id });
+
+      if (!copy) {
+        throw new Error("Failed to promote skill.");
+      }
+
+      return { status: "promoted", resultSkillId: copy.id };
+    });
+  }
+
+  /**
+   * Retire a skill by archiving it (status -> archived). Reversible: the row is
+   * kept and can be reactivated later. Idempotent and safe on a missing or
+   * already-archived skill.
+   */
+  async retireSkill(skillId: string): Promise<RetireSkillResult> {
+    const [current] = await this.database
+      .select({ status: aiAgentSkills.status })
+      .from(aiAgentSkills)
+      .where(eq(aiAgentSkills.id, skillId))
+      .limit(1);
+
+    if (!current) {
+      return { status: "skipped", reason: "not_found" };
+    }
+
+    if (current.status === "archived") {
+      return { status: "skipped", reason: "already_archived" };
+    }
+
+    await this.database
+      .update(aiAgentSkills)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(eq(aiAgentSkills.id, skillId));
+
+    return { status: "retired" };
+  }
+
+  /** Record one applied/skipped/rejected curation decision in the audit log. */
+  async recordSkillCuration(input: SkillCurationRecordInput): Promise<SkillCurationRecord> {
+    const [row] = await this.database
+      .insert(aiAgentSkillCurations)
+      .values({
+        curatorAgentId: input.curatorAgentId,
+        action: input.action,
+        status: input.status,
+        skillId: input.skillId,
+        resultSkillId: input.resultSkillId ?? null,
+        confidence: input.confidence,
+        reason: input.reason,
+      })
+      .returning();
+
+    if (!row) {
+      throw new Error("Failed to record skill curation.");
+    }
+
+    return toSkillCurationRecord(row);
+  }
+
+  /**
+   * Raw curator productivity over a recent window. The numeric reward is left to
+   * Phase C role-aware scoring; this returns the underlying counts only.
+   */
+  async getCuratorScorecard(curatorAgentId: string, windowDays: number): Promise<CuratorScorecard> {
+    const since = new Date(Date.now() - windowDays * DAY_MS);
+
+    const [sharedRows, curationRows] = await Promise.all([
+      this.database
+        .select({ id: aiAgentSkills.id })
+        .from(aiAgentSkills)
+        .where(and(eq(aiAgentSkills.scope, "shared"), eq(aiAgentSkills.status, "active"))),
+      this.database
+        .select({
+          action: aiAgentSkillCurations.action,
+          status: aiAgentSkillCurations.status,
+        })
+        .from(aiAgentSkillCurations)
+        .where(
+          and(
+            eq(aiAgentSkillCurations.curatorAgentId, curatorAgentId),
+            gte(aiAgentSkillCurations.createdAt, since),
+          ),
+        ),
+    ]);
+
+    const applied = curationRows.filter((row) => row.status === "applied");
+
+    return {
+      curatorAgentId,
+      windowDays,
+      sharedSkillCount: sharedRows.length,
+      promotionCount: applied.filter((row) => row.action === "promote").length,
+      retirementCount: applied.filter((row) => row.action === "retire").length,
+      decisionCount: curationRows.length,
+    };
   }
 
   async updateAgentSettings(input: UpdateAgentSettingsInput): Promise<{ updated: boolean }> {
@@ -1404,6 +1694,35 @@ function toPromptOptimizationRecord(
     scorecard: row.scorecard as AgentScorecard,
     reasoning: row.reasoning,
     promptHash: row.promptHash ?? null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Upper bound on candidates handed to the curator, to keep the prompt bounded. */
+const CURATION_CANDIDATE_DEFAULT_LIMIT = 100;
+/** Max characters of a skill body shown to the curator as a preview. */
+const SKILL_BODY_PREVIEW_MAX_CHARS = 280;
+
+function truncateSkillBody(body: string): string {
+  if (body.length <= SKILL_BODY_PREVIEW_MAX_CHARS) {
+    return body;
+  }
+  return `${body.slice(0, SKILL_BODY_PREVIEW_MAX_CHARS)}…`;
+}
+
+function toSkillCurationRecord(
+  row: typeof aiAgentSkillCurations.$inferSelect,
+): SkillCurationRecord {
+  return {
+    id: row.id,
+    curatorAgentId: row.curatorAgentId,
+    action: row.action,
+    status: row.status,
+    skillId: row.skillId,
+    resultSkillId: row.resultSkillId ?? null,
+    confidence: row.confidence,
+    reason: row.reason,
     createdAt: row.createdAt.toISOString(),
   };
 }

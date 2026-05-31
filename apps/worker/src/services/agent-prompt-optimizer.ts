@@ -16,6 +16,7 @@ import { COMMON_GUARDRAIL } from "@ai-trade/domain/ai-agents";
 import {
   type AgentScorecard,
   type AiPromptOptimizationResponse,
+  hasSufficientRoleSignal,
   type PromptOptimizationInput,
   validateAiPromptOptimization,
 } from "@ai-trade/domain/ai-tuning";
@@ -106,6 +107,9 @@ export type AgentPromptOptimizerServiceOptions = {
   windowDays?: number;
   minProposalsToOptimize?: number;
   minTradesToOptimize?: number;
+  minObservationsToOptimize?: number;
+  minReviewsToOptimize?: number;
+  minCurationDecisionsToOptimize?: number;
   cooldownMs?: number;
   trialPeriodMs?: number;
   rollbackMarginScore?: number;
@@ -139,6 +143,9 @@ export class AgentPromptOptimizerService implements WorkerService {
   private readonly windowDays: number;
   private readonly minProposalsToOptimize: number;
   private readonly minTradesToOptimize: number;
+  private readonly minObservationsToOptimize: number;
+  private readonly minReviewsToOptimize: number;
+  private readonly minCurationDecisionsToOptimize: number;
   private readonly cooldownMs: number;
   private readonly trialPeriodMs: number;
   private readonly rollbackMarginScore: number;
@@ -153,6 +160,9 @@ export class AgentPromptOptimizerService implements WorkerService {
     this.windowDays = options.windowDays ?? 7;
     this.minProposalsToOptimize = options.minProposalsToOptimize ?? 3;
     this.minTradesToOptimize = options.minTradesToOptimize ?? 5;
+    this.minObservationsToOptimize = options.minObservationsToOptimize ?? 5;
+    this.minReviewsToOptimize = options.minReviewsToOptimize ?? 3;
+    this.minCurationDecisionsToOptimize = options.minCurationDecisionsToOptimize ?? 2;
     this.cooldownMs = options.cooldownMs ?? 24 * 60 * 60 * 1000;
     this.trialPeriodMs = options.trialPeriodMs ?? 24 * 60 * 60 * 1000;
     this.rollbackMarginScore = options.rollbackMarginScore ?? 500;
@@ -323,13 +333,22 @@ export class AgentPromptOptimizerService implements WorkerService {
       }
     }
 
-    // Require enough recent signal before spending an optimization call.
+    // Require enough recent signal before spending an optimization call. The
+    // threshold is role-aware: traders gate on proposals/trades, but non-trader
+    // roles gate on the output their directive produces (observations, reviews,
+    // curation decisions) so they are evaluated on their own contribution.
+    const role = context.scorecard.role ?? "trader";
     if (
-      context.scorecard.proposalCount < this.minProposalsToOptimize &&
-      context.scorecard.tradeCount < this.minTradesToOptimize
+      !hasSufficientRoleSignal(role, context.scorecard, {
+        minProposals: this.minProposalsToOptimize,
+        minTrades: this.minTradesToOptimize,
+        minObservations: this.minObservationsToOptimize,
+        minReviews: this.minReviewsToOptimize,
+        minCurationDecisions: this.minCurationDecisionsToOptimize,
+      })
     ) {
       return this.result(context, "insufficient_data", {
-        reason: `Insufficient data: ${context.scorecard.proposalCount} proposals (<${this.minProposalsToOptimize}) and ${context.scorecard.tradeCount} trades (<${this.minTradesToOptimize}).`,
+        reason: `Insufficient ${role} signal in the last ${context.scorecard.windowDays}d to justify optimization.`,
         baselineScore: currentScore,
       });
     }
@@ -502,7 +521,7 @@ export class DbPromptOptimizerContextProvider implements PromptOptimizerContextP
     return Promise.all(
       agents.map(async (agent) => {
         const [scorecard, latestOptimization, rejectionRows, winRows] = await Promise.all([
-          this.repository.getAgentScorecard(agent.id, windowDays),
+          this.repository.getAgentScorecard(agent.id, windowDays, agent.role),
           this.repository.getLatestPromptOptimization(agent.id),
           db
             .select({

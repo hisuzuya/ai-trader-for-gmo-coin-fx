@@ -30,6 +30,7 @@ import type {
 } from "./services/agent-prompt-optimizer.js";
 import type { AiDailyReviewerService, DailyReviewRunResult } from "./services/ai-daily-reviewer.js";
 import type { AiTunerService, AiTuningRunResult } from "./services/ai-tuner.js";
+import type { SkillCuratorRunResult, SkillCuratorService } from "./services/skill-curator.js";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "./types.js";
 
 export interface CandleReader {
@@ -195,6 +196,16 @@ export class WorkerRuntime {
     }
 
     return optimizer.runOnce();
+  }
+
+  async runSkillCuration(): Promise<SkillCuratorRunResult> {
+    const curator = this.services.find(isSkillCuratorService);
+
+    if (!curator) {
+      throw new Error("Skill curator service is not registered.");
+    }
+
+    return curator.runOnce();
   }
 
   async listAgents() {
@@ -1064,6 +1075,10 @@ function isAgentPromptOptimizerService(
   service: WorkerService,
 ): service is AgentPromptOptimizerService {
   return service.name === "agent-prompt-optimizer" && "runOnce" in service;
+}
+
+function isSkillCuratorService(service: WorkerService): service is SkillCuratorService {
+  return service.name === "skill-curator" && "runOnce" in service;
 }
 
 function firstStrategyProposalName(

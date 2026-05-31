@@ -2,6 +2,7 @@ import type { AgentRunRequest } from "@ai-trade/domain/ai-agents";
 import type {
   DailyReviewInput,
   PromptOptimizationInput,
+  SkillCurationInput,
   StrategyProposalInput,
 } from "@ai-trade/domain/ai-tuning";
 import { Hono } from "hono";
@@ -126,6 +127,27 @@ export function createAiRunnerApp(
     });
   });
 
+  app.post("/skill-curations", async (c) => {
+    const body = await c.req.json().catch(() => null);
+
+    if (!isSkillCurationInput(body)) {
+      return c.json(
+        {
+          ok: false,
+          error:
+            "Request body must include curatorAgentId, curatorAgentName, windowDays, and a candidates array.",
+        },
+        400,
+      );
+    }
+
+    const response = await provider.generateSkillCuration(body);
+    return c.json({
+      ok: response.invocation.status === "succeeded",
+      ...response,
+    });
+  });
+
   app.post("/agent-runs", async (c) => {
     const body = await c.req.json().catch(() => null);
 
@@ -206,6 +228,22 @@ function isPromptOptimizationInput(input: unknown): input is PromptOptimizationI
     input.scorecard !== null &&
     Array.isArray(input.recentRejections) &&
     Array.isArray(input.recentWinningProposals)
+  );
+}
+
+function isSkillCurationInput(input: unknown): input is SkillCurationInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "curatorAgentId" in input &&
+    "curatorAgentName" in input &&
+    "windowDays" in input &&
+    "candidates" in input &&
+    typeof input.curatorAgentId === "string" &&
+    input.curatorAgentId.trim().length > 0 &&
+    typeof input.curatorAgentName === "string" &&
+    typeof input.windowDays === "number" &&
+    Array.isArray(input.candidates)
   );
 }
 

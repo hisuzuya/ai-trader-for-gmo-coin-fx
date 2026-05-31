@@ -10,6 +10,7 @@ const serverEnvSchema = z.object({
   AI_DAILY_REVIEW_ENABLED: z.coerce.boolean().default(false),
   AI_TUNING_ENABLED: z.coerce.boolean().default(false),
   AI_PROMPT_OPTIMIZER_ENABLED: z.coerce.boolean().default(false),
+  AI_SKILL_CURATOR_ENABLED: z.coerce.boolean().default(false),
   GMO_FX_PUBLIC_WEBSOCKET_URL: z.string().url().default("wss://forex-api.coin.z.com/ws/public/v1"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });

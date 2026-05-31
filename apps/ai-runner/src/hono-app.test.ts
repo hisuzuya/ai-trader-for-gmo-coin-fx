@@ -1,9 +1,11 @@
 import type {
   AiDailyReviewResponse,
   AiPromptOptimizationResponse,
+  AiSkillCurationResponse,
   AiStrategyProposalResponse,
   DailyReviewInput,
   PromptOptimizationInput,
+  SkillCurationInput,
   StrategyProposalInput,
 } from "@ai-trade/domain/ai-tuning";
 import { BASELINE_STRATEGIES } from "@ai-trade/domain/strategies";
@@ -195,6 +197,58 @@ describe("ai-runner Hono app", () => {
     expect(provider.generatePromptOptimization).not.toHaveBeenCalled();
   });
 
+  it("generates a skill curation through the provider", async () => {
+    const provider = fakeProvider(undefined, undefined, undefined, {
+      invocation: {
+        id: "curation-invocation-1",
+        provider: "claude_cli",
+        status: "succeeded",
+        promptHash: "hash",
+        promptRedacted: "{}",
+        timeoutMs: 180000,
+        startedAt: "2026-05-24T00:00:00.000Z",
+        finishedAt: "2026-05-24T00:00:01.000Z",
+      },
+      curation: {
+        decisions: [
+          {
+            action: "promote",
+            skill_id: "11111111-1111-4111-8111-111111111111",
+            reason: "複数エージェントで再利用できる実績があるため共有資産に昇格する。",
+            confidence: "high",
+          },
+        ],
+        reasoning: "再利用性の高いスキルを共有し、知識ベースの健全性を保つ。",
+      },
+    });
+    const input = skillCurationInput();
+
+    const response = await createAiRunnerApp(provider).request("/skill-curations", {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.curation.decisions[0].action).toBe("promote");
+    expect(provider.generateSkillCuration).toHaveBeenCalledWith(input);
+  });
+
+  it("rejects malformed skill curation requests", async () => {
+    const provider = fakeProvider();
+
+    const response = await createAiRunnerApp(provider).request("/skill-curations", {
+      method: "POST",
+      body: JSON.stringify({ curatorAgentName: "Ceres" }),
+      headers: { "content-type": "application/json" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(provider.generateSkillCuration).not.toHaveBeenCalled();
+  });
+
   it("runs an agent through the internal agent runner endpoint", async () => {
     const provider = fakeProvider();
     const agentRunner = {
@@ -327,6 +381,7 @@ function fakeProvider(
   response?: AiStrategyProposalResponse,
   dailyReviewResponse?: AiDailyReviewResponse,
   promptOptimizationResponse?: AiPromptOptimizationResponse,
+  skillCurationResponse?: AiSkillCurationResponse,
 ) {
   return {
     health: vi.fn().mockResolvedValue({
@@ -379,6 +434,21 @@ function fakeProvider(
       promptOptimizationResponse ?? {
         invocation: {
           id: "optimization-invocation-disabled",
+          provider: "claude_cli",
+          status: "failed",
+          promptHash: "hash",
+          promptRedacted: "{}",
+          timeoutMs: 180000,
+          startedAt: "2026-05-24T00:00:00.000Z",
+          finishedAt: "2026-05-24T00:00:00.000Z",
+          errorSummary: "disabled",
+        },
+      },
+    ),
+    generateSkillCuration: vi.fn().mockResolvedValue(
+      skillCurationResponse ?? {
+        invocation: {
+          id: "curation-invocation-disabled",
           provider: "claude_cli",
           status: "failed",
           promptHash: "hash",
@@ -454,6 +524,29 @@ function promptOptimizationInput(): PromptOptimizationInput {
       },
     ],
     recentWinningProposals: [{ strategyName: "ceres-trend-2", realizedPnlJpy: 480 }],
+  };
+}
+
+function skillCurationInput(): SkillCurationInput {
+  return {
+    curatorAgentId: "c0000000-0000-4000-8000-000000000001",
+    curatorAgentName: "Ceres",
+    windowDays: 7,
+    candidates: [
+      {
+        skillId: "11111111-1111-4111-8111-111111111111",
+        agentId: "c0000000-0000-4000-8000-000000000002",
+        agentName: "Yura",
+        scope: "private",
+        status: "active",
+        title: "スプレッド拡大時のエントリー抑制",
+        tags: ["risk", "spread"],
+        reason: "複数回の検証で再現性が高かった。",
+        bodyPreview: "スプレッドが閾値を超えたらエントリーを見送る。",
+        createdAt: "2026-05-20T00:00:00.000Z",
+        ageDays: 11,
+      },
+    ],
   };
 }
 

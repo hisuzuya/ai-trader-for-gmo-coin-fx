@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { PromptOptimizationRecord } from "@ai-trade/db";
 import { COMMON_GUARDRAIL } from "@ai-trade/domain/ai-agents";
 import type {
+  AgentRoleActivity,
   AgentScorecard,
   AiPromptOptimization,
   AiPromptOptimizationResponse,
@@ -70,6 +71,18 @@ function scorecard(overrides: Partial<AgentScorecard> = {}): AgentScorecard {
     realizedPnlJpy: 1_000,
     netAccountPnlJpy: 1_000,
     score: 1_000,
+    ...overrides,
+  };
+}
+
+function activity(overrides: Partial<AgentRoleActivity> = {}): AgentRoleActivity {
+  return {
+    observationCount: 0,
+    candidateReviewCount: 0,
+    appliedReviewCount: 0,
+    curationDecisionCount: 0,
+    curationAppliedCount: 0,
+    sharedSkillCount: 0,
     ...overrides,
   };
 }
@@ -294,6 +307,109 @@ describe("AgentPromptOptimizerService.runOnce", () => {
     const provider = new FakeProvider(ACCEPTED_OPTIMIZATION);
     const service = buildService({
       contexts: [context({ scorecard: scorecard({ proposalCount: 1, tradeCount: 2 }) })],
+      provider,
+      store,
+    });
+
+    const result = await service.runOnce(NOW);
+
+    expect(result.agents[0]?.decision).toBe("insufficient_data");
+    expect(provider.calls).toHaveLength(0);
+    expect(store.optimizations).toHaveLength(0);
+  });
+
+  it("optimizes a news_analyst on observation signal, ignoring proposal/trade counts", async () => {
+    const store = new InMemoryPromptOptimizerStore();
+    const provider = new FakeProvider(ACCEPTED_OPTIMIZATION);
+    const service = buildService({
+      // No proposals or trades at all — a trader would be gated out here, but a
+      // news_analyst is evaluated on the observations its directive produces.
+      contexts: [
+        context({
+          scorecard: scorecard({
+            role: "news_analyst",
+            proposalCount: 0,
+            tradeCount: 0,
+            roleActivity: activity({ observationCount: 6 }),
+          }),
+        }),
+      ],
+      provider,
+      store,
+    });
+
+    const result = await service.runOnce(NOW);
+
+    expect(result.optimizedCount).toBe(1);
+    expect(result.agents[0]?.decision).toBe("optimized");
+    expect(provider.calls).toHaveLength(1);
+    expect(store.optimizations[0]?.status).toBe("optimized");
+  });
+
+  it("skips a news_analyst that lacks enough observations even with trader-level activity", async () => {
+    const store = new InMemoryPromptOptimizerStore();
+    const provider = new FakeProvider(ACCEPTED_OPTIMIZATION);
+    const service = buildService({
+      // Plenty of proposals/trades (would clear the trader gate) but only 4
+      // observations — below the news_analyst threshold, so no call is spent.
+      contexts: [
+        context({
+          scorecard: scorecard({
+            role: "news_analyst",
+            proposalCount: 8,
+            tradeCount: 20,
+            roleActivity: activity({ observationCount: 4 }),
+          }),
+        }),
+      ],
+      provider,
+      store,
+    });
+
+    const result = await service.runOnce(NOW);
+
+    expect(result.agents[0]?.decision).toBe("insufficient_data");
+    expect(provider.calls).toHaveLength(0);
+    expect(store.optimizations).toHaveLength(0);
+  });
+
+  it("optimizes a skill_curator once it has recorded enough curation decisions", async () => {
+    const store = new InMemoryPromptOptimizerStore();
+    const provider = new FakeProvider(ACCEPTED_OPTIMIZATION);
+    const service = buildService({
+      contexts: [
+        context({
+          scorecard: scorecard({
+            role: "skill_curator",
+            proposalCount: 0,
+            tradeCount: 0,
+            roleActivity: activity({ curationDecisionCount: 2 }),
+          }),
+        }),
+      ],
+      provider,
+      store,
+    });
+
+    const result = await service.runOnce(NOW);
+
+    expect(result.optimizedCount).toBe(1);
+    expect(result.agents[0]?.decision).toBe("optimized");
+    expect(provider.calls).toHaveLength(1);
+  });
+
+  it("skips a skill_curator that has not made enough curation decisions yet", async () => {
+    const store = new InMemoryPromptOptimizerStore();
+    const provider = new FakeProvider(ACCEPTED_OPTIMIZATION);
+    const service = buildService({
+      contexts: [
+        context({
+          scorecard: scorecard({
+            role: "skill_curator",
+            roleActivity: activity({ curationDecisionCount: 1 }),
+          }),
+        }),
+      ],
       provider,
       store,
     });

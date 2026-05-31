@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateAiPromptOptimization } from "./prompt-optimization.js";
+import { validateAiPromptOptimization } from "../../../../src/ai-tuning/index.js";
 
 const GUARDRAIL =
   "\n\n## 共通ガードレール\n- Risk Gate を緩和しない。Paper Order を直接実行しない。";
@@ -33,7 +33,8 @@ describe("validateAiPromptOptimization", () => {
   it("rejects when the required guardrail is dropped", () => {
     const result = validateAiPromptOptimization(
       validOptimization({
-        optimized_system_prompt: "ガードレールを省いた短いプロンプトですが十分な長さを確保します。",
+        optimized_system_prompt:
+          "ガードレールを意図的に省いたプロンプトです。スキーマの最小長を満たすため、損切り条件や無効化条件の説明をここに丁寧に記述しますが、必須のガードレール文字列そのものは含めていません。",
       }),
       { requiredGuardrail: GUARDRAIL },
     );

@@ -419,6 +419,50 @@ export const aiAgentPromptOptimizations = pgTable(
   ],
 );
 
+export const aiAgentSkillCurationAction = pgEnum("ai_agent_skill_curation_action", [
+  "promote",
+  "retire",
+]);
+
+export const aiAgentSkillCurationStatus = pgEnum("ai_agent_skill_curation_status", [
+  "applied",
+  "skipped",
+  "rejected",
+]);
+
+/**
+ * Audit log of skill-curation decisions made by the knowledge curator. One row
+ * per applied/skipped/rejected decision. Promotions record the new shared skill
+ * in `resultSkillId`; retirements (status -> archived) leave it null. All
+ * mutations are reversible, so this table is the source of truth for "what the
+ * curator did and why".
+ */
+export const aiAgentSkillCurations = pgTable(
+  "ai_agent_skill_curations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    curatorAgentId: uuid("curator_agent_id")
+      .notNull()
+      .references(() => aiAgents.id),
+    action: aiAgentSkillCurationAction("action").notNull(),
+    status: aiAgentSkillCurationStatus("status").notNull(),
+    skillId: uuid("skill_id")
+      .notNull()
+      .references(() => aiAgentSkills.id),
+    resultSkillId: uuid("result_skill_id").references(() => aiAgentSkills.id),
+    confidence: aiAgentCandidateConfidence("confidence").notNull(),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [
+    index("ai_agent_skill_curations_curator_created_at_idx").on(
+      table.curatorAgentId,
+      table.createdAt,
+    ),
+    index("ai_agent_skill_curations_skill_idx").on(table.skillId),
+  ],
+);
+
 export const strategyRuns = pgTable("strategy_runs", {
   id: uuid("id").defaultRandom().primaryKey(),
   strategyName: text("strategy_name").notNull(),
