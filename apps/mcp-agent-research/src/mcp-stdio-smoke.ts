@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-import { MCP_TOOL_NAMES } from "./mcp-server.js";
+import { MCP_TOOL_NAMES } from "./server/mcp-server.js";
 
 async function main() {
   const serverScript =

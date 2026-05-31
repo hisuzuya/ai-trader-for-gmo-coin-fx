@@ -2,7 +2,7 @@ import type { JobRunMetadata, JobRunRecorder, StartedJobRun } from "@ai-trade/db
 import { BASELINE_STRATEGIES } from "@ai-trade/domain/strategies";
 import { describe, expect, it, vi } from "vitest";
 import { createWorkerApp } from "./hono-app.js";
-import type { HistoricalImporter } from "./jobs/historical-importer.js";
+import type { HistoricalImporter } from "./pipelines/market-data/historical-importer.js";
 import { WorkerRuntime } from "./runtime.js";
 import {
   AiDailyReviewerService,

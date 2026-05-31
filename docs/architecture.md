@@ -22,6 +22,7 @@ Live tradingは将来スコープとして設計には含めるが、MVP build�
 - Web UIとtRPCは`apps/web`、Honoとschedulerは`apps/worker`、Claude CLI実行とAI Agent tool loopは`apps/ai-runner`、read-only research toolsは`apps/mcp-agent-research`に置く。
 - Drizzle schema / DB client / migrationsは`packages/db`で共有する。
 - Strategy DSL、market-data正規化、paper execution、Risk Gateなどの純粋ドメインロジックは`packages/domain`で共有する。
+- Candidate Similarity Check、Candidate Slot、Adoption Gate、Shadow Baseline Run、Baseline Rollbackは`packages/domain/src/strategy-evaluation`に寄せ、AI AgentやMCP toolの責務にしない。
 - `packages/domain`はDB、HTTP server、`apps/*`に依存しない。
 - DBはPostgreSQL + TimescaleDB。
 - query layerはDrizzle。
@@ -31,6 +32,7 @@ Live tradingは将来スコープとして設計には含めるが、MVP build�
 - Next.jsはstandalone buildをDocker serviceとしてVM上で動かす。
 - Claude CLIはworkerではなく`ai-runner` container内で実行し、workerから内部APIで呼び出す。
 - `ai-runner`はDB接続、repository write mount、GMO Private API secretを持たない。
+- AI Agent / LLM tool loopが観察するデータはResearch Tool Server経由で取得する。workerのDeterministic Control Plane、Paper Trading、Adoption GateはMCPを経由しない。
 - `mcp-agent-research`はDB read-only接続だけを持ち、DB write、Paper Account更新、Candidate Strategy投入、Risk Gate decisionは持たない。
 - AI AgentはPaper Orderを直接出さず、Strategy Definition候補、Candidate Review、Observation、memory write intentだけを出力する。
 
@@ -40,3 +42,4 @@ Live tradingは将来スコープとして設計には含めるが、MVP build�
 - ADR: [0001 Claude CLIはAI Runnerで隔離実行する](./adr/0001-run-claude-cli-in-ai-runner.md)
 - ADR: [0002 appsとpackagesの境界を固定する](./adr/0002-use-app-and-package-boundaries.md)
 - ADR: [0003 Research + Evaluation Agentを導入する](./adr/0003-introduce-research-evaluation-ai-agents.md)
+- ADR: [0004 AI observation is routed through the Research Tool Server](./adr/0004-route-ai-observation-through-research-tool-server.md)

@@ -8,7 +8,7 @@ import {
   validateAgentRunOutput,
 } from "@ai-trade/domain/ai-agents";
 
-import type { StrategyProposalProvider } from "./claude-cli-provider.js";
+import type { StrategyProposalProvider } from "../providers/claude-cli-provider.js";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_TOOL_HOPS = 5;
@@ -207,7 +207,12 @@ function scopeToolArgsToAgent(
   args: unknown,
   agentId: string,
 ): unknown {
-  if (name !== "recall_memory" && name !== "recall_skills" && name !== "get_skill") {
+  if (
+    name !== "get_context_snapshot" &&
+    name !== "recall_memory" &&
+    name !== "recall_skills" &&
+    name !== "get_skill"
+  ) {
     return args;
   }
 
@@ -225,7 +230,7 @@ export function buildAgentPrompt(
 ) {
   return JSON.stringify({
     instruction:
-      'Return JSON only. You are a Research + Evaluation Agent, not an execution-capable trading runtime. Do not create Paper Orders, close positions, write SQL, mutate repositories, access files, call shell commands, or produce live trading instructions. Use only the provided deterministic context and the listed read-only tools. If Claude Code MCP tools are available, call only the allowed mcp__agent_research__* tools to gather additional read-only data before returning the final AgentRunOutput JSON. If MCP tools are unavailable but additional read-only data is required, return {"toolRequests":[{"name":"read_bars|calc_indicator|get_candidate_performance|get_rejection_history|recall_memory|recall_skills|get_skill","args":{...}}]}. All natural-language text MUST be written in Japanese. Any skillWriteIntents MUST be Japanese reusable instructions.',
+      'Return JSON only. You are a Research + Evaluation Agent, not an execution-capable trading runtime. Do not create Paper Orders, close positions, write SQL, mutate repositories, access files, call shell commands, or produce live trading instructions. The run envelope contains control metadata only, not observation data. Before producing the final AgentRunOutput JSON, first obtain observation data through the read-only get_context_snapshot tool, then call other listed read-only tools only if needed. If Claude Code MCP tools are available, call only the allowed mcp__agent_research__* tools. If MCP tools are unavailable or this runner asks for toolRequests, return {"toolRequests":[{"name":"get_context_snapshot","args":{"agentId":"<agent id>","timeframe":"<timeframe>"}}]} first, then use returned toolResults for the final AgentRunOutput JSON. All natural-language text MUST be written in Japanese. Any skillWriteIntents MUST be Japanese reusable instructions.',
     agent: {
       id: input.agent.id,
       name: input.agent.name,
@@ -235,7 +240,7 @@ export function buildAgentPrompt(
       allowedTools: input.agent.allowedTools,
     },
     systemPrompt: redactSecretLikeText(input.agent.systemPrompt),
-    contextSummary: redactSecretLikeText(input.contextSummary),
+    runEnvelope: redactSecretLikeText(input.runEnvelope),
     limits: {
       maxToolHops,
       outputSizeLimitBytes: input.outputSizeLimitBytes ?? DEFAULT_OUTPUT_SIZE_LIMIT_BYTES,

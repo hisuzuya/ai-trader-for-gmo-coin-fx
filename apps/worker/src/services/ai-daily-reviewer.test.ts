@@ -1,13 +1,12 @@
+import { type AdoptionGateMetrics, evaluateAdoptionGateSnapshot } from "@ai-trade/domain";
 import type { DailyReviewRecommendation } from "@ai-trade/domain/ai-tuning";
 import { BASELINE_STRATEGIES } from "@ai-trade/domain/strategies";
 import { describe, expect, it, vi } from "vitest";
 import {
-  type AdoptionGateMetrics,
   AiDailyReviewerService,
   type DailyReviewContextProvider,
   type DailyReviewDecisionExecutor,
   type DailyReviewProvider,
-  evaluateAdoptionGateSnapshot,
   InMemoryDailyReviewDecisionExecutor,
   InMemoryDailyReviewStore,
 } from "./ai-daily-reviewer.js";

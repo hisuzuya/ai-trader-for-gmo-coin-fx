@@ -9,7 +9,7 @@ import type {
 import { BASELINE_STRATEGIES } from "@ai-trade/domain/strategies";
 import { describe, expect, it, vi } from "vitest";
 
-import { AiAgentRunner } from "./agent-runner.js";
+import { AiAgentRunner } from "./agent-loop/agent-runner.js";
 import { createAiRunnerApp } from "./hono-app.js";
 
 describe("ai-runner Hono app", () => {
@@ -475,7 +475,7 @@ function agentRunInput() {
       characterId: null,
       initialBalanceJpy: 100000,
     },
-    contextSummary: "No active candidates.",
+    runEnvelope: "No active candidates.",
     version: 1,
     maxToolHops: 3,
   };

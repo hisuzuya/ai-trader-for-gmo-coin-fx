@@ -30,7 +30,7 @@ import {
 } from "@ai-trade/domain/strategies";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
-import type { ServiceHealth, ServiceState, WorkerService } from "../types.js";
+import type { ServiceHealth, ServiceState, WorkerService } from "../../types.js";
 
 const DEFAULT_SPREAD_PIPS = 0.3;
 

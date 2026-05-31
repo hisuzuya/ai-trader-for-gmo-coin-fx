@@ -82,6 +82,10 @@ _Avoid_: raw candle
 
 ### AI Tuning
 
+**Deterministic Control Plane**:
+AI Agentの出力を受け取り、schema validation、Strategy DSL validation、Risk Gate、Candidate Slot管理、Paper Account更新、Adoption Gate、Baseline Strategy昇格/停止を決定論的に適用する制御領域。AI Agentは **Deterministic Control Plane** を直接変更せず、提案とreviewだけを渡す。
+_Avoid_: fixed logic, AI execution logic, agent control plane
+
 **AI Proposal**:
 AI Runnerが生成する構造化JSONの提案。**AI Proposal** はcandidate inputにすぎず、schema、range、risk、adoption gateを通過して初めてpaper評価へ進む。
 _Avoid_: AI code, suggestion, prompt result
@@ -99,8 +103,20 @@ Claude CLIを隔離実行し、proposalまたはreview JSONだけを返すruntim
 _Avoid_: AI worker, Claude worker
 
 **Research Tool Server**:
-AI Agentが市場データ、候補成績、reject履歴、memoryをread-onlyで参照するためのtool runtime。DB write、paper account更新、candidate投入、risk decisionは持たない。
+AI Agentが市場データ、候補成績、reject履歴、memoryをread-onlyで参照するためのtool runtime。MCP server実装はこの境界に含め、DB write、paper account更新、candidate投入、risk decisionは持たない。
 _Avoid_: agent database, AI database writer, MCP worker
+
+**Tool Data Source**:
+**Research Tool Server** がAI Agentへread-only toolとして公開する背後のデータ元。market data、Candidate Strategy成績、reject履歴、agent memory、agent skillsを含むが、Paper Account更新やBaseline Strategy昇格の適用判断は含まない。
+_Avoid_: agent-owned data, MCP state, tool database
+
+**Agent Run Envelope**:
+AI Agent実行時に **Deterministic Control Plane** から **AI Runner** へ渡す制御情報。agent id、version、prompt、tool allowlist、budgetを含むが、市場状態、Candidate Strategy成績、memoryなどの観察データは含めない。
+_Avoid_: agent context, context summary, prompt data
+
+**Context Snapshot**:
+AI Agentが実行開始時に **Research Tool Server** から取得するread-only観察snapshot。Baseline Strategy、Candidate Strategy成績、reject履歴、Daily Review、market status、memory recallを含む。
+_Avoid_: run envelope, worker context, prompt preload
 
 **AI Agent**:
 市場状態、候補戦略、過去の失敗理由を観察し、Strategy Definition候補、Candidate Review、観察、memory write intentを出すresearch entity。Paper Order、Paper Account、Baseline昇格、Candidate停止を直接変更しない。
