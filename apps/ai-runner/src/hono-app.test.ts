@@ -448,7 +448,9 @@ function promptOptimizationInput(): PromptOptimizationInput {
       {
         candidateStrategyName: "ceres-meanrev-1",
         sourceStrategyName: "baseline-5m",
-        rejectReasons: [{ code: "parameter_out_of_range", path: "risk.maxDrawdownJpy", message: "範囲外" }],
+        rejectReasons: [
+          { code: "parameter_out_of_range", path: "risk.maxDrawdownJpy", message: "範囲外" },
+        ],
       },
     ],
     recentWinningProposals: [{ strategyName: "ceres-trend-2", realizedPnlJpy: 480 }],

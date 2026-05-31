@@ -62,9 +62,7 @@ export interface StrategyProposalProvider {
   invoke(input: ClaudeCliInvocationInput): Promise<ClaudeCliInvocationResult>;
   generateStrategyProposal(input: StrategyProposalInput): Promise<AiStrategyProposalResponse>;
   generateDailyReview(input: DailyReviewInput): Promise<AiDailyReviewResponse>;
-  generatePromptOptimization(
-    input: PromptOptimizationInput,
-  ): Promise<AiPromptOptimizationResponse>;
+  generatePromptOptimization(input: PromptOptimizationInput): Promise<AiPromptOptimizationResponse>;
 }
 
 export type ClaudeCliProviderOptions = {

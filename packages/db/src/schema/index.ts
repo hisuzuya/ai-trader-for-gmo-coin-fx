@@ -414,10 +414,7 @@ export const aiAgentPromptOptimizations = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   },
   (table) => [
-    index("ai_agent_prompt_optimizations_agent_created_at_idx").on(
-      table.agentId,
-      table.createdAt,
-    ),
+    index("ai_agent_prompt_optimizations_agent_created_at_idx").on(table.agentId, table.createdAt),
   ],
 );
 

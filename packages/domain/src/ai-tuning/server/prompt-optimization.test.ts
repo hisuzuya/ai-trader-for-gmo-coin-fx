@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { validateAiPromptOptimization } from "./prompt-optimization.js";
 
-const GUARDRAIL = "\n\n## 共通ガードレール\n- Risk Gate を緩和しない。Paper Order を直接実行しない。";
+const GUARDRAIL =
+  "\n\n## 共通ガードレール\n- Risk Gate を緩和しない。Paper Order を直接実行しない。";
 
 function validOptimization(overrides: Record<string, unknown> = {}) {
   return {

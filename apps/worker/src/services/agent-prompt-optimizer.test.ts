@@ -173,7 +173,8 @@ describe("AgentPromptOptimizerService.runOnce", () => {
   it("rejects and does not promote when the guardrail is dropped", async () => {
     const store = new InMemoryPromptOptimizerStore();
     const provider = new FakeProvider({
-      optimized_system_prompt: "ガードレールを省いた十分な長さのプロンプト文字列をここに用意します。",
+      optimized_system_prompt:
+        "ガードレールを省いた十分な長さのプロンプト文字列をここに用意します。",
       reasoning: "ガードレールを外した",
       key_changes: ["削除"],
     });
@@ -230,9 +231,7 @@ describe("AgentPromptOptimizerService.runOnce", () => {
       createdAt: new Date(NOW.getTime() - 25 * HOUR_MS).toISOString(),
     });
     const service = buildService({
-      contexts: [
-        context({ latestOptimization, scorecard: scorecard({ score: 400 }) }),
-      ],
+      contexts: [context({ latestOptimization, scorecard: scorecard({ score: 400 }) })],
       provider,
       store,
     });
@@ -256,9 +255,7 @@ describe("AgentPromptOptimizerService.runOnce", () => {
       createdAt: new Date(NOW.getTime() - 25 * HOUR_MS).toISOString(),
     });
     const service = buildService({
-      contexts: [
-        context({ latestOptimization, scorecard: scorecard({ score: 1_000 }) }),
-      ],
+      contexts: [context({ latestOptimization, scorecard: scorecard({ score: 1_000 }) })],
       provider,
       store,
     });
