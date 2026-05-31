@@ -1,7 +1,9 @@
 import type {
   AiDailyReviewResponse,
+  AiPromptOptimizationResponse,
   AiStrategyProposalResponse,
   DailyReviewInput,
+  PromptOptimizationInput,
   StrategyProposalInput,
 } from "@ai-trade/domain/ai-tuning";
 import { BASELINE_STRATEGIES } from "@ai-trade/domain/strategies";
@@ -145,6 +147,54 @@ describe("ai-runner Hono app", () => {
     expect(provider.generateDailyReview).toHaveBeenCalledWith(input);
   });
 
+  it("generates a prompt optimization through the provider", async () => {
+    const provider = fakeProvider(undefined, undefined, {
+      invocation: {
+        id: "optimization-invocation-1",
+        provider: "claude_cli",
+        status: "succeeded",
+        promptHash: "hash",
+        promptRedacted: "{}",
+        timeoutMs: 180000,
+        startedAt: "2026-05-24T00:00:00.000Z",
+        finishedAt: "2026-05-24T00:00:01.000Z",
+      },
+      optimization: {
+        optimized_system_prompt: `改善されたシステムプロンプト。${GUARDRAIL}`,
+        reasoning: "実現損益が伸び悩んでいるため、損切り基準を明確化しました。",
+        key_changes: ["損切り条件を明示", "勝ちパターンの再現性を強調"],
+        expected_focus: "実現損益の安定化",
+      },
+    });
+    const input = promptOptimizationInput();
+
+    const response = await createAiRunnerApp(provider).request("/prompt-optimizations", {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.optimization.optimized_system_prompt).toContain(GUARDRAIL);
+    expect(provider.generatePromptOptimization).toHaveBeenCalledWith(input);
+  });
+
+  it("rejects a prompt optimization request missing the required guardrail field", async () => {
+    const provider = fakeProvider();
+    const { requiredGuardrail: _omitted, ...invalid } = promptOptimizationInput();
+
+    const response = await createAiRunnerApp(provider).request("/prompt-optimizations", {
+      method: "POST",
+      body: JSON.stringify(invalid),
+      headers: { "content-type": "application/json" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(provider.generatePromptOptimization).not.toHaveBeenCalled();
+  });
+
   it("runs an agent through the internal agent runner endpoint", async () => {
     const provider = fakeProvider();
     const agentRunner = {
@@ -276,6 +326,7 @@ describe("ai-runner Hono app", () => {
 function fakeProvider(
   response?: AiStrategyProposalResponse,
   dailyReviewResponse?: AiDailyReviewResponse,
+  promptOptimizationResponse?: AiPromptOptimizationResponse,
 ) {
   return {
     health: vi.fn().mockResolvedValue({
@@ -324,6 +375,21 @@ function fakeProvider(
         },
       },
     ),
+    generatePromptOptimization: vi.fn().mockResolvedValue(
+      promptOptimizationResponse ?? {
+        invocation: {
+          id: "optimization-invocation-disabled",
+          provider: "claude_cli",
+          status: "failed",
+          promptHash: "hash",
+          promptRedacted: "{}",
+          timeoutMs: 180000,
+          startedAt: "2026-05-24T00:00:00.000Z",
+          finishedAt: "2026-05-24T00:00:00.000Z",
+          errorSummary: "disabled",
+        },
+      },
+    ),
   };
 }
 
@@ -352,6 +418,40 @@ function dailyReviewInput(): DailyReviewInput {
       backupStatus: "unknown",
       restoreRehearsalStatus: "unknown",
     },
+  };
+}
+
+const GUARDRAIL = "## 共通ガードレール\n- Risk Gate を緩和しない。Paper Order を直接実行しない。";
+
+function promptOptimizationInput(): PromptOptimizationInput {
+  return {
+    agentId: "c0000000-0000-4000-8000-000000000001",
+    agentName: "Ceres",
+    characterId: "ceres",
+    persona: "冷徹な白銀アナリスト",
+    currentVersion: 1,
+    currentSystemPrompt: `あなたはセレスです。事実に基づいて判断します。${GUARDRAIL}`,
+    requiredGuardrail: GUARDRAIL,
+    scorecard: {
+      agentId: "c0000000-0000-4000-8000-000000000001",
+      windowDays: 7,
+      proposalCount: 4,
+      acceptedProposalCount: 2,
+      acceptanceRate: 0.5,
+      adoptedStrategyCount: 1,
+      tradeCount: 6,
+      realizedPnlJpy: -250,
+      netAccountPnlJpy: -250,
+      score: 2250,
+    },
+    recentRejections: [
+      {
+        candidateStrategyName: "ceres-meanrev-1",
+        sourceStrategyName: "baseline-5m",
+        rejectReasons: [{ code: "parameter_out_of_range", path: "risk.maxDrawdownJpy", message: "範囲外" }],
+      },
+    ],
+    recentWinningProposals: [{ strategyName: "ceres-trend-2", realizedPnlJpy: 480 }],
   };
 }
 

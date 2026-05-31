@@ -11,7 +11,7 @@ const MAX_CANDIDATE_SLOTS_PER_TIMEFRAME = 3;
 export type AiInvocationRecordInput = {
   id: string;
   provider: string;
-  purpose: "strategy_tuning" | "daily_review";
+  purpose: "strategy_tuning" | "daily_review" | "prompt_optimization";
   promptHash: string;
   promptRedacted: string;
   stdoutRaw?: string;

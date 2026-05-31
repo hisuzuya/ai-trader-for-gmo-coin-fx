@@ -6,6 +6,7 @@ import { createWorkerApp } from "./hono-app.js";
 import { GmoHistoricalImporter } from "./jobs/historical-importer.js";
 import { WorkerRuntime } from "./runtime.js";
 import { AgentScheduler } from "./services/agent-pipeline.js";
+import { AgentPromptOptimizerService } from "./services/agent-prompt-optimizer.js";
 import { AiDailyReviewerService } from "./services/ai-daily-reviewer.js";
 import { AiTunerService } from "./services/ai-tuner.js";
 import { CollectorService } from "./services/collector.js";
@@ -18,6 +19,7 @@ const runtime = new WorkerRuntime(
     new AiTunerService(),
     new AiDailyReviewerService(),
     new AgentScheduler(),
+    new AgentPromptOptimizerService(),
   ],
   new GmoHistoricalImporter(),
 );

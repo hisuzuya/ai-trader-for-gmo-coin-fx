@@ -3,6 +3,7 @@ export {
   AGENT_CHARACTERS,
   CHARACTER_BY_ID,
   CHARACTER_IDS,
+  COMMON_GUARDRAIL,
   getCharacter,
   isCharacterId,
 } from "./characters";

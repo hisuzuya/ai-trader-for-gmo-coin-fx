@@ -389,6 +389,38 @@ export const aiAgentCandidateReviews = pgTable(
   ],
 );
 
+export const aiAgentPromptOptimizationStatus = pgEnum("ai_agent_prompt_optimization_status", [
+  "optimized",
+  "rolled_back",
+  "rejected",
+  "skipped",
+]);
+
+export const aiAgentPromptOptimizations = pgTable(
+  "ai_agent_prompt_optimizations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => aiAgents.id),
+    status: aiAgentPromptOptimizationStatus("status").notNull(),
+    fromVersion: numeric("from_version", { precision: 10, scale: 0 }).notNull(),
+    toVersion: numeric("to_version", { precision: 10, scale: 0 }),
+    baselineScore: numeric("baseline_score", { precision: 18, scale: 6 }).notNull(),
+    observedScore: numeric("observed_score", { precision: 18, scale: 6 }),
+    scorecard: jsonb("scorecard_json").notNull(),
+    reasoning: text("reasoning").notNull(),
+    promptHash: text("prompt_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (table) => [
+    index("ai_agent_prompt_optimizations_agent_created_at_idx").on(
+      table.agentId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const strategyRuns = pgTable("strategy_runs", {
   id: uuid("id").defaultRandom().primaryKey(),
   strategyName: text("strategy_name").notNull(),

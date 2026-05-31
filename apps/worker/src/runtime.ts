@@ -21,6 +21,10 @@ import {
   StubHistoricalImporter,
 } from "./jobs/historical-importer.js";
 import type { AgentScheduler } from "./services/agent-pipeline.js";
+import type {
+  AgentPromptOptimizerService,
+  PromptOptimizerRunResult,
+} from "./services/agent-prompt-optimizer.js";
 import type { AiDailyReviewerService, DailyReviewRunResult } from "./services/ai-daily-reviewer.js";
 import type { AiTunerService, AiTuningRunResult } from "./services/ai-tuner.js";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "./types.js";
@@ -178,6 +182,16 @@ export class WorkerRuntime {
     }
 
     return dailyReviewer.runOnce();
+  }
+
+  async runPromptOptimization(): Promise<PromptOptimizerRunResult> {
+    const optimizer = this.services.find(isAgentPromptOptimizerService);
+
+    if (!optimizer) {
+      throw new Error("Agent prompt optimizer service is not registered.");
+    }
+
+    return optimizer.runOnce();
   }
 
   async listAgents() {
@@ -809,6 +823,12 @@ function isAgentScheduler(service: WorkerService): service is AgentScheduler {
     "runOnce" in service &&
     "runAll" in service
   );
+}
+
+function isAgentPromptOptimizerService(
+  service: WorkerService,
+): service is AgentPromptOptimizerService {
+  return service.name === "agent-prompt-optimizer" && "runOnce" in service;
 }
 
 function firstStrategyProposalName(

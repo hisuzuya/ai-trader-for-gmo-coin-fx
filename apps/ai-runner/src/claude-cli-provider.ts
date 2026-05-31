@@ -12,11 +12,13 @@ import {
 } from "@ai-trade/domain/ai-agents";
 import type {
   AiDailyReviewResponse,
+  AiPromptOptimizationResponse,
   AiStrategyProposalResponse,
   DailyReviewInput,
+  PromptOptimizationInput,
   StrategyProposalInput,
 } from "@ai-trade/domain/ai-tuning";
-import { validateAiDailyReview } from "@ai-trade/domain/ai-tuning";
+import { validateAiDailyReview, validateAiPromptOptimization } from "@ai-trade/domain/ai-tuning";
 import { validateAiStrategyProposal } from "@ai-trade/domain/strategies";
 
 const execFileAsync = promisify(execFile);
@@ -60,6 +62,9 @@ export interface StrategyProposalProvider {
   invoke(input: ClaudeCliInvocationInput): Promise<ClaudeCliInvocationResult>;
   generateStrategyProposal(input: StrategyProposalInput): Promise<AiStrategyProposalResponse>;
   generateDailyReview(input: DailyReviewInput): Promise<AiDailyReviewResponse>;
+  generatePromptOptimization(
+    input: PromptOptimizationInput,
+  ): Promise<AiPromptOptimizationResponse>;
 }
 
 export type ClaudeCliProviderOptions = {
@@ -328,6 +333,99 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
           finishedAt: finishedAt.toISOString(),
         },
         review: validation.review,
+      };
+    } catch (error) {
+      const finishedAt = new Date();
+      const status =
+        error instanceof Error && error.message.includes("timed out") ? "timeout" : "failed";
+
+      return {
+        invocation: {
+          id: invocationId,
+          provider: "claude_cli",
+          status,
+          promptHash,
+          promptRedacted: prompt,
+          timeoutMs,
+          startedAt: startedAt.toISOString(),
+          finishedAt: finishedAt.toISOString(),
+          errorSummary: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+  }
+
+  async generatePromptOptimization(
+    input: PromptOptimizationInput,
+  ): Promise<AiPromptOptimizationResponse> {
+    const startedAt = new Date();
+    const prompt = buildPromptOptimizationPrompt(input);
+    const promptHash = hashPrompt(prompt);
+    const invocationId = randomUUID();
+    const timeoutMs = Math.max(this.timeoutMs, 180_000);
+
+    if (!this.enabled) {
+      return {
+        invocation: {
+          id: invocationId,
+          provider: "claude_cli",
+          status: "failed",
+          promptHash,
+          promptRedacted: prompt,
+          timeoutMs,
+          startedAt: startedAt.toISOString(),
+          finishedAt: new Date().toISOString(),
+          errorSummary: "Claude CLI provider is disabled.",
+        },
+      };
+    }
+
+    try {
+      // Prompt optimization is a pure reflection task: never expose research MCP
+      // tools, so the optimizer cannot widen its own capabilities.
+      const { stdout, stderr } = await execFileAsync(this.executable, ["-p", prompt], {
+        timeout: timeoutMs,
+        maxBuffer: 1024 * 1024,
+      });
+      const validation = validateAiPromptOptimization(stdout, {
+        requiredGuardrail: input.requiredGuardrail,
+      });
+      const finishedAt = new Date();
+
+      if (validation.status === "rejected") {
+        return {
+          invocation: {
+            id: invocationId,
+            provider: "claude_cli",
+            status: "failed",
+            promptHash,
+            promptRedacted: prompt,
+            stdoutRaw: stdout,
+            stderrSummary: summarizeStderr(stderr),
+            parsedJson: undefined,
+            timeoutMs,
+            startedAt: startedAt.toISOString(),
+            finishedAt: finishedAt.toISOString(),
+            errorSummary: validation.reasons.map((reason) => reason.message).join("; "),
+          },
+        };
+      }
+
+      return {
+        invocation: {
+          id: invocationId,
+          provider: "claude_cli",
+          status: "succeeded",
+          promptHash,
+          promptRedacted: prompt,
+          stdoutRaw: stdout,
+          stderrSummary: summarizeStderr(stderr),
+          parsedJson: validation.optimization,
+          timeoutMs,
+          startedAt: startedAt.toISOString(),
+          finishedAt: finishedAt.toISOString(),
+        },
+        optimization: validation.optimization,
       };
     } catch (error) {
       const finishedAt = new Date();
@@ -689,6 +787,37 @@ function buildDailyReviewPrompt(input: DailyReviewInput): string {
       warnings:
         "array of { severity: info|warning|critical, code (ASCII identifier), message (日本語) }",
       next_actions: "array of strings (日本語で記述すること / write in Japanese) for human review",
+    },
+  });
+}
+
+function buildPromptOptimizationPrompt(input: PromptOptimizationInput): string {
+  return JSON.stringify({
+    instruction: [
+      "Return JSON only. You are a GEPA-style reflective prompt optimizer for a USD/JPY paper-trading research agent.",
+      "Rewrite ONLY the agent's system prompt to improve its realized-PnL-centric scorecard, reflecting on the recent metrics, rejected proposals, and winning proposals provided.",
+      "You MUST keep the agent's character/persona, tone, and language (日本語) intact — improve guidance and decision criteria, not the personality.",
+      "The required guardrail block (provided verbatim below) MUST appear verbatim and unmodified at the end of optimized_system_prompt. Never weaken risk controls, never relax the Risk Gate, never add tool permissions, never enable live trading or order execution.",
+      "Do NOT include shell commands, code, secrets, or capability-expansion instructions.",
+      "All natural-language fields (reasoning, key_changes, expected_focus) MUST be written in 日本語.",
+    ].join(" "),
+    agent: {
+      agentName: input.agentName,
+      characterId: input.characterId,
+      persona: input.persona,
+      currentVersion: input.currentVersion,
+    },
+    currentSystemPrompt: input.currentSystemPrompt,
+    requiredGuardrail: input.requiredGuardrail,
+    scorecard: input.scorecard,
+    recentRejections: input.recentRejections,
+    recentWinningProposals: input.recentWinningProposals,
+    outputSchema: {
+      optimized_system_prompt:
+        "string — full rewritten system prompt in 日本語, ending with the required guardrail verbatim",
+      reasoning: "string (日本語で記述すること / write in Japanese)",
+      key_changes: "array of short strings (日本語) describing each change",
+      expected_focus: "string optional (日本語) — what behavior this should improve",
     },
   });
 }

@@ -1,5 +1,9 @@
 import type { AgentRunRequest } from "@ai-trade/domain/ai-agents";
-import type { DailyReviewInput, StrategyProposalInput } from "@ai-trade/domain/ai-tuning";
+import type {
+  DailyReviewInput,
+  PromptOptimizationInput,
+  StrategyProposalInput,
+} from "@ai-trade/domain/ai-tuning";
 import { Hono } from "hono";
 
 import { type AgentRunner, AiAgentRunner } from "./agent-runner.js";
@@ -101,6 +105,27 @@ export function createAiRunnerApp(
     });
   });
 
+  app.post("/prompt-optimizations", async (c) => {
+    const body = await c.req.json().catch(() => null);
+
+    if (!isPromptOptimizationInput(body)) {
+      return c.json(
+        {
+          ok: false,
+          error:
+            "Request body must include agentId, agentName, persona, currentVersion, currentSystemPrompt, requiredGuardrail, and scorecard.",
+        },
+        400,
+      );
+    }
+
+    const response = await provider.generatePromptOptimization(body);
+    return c.json({
+      ok: response.invocation.status === "succeeded",
+      ...response,
+    });
+  });
+
   app.post("/agent-runs", async (c) => {
     const body = await c.req.json().catch(() => null);
 
@@ -154,6 +179,33 @@ function isStrategyProposalInput(input: unknown): input is StrategyProposalInput
     "explorationPolicy" in input &&
     Array.isArray(input.rejectedCandidateSummaries) &&
     typeof input.explorationPolicy === "string"
+  );
+}
+
+function isPromptOptimizationInput(input: unknown): input is PromptOptimizationInput {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "agentId" in input &&
+    "agentName" in input &&
+    "persona" in input &&
+    "currentVersion" in input &&
+    "currentSystemPrompt" in input &&
+    "requiredGuardrail" in input &&
+    "scorecard" in input &&
+    "recentRejections" in input &&
+    "recentWinningProposals" in input &&
+    typeof input.agentId === "string" &&
+    typeof input.agentName === "string" &&
+    typeof input.persona === "string" &&
+    typeof input.currentVersion === "number" &&
+    typeof input.currentSystemPrompt === "string" &&
+    typeof input.requiredGuardrail === "string" &&
+    input.requiredGuardrail.trim().length > 0 &&
+    typeof input.scorecard === "object" &&
+    input.scorecard !== null &&
+    Array.isArray(input.recentRejections) &&
+    Array.isArray(input.recentWinningProposals)
   );
 }
 

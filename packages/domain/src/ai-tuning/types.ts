@@ -132,6 +132,97 @@ export type AiProposalValidationResult =
       reasons: RejectReason[];
     };
 
+/**
+ * Realized-PnL-centric scorecard for a single research agent over a recent
+ * window. Used as the reward signal for prompt optimization. Realized PnL is the
+ * ground truth; proposal acceptance rate is a secondary tie-breaker.
+ */
+export type AgentScorecard = {
+  agentId: string;
+  windowDays: number;
+  /** Strategy proposals the agent emitted in the window. */
+  proposalCount: number;
+  /** Proposals that passed deterministic validation (became candidate slots). */
+  acceptedProposalCount: number;
+  /** acceptedProposalCount / proposalCount (0 when no proposals). */
+  acceptanceRate: number;
+  /** strategy_runs rows sourced by this agent in the window. */
+  adoptedStrategyCount: number;
+  /** Closed paper trades on the agent's paper account in the window. */
+  tradeCount: number;
+  /** Sum of realized PnL (JPY) from those closed trades. */
+  realizedPnlJpy: number;
+  /** balanceJpy - initialBalanceJpy on the agent's paper account. */
+  netAccountPnlJpy: number;
+  /** Composite reward. Realized PnL dominates; acceptance is a small bonus. */
+  score: number;
+};
+
+/** Raw metrics produced by the data layer before the composite score is applied. */
+export type AgentScorecardMetrics = Omit<AgentScorecard, "acceptanceRate" | "score">;
+
+/**
+ * Request payload for reflective (GEPA-style) prompt optimization. The optimizer
+ * is asked to rewrite only the agent's system prompt; allowed tools are never
+ * touched and the safety guardrail must be preserved verbatim.
+ */
+export type PromptOptimizationInput = {
+  agentId: string;
+  agentName: string;
+  characterId: string | null;
+  persona: string;
+  currentVersion: number;
+  currentSystemPrompt: string;
+  /** This exact substring MUST be preserved verbatim in the optimized prompt. */
+  requiredGuardrail: string;
+  scorecard: AgentScorecard;
+  recentRejections: {
+    candidateStrategyName: string | null;
+    sourceStrategyName: string | null;
+    rejectReasons: unknown;
+  }[];
+  recentWinningProposals: {
+    strategyName: string;
+    realizedPnlJpy: number;
+  }[];
+};
+
+export type AiPromptOptimization = {
+  optimized_system_prompt: string;
+  reasoning: string;
+  key_changes: string[];
+  expected_focus?: string;
+};
+
+export type AiPromptOptimizationResponse = {
+  invocation: {
+    id: string;
+    provider: "claude_cli";
+    status: "succeeded" | "failed" | "timeout";
+    promptHash: string;
+    promptRedacted: string;
+    stdoutRaw?: string;
+    stderrSummary?: string;
+    parsedJson?: unknown;
+    timeoutMs: number;
+    cliVersion?: string;
+    startedAt: string;
+    finishedAt: string;
+    errorSummary?: string;
+  };
+  optimization?: AiPromptOptimization;
+};
+
+export type AiPromptOptimizationValidationResult =
+  | {
+      status: "accepted";
+      optimization: AiPromptOptimization;
+    }
+  | {
+      status: "rejected";
+      reasons: RejectReason[];
+    };
+
 export type AiDailyReviewValidationResult =
   | {
       status: "accepted";

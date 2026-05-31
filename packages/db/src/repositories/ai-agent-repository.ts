@@ -1,4 +1,5 @@
 import {
+  AGENT_CHARACTERS,
   AGENT_RESEARCH_TOOL_NAMES,
   type AgentDefinition,
   type AgentRunOutput,
@@ -8,14 +9,20 @@ import {
   type CharacterId,
   isCharacterId,
 } from "@ai-trade/domain/ai-agents";
+import {
+  type AgentScorecard,
+  type AgentScorecardMetrics,
+  computeAgentScore,
+} from "@ai-trade/domain/ai-tuning";
 import { validateAiStrategyProposal } from "@ai-trade/domain/strategies";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 
 import { db } from "../client.js";
 import {
   aiAgentCandidateReviews,
   aiAgentMemories,
   aiAgentObservations,
+  aiAgentPromptOptimizations,
   aiAgentRuns,
   aiAgentSkills,
   aiAgentStrategyProposals,
@@ -37,6 +44,50 @@ const SECRET_LIKE_GLOBAL_PATTERN =
 
 export const RESEARCH_AGENT_SEED_ID = "11111111-1111-4111-8111-111111111111";
 export const RESEARCH_AGENT_1H_SEED_ID = "33333333-3333-4333-8333-333333333333";
+
+/**
+ * Fixed UUIDs for the auto-seeded 6-character crew. Stable ids make
+ * seedCrewAgents idempotent: a crew agent is only created if its id is absent.
+ */
+export const CREW_AGENT_SEED_IDS: Record<CharacterId, string> = {
+  ceres: "c0000000-0000-4000-8000-000000000001",
+  yura: "c0000000-0000-4000-8000-000000000002",
+  noah: "c0000000-0000-4000-8000-000000000003",
+  iris: "c0000000-0000-4000-8000-000000000004",
+  ragna: "c0000000-0000-4000-8000-000000000005",
+  chloe: "c0000000-0000-4000-8000-000000000006",
+};
+
+/** Paper-money starting balance for each auto-seeded crew agent (JPY). */
+export const CREW_AGENT_INITIAL_BALANCE_JPY = "100000";
+
+export type PromptOptimizationStatus = "optimized" | "rolled_back" | "rejected" | "skipped";
+
+export type PromptOptimizationRecordInput = {
+  agentId: string;
+  status: PromptOptimizationStatus;
+  fromVersion: number;
+  toVersion?: number | null;
+  baselineScore: number;
+  observedScore?: number | null;
+  scorecard: AgentScorecard;
+  reasoning: string;
+  promptHash?: string | null;
+};
+
+export type PromptOptimizationRecord = {
+  id: string;
+  agentId: string;
+  status: PromptOptimizationStatus;
+  fromVersion: number;
+  toVersion: number | null;
+  baselineScore: number;
+  observedScore: number | null;
+  scorecard: AgentScorecard;
+  reasoning: string;
+  promptHash: string | null;
+  createdAt: string;
+};
 
 export type AgentVersionInput = {
   agentId: string;
@@ -472,6 +523,74 @@ export class AiAgentRepository {
     // through the character picker UI; nothing is auto-seeded here.
   }
 
+  /**
+   * Idempotently create all 6 crew characters as active agents, each with its own
+   * paper account. Guarded by the fixed crew UUIDs: an agent is only created when
+   * its seed id is absent, so this is safe to call on every scheduler start.
+   */
+  async seedCrewAgents(): Promise<{ created: CharacterId[] }> {
+    const created: CharacterId[] = [];
+
+    for (const character of AGENT_CHARACTERS) {
+      const seedId = CREW_AGENT_SEED_IDS[character.id];
+      const [existing] = await this.database
+        .select({ id: aiAgents.id })
+        .from(aiAgents)
+        .where(eq(aiAgents.id, seedId))
+        .limit(1);
+
+      if (existing) {
+        continue;
+      }
+
+      const allowedTools = filterAllowedTools(character.defaultAllowedTools);
+
+      await this.database.transaction(async (tx) => {
+        await tx.insert(aiAgents).values({
+          id: seedId,
+          name: character.name,
+          persona: character.defaultPersona,
+          systemPrompt: character.defaultSystemPrompt,
+          allowedTools,
+          status: "active",
+          currentVersion: "1",
+          runIntervalSec: String(character.defaultRunIntervalSec),
+          model: character.defaultModel,
+          maxConsecutiveFailures: "3",
+          consecutiveFailures: "0",
+          tokenBudgetPerRun: "200000",
+          costBudgetPerRunUsd: "5",
+          pausedReason: null,
+          sharedMemoryEnabled: true,
+          characterId: character.id,
+          initialBalanceJpy: CREW_AGENT_INITIAL_BALANCE_JPY,
+        });
+
+        await tx.insert(aiAgentVersions).values({
+          agentId: seedId,
+          version: "1",
+          systemPrompt: character.defaultSystemPrompt,
+          allowedTools,
+          note: `Seeded crew agent ${character.id}.`,
+        });
+
+        await tx.insert(paperAccounts).values({
+          agentId: seedId,
+          name: `${character.name} paper account`,
+          currency: "JPY",
+          initialBalanceJpy: CREW_AGENT_INITIAL_BALANCE_JPY,
+          balanceJpy: CREW_AGENT_INITIAL_BALANCE_JPY,
+          leverage: "1.00",
+          status: "active",
+        });
+      });
+
+      created.push(character.id);
+    }
+
+    return { created };
+  }
+
   async deleteAgent(input: { agentId: string }): Promise<{ deleted: boolean }> {
     return this.database.transaction(async (tx) => {
       const accountRows = await tx
@@ -837,6 +956,109 @@ export class AiAgentRepository {
     };
   }
 
+  /**
+   * Realized-PnL-centric scorecard for a single agent over a recent window. Used
+   * as the reward signal for prompt optimization. Proposal/adoption counts and
+   * realized PnL come from the window; net account PnL is lifetime (secondary).
+   */
+  async getAgentScorecard(agentId: string, windowDays: number): Promise<AgentScorecard> {
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+
+    const [proposalRows, adoptedRows, tradeRows, accountRows] = await Promise.all([
+      this.database
+        .select({ validationStatus: aiAgentStrategyProposals.validationStatus })
+        .from(aiAgentStrategyProposals)
+        .where(
+          and(
+            eq(aiAgentStrategyProposals.agentId, agentId),
+            gte(aiAgentStrategyProposals.createdAt, since),
+          ),
+        ),
+      this.database
+        .select({ status: strategyRuns.status })
+        .from(strategyRuns)
+        .where(and(eq(strategyRuns.sourceAgentId, agentId), gte(strategyRuns.startedAt, since))),
+      this.database
+        .select({ pnlJpy: paperTrades.pnlJpy })
+        .from(paperTrades)
+        .innerJoin(paperAccounts, eq(paperAccounts.id, paperTrades.accountId))
+        .where(and(eq(paperAccounts.agentId, agentId), gte(paperTrades.closedAt, since))),
+      this.database
+        .select({
+          balanceJpy: paperAccounts.balanceJpy,
+          initialBalanceJpy: paperAccounts.initialBalanceJpy,
+        })
+        .from(paperAccounts)
+        .where(eq(paperAccounts.agentId, agentId))
+        .limit(1),
+    ]);
+
+    const proposalCount = proposalRows.length;
+    const acceptedProposalCount = proposalRows.filter(
+      (row) => row.validationStatus === "accepted",
+    ).length;
+    const adoptedStrategyCount = adoptedRows.filter(
+      (row) => row.status === "running_paper" || row.status === "promoted_to_baseline",
+    ).length;
+    const tradeCount = tradeRows.length;
+    const realizedPnlJpy = tradeRows.reduce((acc, row) => acc + Number(row.pnlJpy), 0);
+    const account = accountRows[0];
+    const netAccountPnlJpy = account
+      ? Number(account.balanceJpy) - Number(account.initialBalanceJpy)
+      : 0;
+
+    const metrics: AgentScorecardMetrics = {
+      agentId,
+      windowDays,
+      proposalCount,
+      acceptedProposalCount,
+      adoptedStrategyCount,
+      tradeCount,
+      realizedPnlJpy,
+      netAccountPnlJpy,
+    };
+
+    return computeAgentScore(metrics);
+  }
+
+  /** Record one prompt-optimization decision (optimized / rolled_back / rejected / skipped). */
+  async recordPromptOptimization(
+    input: PromptOptimizationRecordInput,
+  ): Promise<PromptOptimizationRecord> {
+    const [row] = await this.database
+      .insert(aiAgentPromptOptimizations)
+      .values({
+        agentId: input.agentId,
+        status: input.status,
+        fromVersion: String(input.fromVersion),
+        toVersion: input.toVersion == null ? null : String(input.toVersion),
+        baselineScore: input.baselineScore.toFixed(6),
+        observedScore: input.observedScore == null ? null : input.observedScore.toFixed(6),
+        scorecard: input.scorecard,
+        reasoning: input.reasoning,
+        promptHash: input.promptHash ?? null,
+      })
+      .returning();
+
+    if (!row) {
+      throw new Error("Failed to record prompt optimization.");
+    }
+
+    return toPromptOptimizationRecord(row);
+  }
+
+  /** Latest prompt-optimization decision for an agent (used to detect a pending trial / rollback). */
+  async getLatestPromptOptimization(agentId: string): Promise<PromptOptimizationRecord | null> {
+    const [row] = await this.database
+      .select()
+      .from(aiAgentPromptOptimizations)
+      .where(eq(aiAgentPromptOptimizations.agentId, agentId))
+      .orderBy(desc(aiAgentPromptOptimizations.createdAt))
+      .limit(1);
+
+    return row ? toPromptOptimizationRecord(row) : null;
+  }
+
   async updateAgentSettings(input: UpdateAgentSettingsInput): Promise<{ updated: boolean }> {
     const values: Record<string, unknown> = {
       updatedAt: new Date(),
@@ -1150,6 +1372,24 @@ function toAgentDefinition(row: typeof aiAgents.$inferSelect): AgentDefinition {
     sharedMemoryEnabled: row.sharedMemoryEnabled,
     characterId: isCharacterId(row.characterId) ? row.characterId : null,
     initialBalanceJpy: Number(row.initialBalanceJpy),
+  };
+}
+
+function toPromptOptimizationRecord(
+  row: typeof aiAgentPromptOptimizations.$inferSelect,
+): PromptOptimizationRecord {
+  return {
+    id: row.id,
+    agentId: row.agentId,
+    status: row.status,
+    fromVersion: Number(row.fromVersion),
+    toVersion: row.toVersion == null ? null : Number(row.toVersion),
+    baselineScore: Number(row.baselineScore),
+    observedScore: row.observedScore == null ? null : Number(row.observedScore),
+    scorecard: row.scorecard as AgentScorecard,
+    reasoning: row.reasoning,
+    promptHash: row.promptHash ?? null,
+    createdAt: row.createdAt.toISOString(),
   };
 }
 
