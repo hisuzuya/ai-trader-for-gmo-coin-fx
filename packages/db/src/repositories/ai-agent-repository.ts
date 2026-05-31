@@ -2,11 +2,15 @@ import {
   AGENT_CHARACTERS,
   AGENT_RESEARCH_TOOL_NAMES,
   type AgentDefinition,
+  type AgentRole,
   type AgentRunOutput,
   type AgentRunResponse,
   type AgentStrategyProposal,
   type AgentToolCallLog,
   type CharacterId,
+  composeSystemPrompt,
+  getDefaultRole,
+  isAgentRole,
   isCharacterId,
 } from "@ai-trade/domain/ai-agents";
 import {
@@ -104,6 +108,8 @@ export type CreateAgentInput = {
   runIntervalSec: number;
   model: string;
   characterId: CharacterId | null;
+  /** Operational role. Defaults to the character's default role when omitted. */
+  role?: AgentRole;
   initialBalanceJpy: number;
   maxConsecutiveFailures?: number;
   tokenBudgetPerRun?: number;
@@ -544,13 +550,19 @@ export class AiAgentRepository {
       }
 
       const allowedTools = filterAllowedTools(character.defaultAllowedTools);
+      // Append the role-specific directive after persona + guardrail so the
+      // seeded prompt already reflects the agent's specialisation.
+      const systemPrompt = composeSystemPrompt(
+        character.defaultSystemPrompt,
+        character.defaultRole,
+      );
 
       await this.database.transaction(async (tx) => {
         await tx.insert(aiAgents).values({
           id: seedId,
           name: character.name,
           persona: character.defaultPersona,
-          systemPrompt: character.defaultSystemPrompt,
+          systemPrompt,
           allowedTools,
           status: "active",
           currentVersion: "1",
@@ -563,13 +575,14 @@ export class AiAgentRepository {
           pausedReason: null,
           sharedMemoryEnabled: true,
           characterId: character.id,
+          role: character.defaultRole,
           initialBalanceJpy: CREW_AGENT_INITIAL_BALANCE_JPY,
         });
 
         await tx.insert(aiAgentVersions).values({
           agentId: seedId,
           version: "1",
-          systemPrompt: character.defaultSystemPrompt,
+          systemPrompt,
           allowedTools,
           note: `Seeded crew agent ${character.id}.`,
         });
@@ -828,6 +841,7 @@ export class AiAgentRepository {
           pausedReason: null,
           sharedMemoryEnabled: input.sharedMemoryEnabled ?? false,
           characterId: input.characterId,
+          role: input.role ?? getDefaultRole(input.characterId),
           initialBalanceJpy: balanceString,
         })
         .returning({ id: aiAgents.id });
@@ -1371,6 +1385,7 @@ function toAgentDefinition(row: typeof aiAgents.$inferSelect): AgentDefinition {
     pausedReason: row.pausedReason ?? undefined,
     sharedMemoryEnabled: row.sharedMemoryEnabled,
     characterId: isCharacterId(row.characterId) ? row.characterId : null,
+    role: isAgentRole(row.role) ? row.role : "trader",
     initialBalanceJpy: Number(row.initialBalanceJpy),
   };
 }

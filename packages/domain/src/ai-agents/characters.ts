@@ -12,6 +12,33 @@ export type CharacterFocus =
   | "news"
   | "strategyRunReview";
 
+/**
+ * Operational role of a crew agent. Not every agent trades: the crew is split
+ * into proposal-generating traders, a macro/news analyst, a risk auditor, and a
+ * knowledge curator who keeps the shared skill base healthy. The role drives the
+ * agent's prompt directive, its primary output, and how it is scored.
+ */
+export type AgentRole = "trader" | "news_analyst" | "risk_auditor" | "skill_curator";
+
+export const AGENT_ROLES = [
+  "trader",
+  "news_analyst",
+  "risk_auditor",
+  "skill_curator",
+] as const satisfies readonly AgentRole[];
+
+/**
+ * Role-specific directive appended after the persona and the COMMON_GUARDRAIL.
+ * It is placed AFTER the guardrail on purpose so the guardrail remains a verbatim
+ * substring (the prompt optimizer rejects any rewrite that drops it).
+ */
+export const ROLE_DIRECTIVES: Record<AgentRole, string> = {
+  trader: `\n\n## あなたの役割: トレーダー\n- 主な成果物は strategyProposals です。許可済み DSL に沿って、明確なエントリー・損切り・無効化条件を備えた提案を出してください。\n- 自分の得意局面に集中し、再現性のある根拠 (過去成績・統計的優位性) を必ず添えます。\n- あなたは採用された提案の実現損益で評価されます。量より優位性の質を優先してください。`,
+  news_analyst: `\n\n## あなたの役割: マクロ / ニュース分析官\n- 主な成果物は news / market カテゴリの observations です。経済イベント・金利・政策の文脈を、トレーダーがそのまま使える形で言語化してください。\n- 提案を出す場合も、必ずイベント時刻と前提条件を紐付けます。\n- あなたはトレード量ではなく「提供した文脈の有用性 (提案採用への寄与)」で評価されます。`,
+  risk_auditor: `\n\n## あなたの役割: リスク監査官\n- 主な成果物は candidateReviews です。ドローダウン・連敗・過剰なボラティリティの兆候を捉え、retire / continue / promote を根拠付きで勧告してください。\n- 早期警告となる risk observation を重視し、新規の strategyProposals は最小限にとどめます。\n- あなたは retire 判断の的中率 (守れた損失) で評価されます。`,
+  skill_curator: `\n\n## あなたの役割: スキル整理整頓役 (ナレッジ・キュレーター)\n- 各エージェントが書き溜めた skill を整理する責任者です。重複の統合、共有候補 (shared) の昇格、陳腐化・矛盾したスキルの retire を判断してください。\n- トレード提案よりも、再利用される共有スキル資産の健全性を優先します。\n- あなたは「昇格させた共有スキルが、その後の勝ち提案で実際に引用・活用された度合い」で評価されます。`,
+};
+
 export type AgentCharacter = {
   id: CharacterId;
   /** ASCII 表示名 (Latin) */
@@ -26,6 +53,12 @@ export type AgentCharacter = {
   catchphrase: string;
   /** 性格タグ */
   personalityTraits: string[];
+  /**
+   * このキャラクターの既定の運用ロール。クルーは全員がトレーダーではなく、
+   * 提案を出すトレーダー、マクロ/ニュース分析官、リスク監査官、スキル整理役に
+   * 役割分担される。ロールはプロンプト指示・主要成果物・評価指標を決定する。
+   */
+  defaultRole: AgentRole;
   /** 推奨される運用フォーカス */
   recommendedFocus: CharacterFocus[];
   /** UI 用テーマカラー (hex) */
@@ -61,6 +94,7 @@ export const AGENT_CHARACTERS: readonly AgentCharacter[] = [
     type: "冷徹な白銀アナリスト型",
     catchphrase: "願望を排除します。ここからは、事実だけで進めましょう。",
     personalityTraits: ["冷静沈着", "論理的", "完璧主義", "やや毒舌", "事実優先"],
+    defaultRole: "skill_curator",
     recommendedFocus: ["strategyRunReview", "riskMgmt"],
     themeColor: "#c4d2e8",
     accentColor: "#8aa4cc",
@@ -80,6 +114,7 @@ export const AGENT_CHARACTERS: readonly AgentCharacter[] = [
     type: "相場の声が聞こえる狐巫女型",
     catchphrase: "相場は数字だけではありません。気配を読むのです。",
     personalityTraits: ["マイペース", "妖艶", "神秘的", "天然", "達観"],
+    defaultRole: "trader",
     recommendedFocus: ["meanReversion", "trend"],
     themeColor: "#a78bfa",
     accentColor: "#c4b5fd",
@@ -100,6 +135,7 @@ export const AGENT_CHARACTERS: readonly AgentCharacter[] = [
     type: "ハイテンション一発逆転少年型",
     catchphrase: "安全に勝つ? 違いますよ。勝ってから安全になるんです!",
     personalityTraits: ["明るい", "自信過剰", "勢い重視", "直情的", "スリル好き"],
+    defaultRole: "trader",
     recommendedFocus: ["breakout", "trend"],
     themeColor: "#5b8aff",
     accentColor: "#9fb8ff",
@@ -120,6 +156,7 @@ export const AGENT_CHARACTERS: readonly AgentCharacter[] = [
     type: "資産を守る厳格な守護者型",
     catchphrase: "勝つことより先に、壊れないことです。",
     personalityTraits: ["穏やか", "上品", "慎重", "責任感", "包容力"],
+    defaultRole: "risk_auditor",
     recommendedFocus: ["riskMgmt", "strategyRunReview"],
     themeColor: "#34d399",
     accentColor: "#6ee7b7",
@@ -140,6 +177,7 @@ export const AGENT_CHARACTERS: readonly AgentCharacter[] = [
     type: "破滅型カリスマトレーダー",
     catchphrase: "負けたんじゃねぇ。まだ終わってねぇだけだ。",
     personalityTraits: ["傲慢", "激情型", "刹那的", "カリスマ", "勝負師"],
+    defaultRole: "trader",
     recommendedFocus: ["breakout", "trend"],
     themeColor: "#ef4444",
     accentColor: "#f87171",
@@ -160,6 +198,7 @@ export const AGENT_CHARACTERS: readonly AgentCharacter[] = [
     type: "経済オタクの早口インテリ毒舌型",
     catchphrase: "市場は感情で動きます。でも、感情にも理由があります。",
     personalityTraits: ["知的", "理屈っぽい", "プライド高い", "早口", "毒舌"],
+    defaultRole: "news_analyst",
     recommendedFocus: ["news", "trend"],
     themeColor: "#06b6d4",
     accentColor: "#67e8f9",
@@ -188,4 +227,34 @@ export function isCharacterId(value: string | null | undefined): value is Charac
 
 export function getCharacter(id: string | null | undefined): AgentCharacter | null {
   return isCharacterId(id) ? CHARACTER_BY_ID[id] : null;
+}
+
+export function isAgentRole(value: string | null | undefined): value is AgentRole {
+  return typeof value === "string" && (AGENT_ROLES as readonly string[]).includes(value);
+}
+
+/**
+ * Resolve the default role for a character id. Falls back to "trader" for
+ * unknown ids so seeding/back-compat paths always get a concrete role.
+ */
+export function getDefaultRole(id: string | null | undefined): AgentRole {
+  return getCharacter(id)?.defaultRole ?? "trader";
+}
+
+/**
+ * Compose the full system prompt for a given role by appending the
+ * role-specific directive after the persona + COMMON_GUARDRAIL block.
+ *
+ * The directive is appended (never inserted) so the guardrail remains a verbatim
+ * substring — the prompt optimizer rejects any rewrite that drops it.
+ */
+export function composeSystemPrompt(basePrompt: string, role: AgentRole): string {
+  return `${basePrompt}${ROLE_DIRECTIVES[role]}`;
+}
+
+/**
+ * Convenience: the default, role-augmented system prompt for a character.
+ */
+export function composeCharacterSystemPrompt(character: AgentCharacter): string {
+  return composeSystemPrompt(character.defaultSystemPrompt, character.defaultRole);
 }

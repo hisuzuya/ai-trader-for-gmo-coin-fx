@@ -475,6 +475,7 @@ function agentRunInput() {
       costBudgetPerRunUsd: 5,
       sharedMemoryEnabled: true,
       characterId: null,
+      role: "trader" as const,
       initialBalanceJpy: 100000,
     },
     runEnvelope: "No active candidates.",

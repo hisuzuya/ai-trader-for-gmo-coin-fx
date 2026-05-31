@@ -92,6 +92,13 @@
       "when": 1780100000000,
       "tag": "0012_agent_prompt_optimizations",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780200000000,
+      "tag": "0013_agent_role",
+      "breakpoints": true
     }
   ]
 }

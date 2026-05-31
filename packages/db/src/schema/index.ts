@@ -228,6 +228,7 @@ export const aiAgents = pgTable(
     pausedReason: text("paused_reason"),
     sharedMemoryEnabled: boolean("shared_memory_enabled").notNull().default(false),
     characterId: text("character_id"),
+    role: text("role").notNull().default("trader"),
     initialBalanceJpy: numeric("initial_balance_jpy", { precision: 18, scale: 6 })
       .notNull()
       .default("100000"),
