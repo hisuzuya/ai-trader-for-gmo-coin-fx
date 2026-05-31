@@ -1,7 +1,11 @@
 import type {
   AiDailyReviewResponse,
+  AiPromptOptimizationResponse,
+  AiSkillCurationResponse,
   AiStrategyProposalResponse,
   DailyReviewInput,
+  PromptOptimizationInput,
+  SkillCurationInput,
   StrategyProposalInput,
 } from "@ai-trade/domain/ai-tuning";
 import { BASELINE_STRATEGIES } from "@ai-trade/domain/strategies";
@@ -145,6 +149,106 @@ describe("ai-runner Hono app", () => {
     expect(provider.generateDailyReview).toHaveBeenCalledWith(input);
   });
 
+  it("generates a prompt optimization through the provider", async () => {
+    const provider = fakeProvider(undefined, undefined, {
+      invocation: {
+        id: "optimization-invocation-1",
+        provider: "claude_cli",
+        status: "succeeded",
+        promptHash: "hash",
+        promptRedacted: "{}",
+        timeoutMs: 180000,
+        startedAt: "2026-05-24T00:00:00.000Z",
+        finishedAt: "2026-05-24T00:00:01.000Z",
+      },
+      optimization: {
+        optimized_system_prompt: `改善されたシステムプロンプト。${GUARDRAIL}`,
+        reasoning: "実現損益が伸び悩んでいるため、損切り基準を明確化しました。",
+        key_changes: ["損切り条件を明示", "勝ちパターンの再現性を強調"],
+        expected_focus: "実現損益の安定化",
+      },
+    });
+    const input = promptOptimizationInput();
+
+    const response = await createAiRunnerApp(provider).request("/prompt-optimizations", {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.optimization.optimized_system_prompt).toContain(GUARDRAIL);
+    expect(provider.generatePromptOptimization).toHaveBeenCalledWith(input);
+  });
+
+  it("rejects a prompt optimization request missing the required guardrail field", async () => {
+    const provider = fakeProvider();
+    const { requiredGuardrail: _omitted, ...invalid } = promptOptimizationInput();
+
+    const response = await createAiRunnerApp(provider).request("/prompt-optimizations", {
+      method: "POST",
+      body: JSON.stringify(invalid),
+      headers: { "content-type": "application/json" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(provider.generatePromptOptimization).not.toHaveBeenCalled();
+  });
+
+  it("generates a skill curation through the provider", async () => {
+    const provider = fakeProvider(undefined, undefined, undefined, {
+      invocation: {
+        id: "curation-invocation-1",
+        provider: "claude_cli",
+        status: "succeeded",
+        promptHash: "hash",
+        promptRedacted: "{}",
+        timeoutMs: 180000,
+        startedAt: "2026-05-24T00:00:00.000Z",
+        finishedAt: "2026-05-24T00:00:01.000Z",
+      },
+      curation: {
+        decisions: [
+          {
+            action: "promote",
+            skill_id: "11111111-1111-4111-8111-111111111111",
+            reason: "複数エージェントで再利用できる実績があるため共有資産に昇格する。",
+            confidence: "high",
+          },
+        ],
+        reasoning: "再利用性の高いスキルを共有し、知識ベースの健全性を保つ。",
+      },
+    });
+    const input = skillCurationInput();
+
+    const response = await createAiRunnerApp(provider).request("/skill-curations", {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.curation.decisions[0].action).toBe("promote");
+    expect(provider.generateSkillCuration).toHaveBeenCalledWith(input);
+  });
+
+  it("rejects malformed skill curation requests", async () => {
+    const provider = fakeProvider();
+
+    const response = await createAiRunnerApp(provider).request("/skill-curations", {
+      method: "POST",
+      body: JSON.stringify({ curatorAgentName: "Ceres" }),
+      headers: { "content-type": "application/json" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(provider.generateSkillCuration).not.toHaveBeenCalled();
+  });
+
   it("runs an agent through the internal agent runner endpoint", async () => {
     const provider = fakeProvider();
     const agentRunner = {
@@ -276,6 +380,8 @@ describe("ai-runner Hono app", () => {
 function fakeProvider(
   response?: AiStrategyProposalResponse,
   dailyReviewResponse?: AiDailyReviewResponse,
+  promptOptimizationResponse?: AiPromptOptimizationResponse,
+  skillCurationResponse?: AiSkillCurationResponse,
 ) {
   return {
     health: vi.fn().mockResolvedValue({
@@ -324,6 +430,36 @@ function fakeProvider(
         },
       },
     ),
+    generatePromptOptimization: vi.fn().mockResolvedValue(
+      promptOptimizationResponse ?? {
+        invocation: {
+          id: "optimization-invocation-disabled",
+          provider: "claude_cli",
+          status: "failed",
+          promptHash: "hash",
+          promptRedacted: "{}",
+          timeoutMs: 180000,
+          startedAt: "2026-05-24T00:00:00.000Z",
+          finishedAt: "2026-05-24T00:00:00.000Z",
+          errorSummary: "disabled",
+        },
+      },
+    ),
+    generateSkillCuration: vi.fn().mockResolvedValue(
+      skillCurationResponse ?? {
+        invocation: {
+          id: "curation-invocation-disabled",
+          provider: "claude_cli",
+          status: "failed",
+          promptHash: "hash",
+          promptRedacted: "{}",
+          timeoutMs: 180000,
+          startedAt: "2026-05-24T00:00:00.000Z",
+          finishedAt: "2026-05-24T00:00:00.000Z",
+          errorSummary: "disabled",
+        },
+      },
+    ),
   };
 }
 
@@ -355,6 +491,65 @@ function dailyReviewInput(): DailyReviewInput {
   };
 }
 
+const GUARDRAIL = "## 共通ガードレール\n- Risk Gate を緩和しない。Paper Order を直接実行しない。";
+
+function promptOptimizationInput(): PromptOptimizationInput {
+  return {
+    agentId: "c0000000-0000-4000-8000-000000000001",
+    agentName: "Ceres",
+    characterId: "ceres",
+    persona: "冷徹な白銀アナリスト",
+    currentVersion: 1,
+    currentSystemPrompt: `あなたはセレスです。事実に基づいて判断します。${GUARDRAIL}`,
+    requiredGuardrail: GUARDRAIL,
+    scorecard: {
+      agentId: "c0000000-0000-4000-8000-000000000001",
+      windowDays: 7,
+      proposalCount: 4,
+      acceptedProposalCount: 2,
+      acceptanceRate: 0.5,
+      adoptedStrategyCount: 1,
+      tradeCount: 6,
+      realizedPnlJpy: -250,
+      netAccountPnlJpy: -250,
+      score: 2250,
+    },
+    recentRejections: [
+      {
+        candidateStrategyName: "ceres-meanrev-1",
+        sourceStrategyName: "baseline-5m",
+        rejectReasons: [
+          { code: "parameter_out_of_range", path: "risk.maxDrawdownJpy", message: "範囲外" },
+        ],
+      },
+    ],
+    recentWinningProposals: [{ strategyName: "ceres-trend-2", realizedPnlJpy: 480 }],
+  };
+}
+
+function skillCurationInput(): SkillCurationInput {
+  return {
+    curatorAgentId: "c0000000-0000-4000-8000-000000000001",
+    curatorAgentName: "Ceres",
+    windowDays: 7,
+    candidates: [
+      {
+        skillId: "11111111-1111-4111-8111-111111111111",
+        agentId: "c0000000-0000-4000-8000-000000000002",
+        agentName: "Yura",
+        scope: "private",
+        status: "active",
+        title: "スプレッド拡大時のエントリー抑制",
+        tags: ["risk", "spread"],
+        reason: "複数回の検証で再現性が高かった。",
+        bodyPreview: "スプレッドが閾値を超えたらエントリーを見送る。",
+        createdAt: "2026-05-20T00:00:00.000Z",
+        ageDays: 11,
+      },
+    ],
+  };
+}
+
 function agentRunInput() {
   return {
     agent: {
@@ -373,6 +568,7 @@ function agentRunInput() {
       costBudgetPerRunUsd: 5,
       sharedMemoryEnabled: true,
       characterId: null,
+      role: "trader" as const,
       initialBalanceJpy: 100000,
     },
     runEnvelope: "No active candidates.",

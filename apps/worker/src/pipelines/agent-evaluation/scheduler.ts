@@ -62,6 +62,9 @@ export class AgentScheduler implements WorkerService {
 
   async start(): Promise<void> {
     await this.repository.seedResearchAgent();
+    // Auto-seed all 6 crew characters as active agents (idempotent) so the system
+    // explores with diversity instead of relying on a single manually created agent.
+    await this.repository.seedCrewAgents();
     this.state = "ready";
   }
 

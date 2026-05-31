@@ -24,8 +24,13 @@ import {
   type HistoricalImportResult,
   StubHistoricalImporter,
 } from "./pipelines/market-data/historical-importer.js";
+import type {
+  AgentPromptOptimizerService,
+  PromptOptimizerRunResult,
+} from "./services/agent-prompt-optimizer.js";
 import type { AiDailyReviewerService, DailyReviewRunResult } from "./services/ai-daily-reviewer.js";
 import type { AiTunerService, AiTuningRunResult } from "./services/ai-tuner.js";
+import type { SkillCuratorRunResult, SkillCuratorService } from "./services/skill-curator.js";
 import type { ServiceHealth, WorkerService, WorkerStatus } from "./types.js";
 
 export interface CandleReader {
@@ -181,6 +186,26 @@ export class WorkerRuntime {
     }
 
     return dailyReviewer.runOnce();
+  }
+
+  async runPromptOptimization(): Promise<PromptOptimizerRunResult> {
+    const optimizer = this.services.find(isAgentPromptOptimizerService);
+
+    if (!optimizer) {
+      throw new Error("Agent prompt optimizer service is not registered.");
+    }
+
+    return optimizer.runOnce();
+  }
+
+  async runSkillCuration(): Promise<SkillCuratorRunResult> {
+    const curator = this.services.find(isSkillCuratorService);
+
+    if (!curator) {
+      throw new Error("Skill curator service is not registered.");
+    }
+
+    return curator.runOnce();
   }
 
   async listAgents() {
@@ -1044,6 +1069,16 @@ function isAgentScheduler(service: WorkerService): service is AgentScheduler {
     "runOnce" in service &&
     "runAll" in service
   );
+}
+
+function isAgentPromptOptimizerService(
+  service: WorkerService,
+): service is AgentPromptOptimizerService {
+  return service.name === "agent-prompt-optimizer" && "runOnce" in service;
+}
+
+function isSkillCuratorService(service: WorkerService): service is SkillCuratorService {
+  return service.name === "skill-curator" && "runOnce" in service;
 }
 
 function firstStrategyProposalName(

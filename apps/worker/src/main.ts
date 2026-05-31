@@ -11,8 +11,10 @@ import {
   PaperTraderService,
 } from "./pipelines/paper-trading/paper-trader.js";
 import { WorkerRuntime } from "./runtime.js";
+import { AgentPromptOptimizerService } from "./services/agent-prompt-optimizer.js";
 import { AiDailyReviewerService } from "./services/ai-daily-reviewer.js";
 import { AiTunerService } from "./services/ai-tuner.js";
+import { SkillCuratorService } from "./services/skill-curator.js";
 
 const runtime = new WorkerRuntime(
   [
@@ -21,6 +23,8 @@ const runtime = new WorkerRuntime(
     new AiTunerService(),
     new AiDailyReviewerService(),
     new AgentScheduler(),
+    new AgentPromptOptimizerService(),
+    new SkillCuratorService(),
   ],
   new GmoHistoricalImporter(),
 );

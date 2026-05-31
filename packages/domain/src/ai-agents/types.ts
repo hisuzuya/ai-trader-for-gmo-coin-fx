@@ -1,6 +1,6 @@
 import type { RejectReason } from "../ai-tuning/types";
 import type { StrategyDefinition } from "../strategies/types";
-import type { CharacterId } from "./characters";
+import type { AgentRole, CharacterId } from "./characters";
 
 export const AGENT_RESEARCH_TOOL_NAMES = [
   "get_context_snapshot",
@@ -89,6 +89,11 @@ export type AgentDefinition = {
   pausedReason?: string;
   sharedMemoryEnabled: boolean;
   characterId: CharacterId | null;
+  /**
+   * Operational role driving the agent's primary output and how it is scored.
+   * Defaults to "trader" for the research agent and any legacy rows.
+   */
+  role: AgentRole;
   initialBalanceJpy: number;
 };
 

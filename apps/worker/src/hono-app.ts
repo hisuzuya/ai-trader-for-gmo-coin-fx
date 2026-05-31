@@ -469,6 +469,50 @@ export function createWorkerApp(runtime: WorkerRuntime) {
     }
   });
 
+  app.post("/jobs/prompt-optimization", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
+    try {
+      const result = await runtime.runPromptOptimization();
+      return c.json({
+        ok: result.enabled,
+        result,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Prompt optimization failed.",
+        },
+        500,
+      );
+    }
+  });
+
+  app.post("/jobs/skill-curation", async (c) => {
+    if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
+      return c.json({ ok: false, error: "Unauthorized." }, 401);
+    }
+
+    try {
+      const result = await runtime.runSkillCuration();
+      return c.json({
+        ok: result.enabled,
+        result,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : "Skill curation failed.",
+        },
+        500,
+      );
+    }
+  });
+
   app.post("/paper-decisions", async (c) => {
     if (!isAuthorizedInternalRequest(c.req.header("authorization"))) {
       return c.json({ ok: false, error: "Unauthorized." }, 401);
