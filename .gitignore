@@ -2,6 +2,7 @@
 .claude-screenshots/
 .env
 .env.*
+.infisical-bootstrap.env
 node_modules/
 .pnpm-store/
 .next/

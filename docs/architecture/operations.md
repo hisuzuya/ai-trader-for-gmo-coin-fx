@@ -325,7 +325,7 @@ VM初期セットアップのおすすめ手順:
 3. Claude CLI credential用secret directoryを作成する。
 4. backup directoryを作成する。
 5. repositoryを配置する。
-6. .env.production を配置する。
+6. Infisical bootstrap file (.infisical-bootstrap.env) を配置する（.env.production はdeploy時にInfisicalから自動生成される。詳細はSecrets参照）。
 7. docker compose -f docker/compose.yml pull/buildを実行する。
 8. migrationを適用する。
 9. workerの/readyを確認する。
@@ -393,6 +393,15 @@ ai-runner container:
 - 可能な限りread-only mountにする。
 
 GMO API keyなど将来のlive trading用secretも、同じくworker専用secretとして扱う。初期実装ではlive tradingを無効化するため、GMO Private API secretは必須にしない。
+
+#### 環境変数 (.env.production) — Infisical 管理
+
+本番の環境変数は Infisical (self-hosted: secrets.rayven.cloud) の project `ai-trade` / environment `prod` を single source of truth とする。
+
+- hostにはread-only machine identityのbootstrap fileを `/opt/ai-trade/.infisical-bootstrap.env` (root:root, mode 600) に置く。内容は `INFISICAL_API_URL` / `INFISICAL_PROJECT_ID` / `INFISICAL_CLIENT_ID` / `INFISICAL_CLIENT_SECRET` の4項目のみ。
+- `deploy/production-deploy.sh` はdeployのたびにuniversal-authでログインし `.env.production` をInfisicalから再生成する。auth/fetch/検証のいずれかが失敗した場合は既存の `.env.production` をそのまま保持するfail-safe設計（Infisical障害でdeployが止まらない）。検証は「secret数 >= 10」かつ必須キー (`DATABASE_URL` / `WORKER_INTERNAL_TOKEN` / `ANTHROPIC_AUTH_TOKEN` / `WORKER_PORT`) の存在を確認する。内容に変化が無ければ書き換えない。
+- secretを変更する手順: Infisicalの `ai-trade/prod` で値を編集 → 再deploy（または host で `production-deploy.sh` 内の再生成のみ手動実行）。host の `.env.production` を直接編集しない（次のdeployで上書きされる）。
+- bootstrap fileとmachine identityはgit管理しない。`.infisical-bootstrap.env` は `.gitignore` 済み。machine identityを再発行する場合はInfisical orgのIdentityを作り直し、ai-trade projectに `viewer` (read-only) で追加してbootstrap fileを更新する。
 
 ## 未決事項
 
