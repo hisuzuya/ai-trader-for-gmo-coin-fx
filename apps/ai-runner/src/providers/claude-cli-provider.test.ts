@@ -28,6 +28,26 @@ describe("ClaudeCliProvider", () => {
     }
   });
 
+  it("classifies a timed-out invocation as a timeout error", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "claude-timeout-"));
+    const executable = join(dir, "claude-slow");
+
+    try {
+      await writeFile(executable, "#!/usr/bin/env bash\nsleep 5\nprintf '{\"ok\":true}'\n");
+      await chmod(executable, 0o755);
+
+      const provider = new ClaudeCliProvider({ enabled: true, executable, timeoutMs: 200 });
+      const result = await provider.invoke({ prompt: "Return JSON only." });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toMatch(/timed out/i);
+      }
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
+  });
+
   it("passes Claude Code MCP config when MCP is enabled", async () => {
     const dir = await mkdtemp(join(tmpdir(), "claude-mcp-args-"));
     const executable = join(dir, "claude-mcp-args");

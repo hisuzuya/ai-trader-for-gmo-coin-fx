@@ -5,8 +5,8 @@ import { validateAiStrategyProposal } from "../../strategies/index";
 import { strategyDefinitionSchema } from "../../strategies/server/schema";
 import type { AgentRunOutput, AgentRunOutputValidationResult } from "../types";
 
-const textArraySchema = z.array(z.string().min(1).max(500)).max(20);
-const tagArraySchema = z.array(z.string().min(1).max(80)).max(20);
+const textArraySchema = z.array(z.string().min(1).max(500)).max(50);
+const tagArraySchema = z.array(z.string().min(1).max(80)).max(50);
 
 const observationSchema = z
   .object({
@@ -72,10 +72,10 @@ const skillWriteIntentSchema = z
 
 const agentRunOutputSchema = z
   .object({
-    observations: z.array(observationSchema).max(20),
+    observations: z.array(observationSchema).max(50),
     strategyProposals: z.array(strategyProposalSchema).max(5),
-    candidateReviews: z.array(candidateReviewSchema).max(20),
-    memoryWrites: z.array(memoryWriteSchema).max(20),
+    candidateReviews: z.array(candidateReviewSchema).max(50),
+    memoryWrites: z.array(memoryWriteSchema).max(50),
     skillWriteIntents: z.array(skillWriteIntentSchema).max(10).default([]),
   })
   .strict();
