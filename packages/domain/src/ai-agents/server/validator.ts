@@ -166,18 +166,36 @@ const parseAgentOutputJson = (
     return { ok: true, value: input };
   }
 
+  const stripped = stripJsonFence(input);
+  let lastError: unknown;
+
   try {
-    return { ok: true, value: JSON.parse(stripJsonFence(input)) };
+    return { ok: true, value: JSON.parse(stripped) };
   } catch (error) {
-    return {
-      ok: false,
-      reason: {
-        code: "invalid_json",
-        path: "$",
-        message: error instanceof Error ? error.message : "AI Agent output is not valid JSON",
-      },
-    };
+    lastError = error;
   }
+
+  // Salvage a JSON object embedded in surrounding prose. Some agents (especially the
+  // analysis-heavy roles) prepend a natural-language preamble before the AgentRunOutput
+  // object; slice from the first "{" to the last "}" and retry.
+  const firstBrace = stripped.indexOf("{");
+  const lastBrace = stripped.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    try {
+      return { ok: true, value: JSON.parse(stripped.slice(firstBrace, lastBrace + 1)) };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  return {
+    ok: false,
+    reason: {
+      code: "invalid_json",
+      path: "$",
+      message: lastError instanceof Error ? lastError.message : "AI Agent output is not valid JSON",
+    },
+  };
 };
 
 function stripJsonFence(input: string): string {
