@@ -174,10 +174,19 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
         timeoutMs,
       };
     } catch (error) {
+      // execFile kills with SIGTERM on `timeout`, surfacing a "Command failed" message with no
+      // "timed out" text — which the runner would otherwise misclassify as a generic failure.
+      // Detect the timeout shape explicitly so the run is recorded as a timeout.
+      const err = error as NodeJS.ErrnoException & { killed?: boolean; signal?: string };
+      const baseMessage = error instanceof Error ? error.message : String(error);
+      const timedOut =
+        err?.killed === true || err?.signal === "SIGTERM" || err?.code === "ETIMEDOUT";
       return {
         ok: false,
         provider: "claude_cli",
-        error: error instanceof Error ? error.message : String(error),
+        error: timedOut
+          ? `Claude CLI invocation timed out after ${timeoutMs}ms. ${baseMessage}`
+          : baseMessage,
         startedAt: startedAt.toISOString(),
         finishedAt: new Date().toISOString(),
         timeoutMs,

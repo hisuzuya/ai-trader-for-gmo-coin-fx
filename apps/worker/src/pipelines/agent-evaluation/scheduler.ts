@@ -155,12 +155,19 @@ export class AgentScheduler implements WorkerService {
     }
 
     const runEnvelope = this.runEnvelopeBuilder.build(agent);
+    // Research-heavy roles (risk auditor / news analyst / skill curator) perform many MCP tool
+    // hops and were hitting the 120s ceiling — killed mid-run with zero output. Give them more
+    // headroom while keeping traders snappy. Kept under undici's 300s fetch body timeout.
+    const isResearchHeavyRole =
+      agent.role === "risk_auditor" ||
+      agent.role === "news_analyst" ||
+      agent.role === "skill_curator";
     const request: AgentRunRequest = {
       agent,
       runEnvelope,
       version: agent.currentVersion,
       maxToolHops: 5,
-      timeoutMs: 120_000,
+      timeoutMs: isResearchHeavyRole ? 240_000 : 120_000,
       outputSizeLimitBytes: 128 * 1024,
     };
     const response = await this.callAgentRunner(request);
