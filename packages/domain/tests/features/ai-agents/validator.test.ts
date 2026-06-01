@@ -33,3 +33,22 @@ describe("validateAgentRunOutput array caps", () => {
     }
   });
 });
+
+describe("validateAgentRunOutput JSON salvage", () => {
+  it("salvages a JSON object wrapped in natural-language prose", () => {
+    const wrapped = `スナップショットを確認しました。\n${JSON.stringify(buildOutput(1))}\n以上が結果です。`;
+
+    const result = validateAgentRunOutput(wrapped);
+
+    expect(result.status).toBe("accepted");
+  });
+
+  it("rejects output that contains no JSON object", () => {
+    const result = validateAgentRunOutput("スナップショットを確認しましたが、出力はありません。");
+
+    expect(result.status).toBe("rejected");
+    if (result.status === "rejected") {
+      expect(result.reasons.some((reason) => reason.code === "invalid_json")).toBe(true);
+    }
+  });
+});
