@@ -625,13 +625,13 @@ function formatDateTime(value: string) {
     return value;
   }
 
-  return new Intl.DateTimeFormat("ja-JP", {
+  return `${new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date) + " JST";
+  }).format(date)} JST`;
 }
 
 function formatDateKey(value: string) {

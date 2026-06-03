@@ -553,9 +553,9 @@ function skillCurationInput(): SkillCurationInput {
 function agentRunInput() {
   return {
     agent: {
-      id: "11111111-1111-4111-8111-111111111111",
-      name: "Research Agent 01",
-      persona: "USD/JPY paper strategy researcher",
+      id: "c0000000-0000-4000-8000-000000000001",
+      name: "Ceres",
+      persona: "冷徹な白銀アナリスト",
       systemPrompt: "Observe only.",
       allowedTools: ["read_bars", "recall_memory"],
       status: "active" as const,

@@ -61,9 +61,8 @@ export class AgentScheduler implements WorkerService {
   ) {}
 
   async start(): Promise<void> {
-    await this.repository.seedResearchAgent();
-    // Auto-seed all 6 crew characters as active agents (idempotent) so the system
-    // explores with diversity instead of relying on a single manually created agent.
+    // Auto-seed the 6-character crew (idempotent) so the system explores with
+    // diversity instead of relying on manually created agents.
     await this.repository.seedCrewAgents();
     this.state = "ready";
   }
@@ -85,17 +84,14 @@ export class AgentScheduler implements WorkerService {
   }
 
   async listAgents(): Promise<AgentDefinition[]> {
-    await this.repository.seedResearchAgent();
     return this.repository.listAgents();
   }
 
   async listAgentSummaries() {
-    await this.repository.seedResearchAgent();
     return this.repository.listAgentSummaries();
   }
 
   async getAgentDetail(agentId: string) {
-    await this.repository.seedResearchAgent();
     return this.repository.getAgentDetail(agentId);
   }
 
@@ -105,12 +101,10 @@ export class AgentScheduler implements WorkerService {
     allowedTools: string[];
     note?: string;
   }): Promise<{ version: number }> {
-    await this.repository.seedResearchAgent();
     return this.repository.createVersion(input);
   }
 
   async createAgent(input: Parameters<AiAgentRepository["createAgent"]>[0]) {
-    await this.repository.seedResearchAgent();
     return this.repository.createAgent(input);
   }
 
@@ -119,27 +113,22 @@ export class AgentScheduler implements WorkerService {
   }
 
   async updateAgentSettings(input: Parameters<AiAgentRepository["updateAgentSettings"]>[0]) {
-    await this.repository.seedResearchAgent();
     return this.repository.updateAgentSettings(input);
   }
 
   async listProposals(filter: Parameters<AiAgentRepository["listProposalRecords"]>[0]) {
-    await this.repository.seedResearchAgent();
     return this.repository.listProposalRecords(filter);
   }
 
   async listRuns(filter: Parameters<AiAgentRepository["listRunRecords"]>[0]) {
-    await this.repository.seedResearchAgent();
     return this.repository.listRunRecords(filter);
   }
 
   async rollbackVersion(input: { agentId: string; sourceVersion: number; note?: string }) {
-    await this.repository.seedResearchAgent();
     return this.repository.createVersionFromVersion(input);
   }
 
   async deleteMemory(input: { agentId: string; memoryId: string }) {
-    await this.repository.seedResearchAgent();
     return this.repository.deleteMemory(input);
   }
 

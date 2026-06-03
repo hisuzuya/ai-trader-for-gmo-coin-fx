@@ -50,9 +50,6 @@ const SECRET_LIKE_PATTERN =
 const SECRET_LIKE_GLOBAL_PATTERN =
   /(sk-[A-Za-z0-9_-]{16,}|[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY)[A-Z0-9_]*\s*[:=]\s*["']?[^"',\s}]+)/g;
 
-export const RESEARCH_AGENT_SEED_ID = "11111111-1111-4111-8111-111111111111";
-export const RESEARCH_AGENT_1H_SEED_ID = "33333333-3333-4333-8333-333333333333";
-
 /**
  * Fixed UUIDs for the auto-seeded 6-character crew. Stable ids make
  * seedCrewAgents idempotent: a crew agent is only created if its id is absent.
@@ -618,13 +615,8 @@ export class AiAgentRepository {
     };
   }
 
-  async seedResearchAgent(): Promise<void> {
-    // The legacy Research Agent 01 / 1H seed has been retired. Agents are created
-    // through the character picker UI; nothing is auto-seeded here.
-  }
-
   /**
-   * Idempotently create all 6 crew characters as active agents, each with its own
+   * Idempotently create all 6 crew characters with their default status, each with its own
    * paper account. Guarded by the fixed crew UUIDs: an agent is only created when
    * its seed id is absent, so this is safe to call on every scheduler start.
    */
@@ -658,7 +650,7 @@ export class AiAgentRepository {
           persona: character.defaultPersona,
           systemPrompt,
           allowedTools,
-          status: "active",
+          status: character.defaultStatus,
           currentVersion: "1",
           runIntervalSec: String(character.defaultRunIntervalSec),
           model: character.defaultModel,
@@ -666,7 +658,10 @@ export class AiAgentRepository {
           consecutiveFailures: "0",
           tokenBudgetPerRun: "200000",
           costBudgetPerRunUsd: "5",
-          pausedReason: null,
+          pausedReason:
+            character.defaultStatus === "paused"
+              ? "Default crew cadence: run manually or by risk event."
+              : null,
           sharedMemoryEnabled: true,
           characterId: character.id,
           role: character.defaultRole,
@@ -1448,52 +1443,6 @@ export class AiAgentRepository {
   }
 }
 
-export const RESEARCH_AGENT_DEFAULT_BALANCE_JPY = "100000";
-
-export function toResearchAgentSeedRow() {
-  return {
-    id: RESEARCH_AGENT_SEED_ID,
-    name: "Research Agent 01",
-    persona: "USD/JPY paper strategy researcher",
-    systemPrompt: RESEARCH_AGENT_SYSTEM_PROMPT,
-    allowedTools: [...AGENT_RESEARCH_TOOL_NAMES],
-    status: "active" as const,
-    currentVersion: "1",
-    runIntervalSec: "3600",
-    model: "claude-sonnet-4-5",
-    maxConsecutiveFailures: "3",
-    consecutiveFailures: "0",
-    tokenBudgetPerRun: "200000",
-    costBudgetPerRunUsd: "5",
-    pausedReason: null,
-    sharedMemoryEnabled: true,
-    characterId: "ceres" satisfies CharacterId,
-    initialBalanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
-  };
-}
-
-export function toResearchAgent1hSeedRow() {
-  return {
-    id: RESEARCH_AGENT_1H_SEED_ID,
-    name: "Research Agent 1H",
-    persona: "USD/JPY 1h paper strategy researcher",
-    systemPrompt: RESEARCH_AGENT_1H_SYSTEM_PROMPT,
-    allowedTools: [...AGENT_RESEARCH_TOOL_NAMES],
-    status: "active" as const,
-    currentVersion: "1",
-    runIntervalSec: "14400",
-    model: "claude-sonnet-4-5",
-    maxConsecutiveFailures: "3",
-    consecutiveFailures: "0",
-    tokenBudgetPerRun: "200000",
-    costBudgetPerRunUsd: "5",
-    pausedReason: null,
-    sharedMemoryEnabled: true,
-    characterId: "iris" satisfies CharacterId,
-    initialBalanceJpy: RESEARCH_AGENT_DEFAULT_BALANCE_JPY,
-  };
-}
-
 export function toAgentRunInsertRow(input: AgentRunRecordInput) {
   return {
     id: input.id,
@@ -1802,17 +1751,3 @@ function redactUnknown(value: unknown): unknown {
 function redactSecretLikeText(input: string): string {
   return input.replace(SECRET_LIKE_GLOBAL_PATTERN, "[REDACTED]");
 }
-
-const RESEARCH_AGENT_SYSTEM_PROMPT = [
-  "あなたはUSD/JPYのPaper Trading戦略を研究するAI Agentです。",
-  "あなたはPaper Order、決済、Baseline Strategy昇格、Candidate Strategy停止を直接実行してはいけません。",
-  "あなたの役割は、市場状態、Candidate Strategy成績、過去の失敗理由、自分のmemoryを観察し、Strategy Definition候補、Candidate Review、Observation、Memory WriteをJSONで出力することです。",
-  "Strategy Definitionは許可済みDSLだけを使い、Risk Gateを緩和してはいけません。",
-].join("\n");
-
-const RESEARCH_AGENT_1H_SYSTEM_PROMPT = [
-  "あなたはUSD/JPYの1h timeframeに特化したPaper Trading戦略を研究するAI Agentです。",
-  "あなたはPaper Order、決済、Baseline Strategy昇格、Candidate Strategy停止を直接実行してはいけません。",
-  "あなたの役割は、1h Canonical Candleの市場状態、Candidate Strategy成績、過去の失敗理由、shared memoryを観察し、Strategy Definition候補、Candidate Review、Observation、Memory WriteをJSONで出力することです。",
-  "Strategy Definitionは許可済みDSLだけを使い、Risk Gateを緩和してはいけません。",
-].join("\n");

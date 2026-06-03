@@ -6,6 +6,7 @@ import {
   aiDailyReviews,
   aiTuningProposals,
   CandleRepository,
+  CREW_AGENT_SEED_IDS,
   checkDbConnection,
   DbJobRunRecorder,
   db,
@@ -17,7 +18,7 @@ import {
   runRecordedJob,
   strategyRuns,
 } from "@ai-trade/db";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { AgentScheduler } from "./pipelines/agent-evaluation/scheduler.js";
 import {
   type HistoricalImporter,
@@ -493,14 +494,19 @@ export class WorkerRuntime {
     });
 
     // -- Per-agent briefings (latest thinking + today PnL + daily FB) ---------
-    const agentRows = await db
+    const crewAgentIds = Object.values(CREW_AGENT_SEED_IDS);
+    const agentRowsRaw = await db
       .select({
         id: aiAgents.id,
         name: aiAgents.name,
         status: aiAgents.status,
         characterId: aiAgents.characterId,
       })
-      .from(aiAgents);
+      .from(aiAgents)
+      .where(inArray(aiAgents.id, crewAgentIds));
+    const agentRows = crewAgentIds.flatMap(
+      (id) => agentRowsRaw.find((agent) => agent.id === id) ?? [],
+    );
 
     const todayJst = sql<string>`to_char(now() AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD')`;
     const latestReviewSummary = dailyReviews[0]?.summary ?? null;
