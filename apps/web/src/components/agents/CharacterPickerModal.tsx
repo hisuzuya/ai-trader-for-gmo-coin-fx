@@ -87,6 +87,9 @@ export function CharacterPickerModal({
                   <small className="ml-1.5 font-normal text-muted">{character.name}</small>
                 </span>
                 <span className="wizard-card-tag">{character.type}</span>
+                <span className={`role-pill role-${character.defaultRole}`}>
+                  {formatRoleLabel(character.defaultRole)}
+                </span>
                 <span className="wizard-card-tag text-text italic">“{character.catchphrase}”</span>
                 <div className="flex flex-wrap gap-1">
                   {character.recommendedFocus.map((focus) => (
@@ -126,6 +129,9 @@ export function CharacterPickerModal({
                   <small className="ml-2 text-[13px] font-normal text-muted">{selected.name}</small>
                 </h2>
                 <p className="text-xs text-muted">{selected.type}</p>
+                <span className={`role-pill role-${selected.defaultRole}`}>
+                  {formatRoleLabel(selected.defaultRole)}
+                </span>
                 <p className="mt-1 text-xs text-text italic">“{selected.catchphrase}”</p>
               </div>
               <button
@@ -280,4 +286,11 @@ export function CharacterPickerModal({
       </dialog>
     </>
   );
+}
+
+function formatRoleLabel(role: AgentCharacter["defaultRole"]): string {
+  if (role === "skill_curator") return "Skill Curator";
+  if (role === "risk_auditor") return "Risk Auditor";
+  if (role === "news_analyst") return "News Analyst";
+  return "Trader";
 }

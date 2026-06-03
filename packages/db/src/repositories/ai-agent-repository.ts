@@ -210,6 +210,11 @@ export type AgentSummary = AgentDefinition & {
   proposalCount: number;
   acceptedProposalCount: number;
   rejectedProposalCount: number;
+  observationCount: number;
+  candidateReviewCount: number;
+  appliedCandidateReviewCount: number;
+  skillCurationCount: number;
+  appliedSkillCurationCount: number;
   succeededRunCount: number;
   failedRunCount: number;
   paperAccount: AgentPaperAccountSummary | null;
@@ -350,36 +355,56 @@ export class AiAgentRepository {
           .where(eq(aiAgentRuns.agentId, agent.id))
           .orderBy(desc(aiAgentRuns.startedAt))
           .limit(1);
-        const [proposalRows, runRows, paperAccountRows, openPositionRows, tradeRows] =
-          await Promise.all([
-            this.database
-              .select({ validationStatus: aiAgentStrategyProposals.validationStatus })
-              .from(aiAgentStrategyProposals)
-              .where(eq(aiAgentStrategyProposals.agentId, agent.id)),
-            this.database
-              .select({ status: aiAgentRuns.status })
-              .from(aiAgentRuns)
-              .where(eq(aiAgentRuns.agentId, agent.id)),
-            this.database
-              .select({
-                id: paperAccounts.id,
-                balanceJpy: paperAccounts.balanceJpy,
-                initialBalanceJpy: paperAccounts.initialBalanceJpy,
-              })
-              .from(paperAccounts)
-              .where(eq(paperAccounts.agentId, agent.id))
-              .limit(1),
-            this.database
-              .select({ id: paperPositions.id })
-              .from(paperPositions)
-              .innerJoin(paperAccounts, eq(paperAccounts.id, paperPositions.accountId))
-              .where(and(eq(paperAccounts.agentId, agent.id), eq(paperPositions.status, "open"))),
-            this.database
-              .select({ pnlJpy: paperTrades.pnlJpy })
-              .from(paperTrades)
-              .innerJoin(paperAccounts, eq(paperAccounts.id, paperTrades.accountId))
-              .where(eq(paperAccounts.agentId, agent.id)),
-          ]);
+        const [
+          proposalRows,
+          observationRows,
+          candidateReviewRows,
+          skillCurationRows,
+          runRows,
+          paperAccountRows,
+          openPositionRows,
+          tradeRows,
+        ] = await Promise.all([
+          this.database
+            .select({ validationStatus: aiAgentStrategyProposals.validationStatus })
+            .from(aiAgentStrategyProposals)
+            .where(eq(aiAgentStrategyProposals.agentId, agent.id)),
+          this.database
+            .select({ id: aiAgentObservations.id })
+            .from(aiAgentObservations)
+            .where(eq(aiAgentObservations.agentId, agent.id)),
+          this.database
+            .select({ applied: aiAgentCandidateReviews.applied })
+            .from(aiAgentCandidateReviews)
+            .where(eq(aiAgentCandidateReviews.agentId, agent.id)),
+          this.database
+            .select({ status: aiAgentSkillCurations.status })
+            .from(aiAgentSkillCurations)
+            .where(eq(aiAgentSkillCurations.curatorAgentId, agent.id)),
+          this.database
+            .select({ status: aiAgentRuns.status })
+            .from(aiAgentRuns)
+            .where(eq(aiAgentRuns.agentId, agent.id)),
+          this.database
+            .select({
+              id: paperAccounts.id,
+              balanceJpy: paperAccounts.balanceJpy,
+              initialBalanceJpy: paperAccounts.initialBalanceJpy,
+            })
+            .from(paperAccounts)
+            .where(eq(paperAccounts.agentId, agent.id))
+            .limit(1),
+          this.database
+            .select({ id: paperPositions.id })
+            .from(paperPositions)
+            .innerJoin(paperAccounts, eq(paperAccounts.id, paperPositions.accountId))
+            .where(and(eq(paperAccounts.agentId, agent.id), eq(paperPositions.status, "open"))),
+          this.database
+            .select({ pnlJpy: paperTrades.pnlJpy })
+            .from(paperTrades)
+            .innerJoin(paperAccounts, eq(paperAccounts.id, paperTrades.accountId))
+            .where(eq(paperAccounts.agentId, agent.id)),
+        ]);
 
         const accountRow = paperAccountRows[0];
         const paperAccount: AgentPaperAccountSummary | null = accountRow
@@ -415,6 +440,14 @@ export class AiAgentRepository {
           ).length,
           rejectedProposalCount: proposalRows.filter(
             (proposal) => proposal.validationStatus === "rejected",
+          ).length,
+          observationCount: observationRows.length,
+          candidateReviewCount: candidateReviewRows.length,
+          appliedCandidateReviewCount: candidateReviewRows.filter((review) => review.applied)
+            .length,
+          skillCurationCount: skillCurationRows.length,
+          appliedSkillCurationCount: skillCurationRows.filter(
+            (curation) => curation.status === "applied",
           ).length,
           succeededRunCount: runRows.filter((run) => run.status === "succeeded").length,
           failedRunCount: runRows.filter((run) => run.status !== "succeeded").length,
