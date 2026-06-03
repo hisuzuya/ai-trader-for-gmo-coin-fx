@@ -1487,7 +1487,7 @@
 
 .crew-tile-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
@@ -1496,6 +1496,54 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--text-strong);
+}
+
+.crew-tile-badges {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  max-width: 140px;
+}
+
+.role-pill {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--character-color, var(--accent)) 35%, var(--line));
+  background: color-mix(in srgb, var(--character-color, var(--accent)) 12%, var(--surface));
+  color: color-mix(in srgb, var(--character-color, var(--accent)) 72%, var(--text-strong));
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 5px 7px;
+  white-space: nowrap;
+}
+
+.role-pill.role-trader {
+  border-color: color-mix(in srgb, #f59e0b 35%, var(--line));
+  background: color-mix(in srgb, #f59e0b 12%, var(--surface));
+  color: color-mix(in srgb, #f59e0b 72%, var(--text-strong));
+}
+
+.role-pill.role-risk_auditor {
+  border-color: color-mix(in srgb, #10b981 35%, var(--line));
+  background: color-mix(in srgb, #10b981 12%, var(--surface));
+  color: color-mix(in srgb, #10b981 72%, var(--text-strong));
+}
+
+.role-pill.role-news_analyst {
+  border-color: color-mix(in srgb, #06b6d4 35%, var(--line));
+  background: color-mix(in srgb, #06b6d4 12%, var(--surface));
+  color: color-mix(in srgb, #06b6d4 72%, var(--text-strong));
+}
+
+.role-pill.role-skill_curator {
+  border-color: color-mix(in srgb, #8aa4cc 35%, var(--line));
+  background: color-mix(in srgb, #8aa4cc 12%, var(--surface));
+  color: color-mix(in srgb, #8aa4cc 72%, var(--text-strong));
 }
 
 .crew-tile-tagline {
