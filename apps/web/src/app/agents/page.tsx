@@ -1,4 +1,8 @@
-import { getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import {
+  AGENT_CHARACTERS,
+  type AgentRole,
+  getCharacter,
+} from "@ai-trade/domain/ai-agents/characters";
 import Link from "next/link";
 import { CharacterPickerModal } from "@/components/agents/CharacterPickerModal";
 import { type CrewAgentSummary, CrewTile } from "@/components/agents/CrewTile";
@@ -10,6 +14,7 @@ type AgentSummary = {
   id: string;
   name: string;
   persona: string;
+  role: AgentRole;
   status: "active" | "paused";
   currentVersion: number;
   runIntervalSec: number;
@@ -30,6 +35,11 @@ type AgentSummary = {
   proposalCount: number;
   acceptedProposalCount: number;
   rejectedProposalCount: number;
+  observationCount: number;
+  candidateReviewCount: number;
+  appliedCandidateReviewCount: number;
+  skillCurationCount: number;
+  appliedSkillCurationCount: number;
   succeededRunCount: number;
   failedRunCount: number;
   paperAccount: {
@@ -79,6 +89,9 @@ export default async function AgentsPage({ searchParams }: PageProps) {
 
   const unassignedAgents = filtered.filter((agent) => !getCharacter(agent.characterId));
   const assignedAgents = filtered.filter((agent) => getCharacter(agent.characterId));
+  const assignedByCharacter = new Map(
+    assignedAgents.map((agent) => [getCharacter(agent.characterId)?.id, agent] as const),
+  );
   const characterCounts = agents.reduce<Record<string, number>>((acc, agent) => {
     const character = getCharacter(agent.characterId);
     if (!character) return acc;
@@ -118,39 +131,43 @@ export default async function AgentsPage({ searchParams }: PageProps) {
         </div>
       </header>
 
-      {/* 上段: 既存のエージェント */}
+      {/* 上段: seeded crew slots */}
       <section className="panel">
         <div className="panel-title">
-          <h2>編成済みエージェント ({assignedAgents.length})</h2>
+          <h2>
+            6人クルー ({assignedAgents.length}/{AGENT_CHARACTERS.length})
+          </h2>
+          <span className="page-kicker">Seeded crew roster</span>
         </div>
-        {assignedAgents.length === 0 ? (
-          <p className="text-muted">
-            まだエージェントがいません。下のキャラクターから 1 体選んで編成してください。
-          </p>
-        ) : (
-          <div className="crew-grid">
-            {assignedAgents.map((agent) => {
-              const character = getCharacter(agent.characterId);
-              if (!character) return null;
-              const summary: CrewAgentSummary = {
-                id: agent.id,
-                name: agent.name,
-                status: agent.status,
-                currentVersion: agent.currentVersion,
-                acceptedProposalCount: agent.acceptedProposalCount,
-                proposalCount: agent.proposalCount,
-                succeededRunCount: agent.succeededRunCount,
-                failedRunCount: agent.failedRunCount,
-                latestRunStatus: agent.latestRun?.status ?? null,
-                balanceJpy: agent.paperAccount?.balanceJpy ?? null,
-                initialBalanceJpy: agent.paperAccount?.initialBalanceJpy ?? null,
-                pnlJpy: agent.paperAccount?.pnlJpy ?? null,
-                openPositionCount: agent.paperAccount?.openPositionCount ?? null,
-              };
-              return <CrewTile key={agent.id} character={character} agent={summary} />;
-            })}
-          </div>
-        )}
+        <div className="crew-grid">
+          {AGENT_CHARACTERS.map((character) => {
+            const agent = assignedByCharacter.get(character.id) ?? null;
+            const summary: CrewAgentSummary | null = agent
+              ? {
+                  id: agent.id,
+                  name: agent.name,
+                  role: agent.role,
+                  status: agent.status,
+                  currentVersion: agent.currentVersion,
+                  acceptedProposalCount: agent.acceptedProposalCount,
+                  proposalCount: agent.proposalCount,
+                  observationCount: agent.observationCount,
+                  candidateReviewCount: agent.candidateReviewCount,
+                  appliedCandidateReviewCount: agent.appliedCandidateReviewCount,
+                  skillCurationCount: agent.skillCurationCount,
+                  appliedSkillCurationCount: agent.appliedSkillCurationCount,
+                  succeededRunCount: agent.succeededRunCount,
+                  failedRunCount: agent.failedRunCount,
+                  latestRunStatus: agent.latestRun?.status ?? null,
+                  balanceJpy: agent.paperAccount?.balanceJpy ?? null,
+                  initialBalanceJpy: agent.paperAccount?.initialBalanceJpy ?? null,
+                  pnlJpy: agent.paperAccount?.pnlJpy ?? null,
+                  openPositionCount: agent.paperAccount?.openPositionCount ?? null,
+                }
+              : null;
+            return <CrewTile key={character.id} character={character} agent={summary} />;
+          })}
+        </div>
       </section>
 
       {/* キャラ未設定のエージェント (旧データ向け) */}

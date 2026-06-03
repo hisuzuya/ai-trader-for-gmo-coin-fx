@@ -1,4 +1,8 @@
-import { AGENT_CHARACTERS, getCharacter } from "@ai-trade/domain/ai-agents/characters";
+import {
+  AGENT_CHARACTERS,
+  type AgentRole,
+  getCharacter,
+} from "@ai-trade/domain/ai-agents/characters";
 import Link from "next/link";
 
 import { type CrewAgentSummary, CrewTile } from "./CrewTile";
@@ -6,11 +10,17 @@ import { type CrewAgentSummary, CrewTile } from "./CrewTile";
 export type AgentSummaryRaw = {
   id: string;
   name: string;
+  role: AgentRole;
   status: "active" | "paused";
   currentVersion: number;
   characterId?: string | null;
   proposalCount: number;
   acceptedProposalCount: number;
+  observationCount: number;
+  candidateReviewCount: number;
+  appliedCandidateReviewCount: number;
+  skillCurationCount: number;
+  appliedSkillCurationCount: number;
   succeededRunCount: number;
   failedRunCount: number;
   latestRun: { status: string } | null;
@@ -85,10 +95,16 @@ export async function CrewPanelSection({
               ? {
                   id: agent.id,
                   name: agent.name,
+                  role: agent.role,
                   status: agent.status,
                   currentVersion: agent.currentVersion,
                   acceptedProposalCount: agent.acceptedProposalCount,
                   proposalCount: agent.proposalCount,
+                  observationCount: agent.observationCount,
+                  candidateReviewCount: agent.candidateReviewCount,
+                  appliedCandidateReviewCount: agent.appliedCandidateReviewCount,
+                  skillCurationCount: agent.skillCurationCount,
+                  appliedSkillCurationCount: agent.appliedSkillCurationCount,
                   succeededRunCount: agent.succeededRunCount,
                   failedRunCount: agent.failedRunCount,
                   latestRunStatus: agent.latestRun?.status ?? null,

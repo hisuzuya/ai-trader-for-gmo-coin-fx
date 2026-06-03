@@ -631,7 +631,7 @@ function formatDateTime(value: string) {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).format(date) + " JST";
 }
 
 function formatDateKey(value: string) {

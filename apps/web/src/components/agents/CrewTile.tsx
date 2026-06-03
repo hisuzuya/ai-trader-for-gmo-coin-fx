@@ -1,14 +1,20 @@
-import type { AgentCharacter } from "@ai-trade/domain/ai-agents/characters";
+import type { AgentCharacter, AgentRole } from "@ai-trade/domain/ai-agents/characters";
 import Image from "next/image";
 import Link from "next/link";
 
 export type CrewAgentSummary = {
   id: string;
   name: string;
+  role: AgentRole;
   status: "active" | "paused";
   currentVersion: number;
   acceptedProposalCount: number;
   proposalCount: number;
+  observationCount: number;
+  candidateReviewCount: number;
+  appliedCandidateReviewCount: number;
+  skillCurationCount: number;
+  appliedSkillCurationCount: number;
   succeededRunCount: number;
   failedRunCount: number;
   latestRunStatus: string | null;
@@ -34,6 +40,9 @@ export function CrewTile({
           ? "loss"
           : "neutral"
       : null;
+  const role = agent?.role ?? character.defaultRole;
+  const runTotal = (agent?.succeededRunCount ?? 0) + (agent?.failedRunCount ?? 0);
+  const roleKpis = buildRoleKpis({ agent, role, pnlTone });
 
   return (
     <Link
@@ -59,35 +68,28 @@ export function CrewTile({
             {character.nameJa}
             <small className="ml-1.5 font-normal text-muted">{character.name}</small>
           </span>
-          {agent ? (
-            <span className={`status-pill ${agent.status}`}>{agent.status}</span>
-          ) : (
-            <span className="status-pill unassigned">unassigned</span>
-          )}
+          <span className="crew-tile-badges">
+            <span className={`role-pill role-${role}`}>{formatRoleLabel(role)}</span>
+            {agent ? (
+              <span className={`status-pill ${agent.status}`}>{agent.status}</span>
+            ) : (
+              <span className="status-pill unassigned">unassigned</span>
+            )}
+          </span>
         </div>
         <p className="crew-tile-tagline">{character.catchphrase}</p>
         {agent ? (
           <dl className="crew-tile-kpis">
-            <div>
-              <dt>Balance</dt>
-              <dd>{agent.balanceJpy !== null ? formatCompactJpy(agent.balanceJpy) : "—"}</dd>
-            </div>
-            <div>
-              <dt>PnL</dt>
-              <dd className={pnlTone ? `tone-${pnlTone}` : undefined}>
-                {agent.pnlJpy !== null
-                  ? `${agent.pnlJpy >= 0 ? "+" : ""}${formatCompactJpy(agent.pnlJpy)}`
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt>Open</dt>
-              <dd>{agent.openPositionCount ?? 0}</dd>
-            </div>
+            {roleKpis.map((kpi) => (
+              <div key={kpi.label}>
+                <dt>{kpi.label}</dt>
+                <dd className={kpi.tone ? `tone-${kpi.tone}` : undefined}>{kpi.value}</dd>
+              </div>
+            ))}
             <div>
               <dt>Runs ok</dt>
               <dd>
-                {agent.succeededRunCount}/{agent.succeededRunCount + agent.failedRunCount}
+                {agent.succeededRunCount}/{runTotal}
               </dd>
             </div>
           </dl>
@@ -97,6 +99,104 @@ export function CrewTile({
       </div>
     </Link>
   );
+}
+
+type RoleKpi = {
+  label: string;
+  value: string | number;
+  tone?: "profit" | "loss" | "neutral";
+};
+
+function buildRoleKpis({
+  agent,
+  role,
+  pnlTone,
+}: {
+  agent: CrewAgentSummary | null;
+  role: AgentRole;
+  pnlTone: "profit" | "loss" | "neutral" | null;
+}): RoleKpi[] {
+  if (!agent) return [];
+
+  const pnlValue =
+    agent.pnlJpy !== null
+      ? `${agent.pnlJpy >= 0 ? "+" : ""}${formatCompactJpy(agent.pnlJpy)}`
+      : "—";
+
+  if (role === "trader") {
+    return [
+      {
+        label: "PnL",
+        value: pnlValue,
+        tone: pnlTone ?? undefined,
+      },
+      {
+        label: "Open",
+        value: agent.openPositionCount ?? 0,
+      },
+      {
+        label: "Proposals",
+        value: `${agent.acceptedProposalCount}/${agent.proposalCount}`,
+      },
+    ];
+  }
+
+  if (role === "skill_curator") {
+    return [
+      {
+        label: "Curations",
+        value: `${agent.appliedSkillCurationCount}/${agent.skillCurationCount}`,
+      },
+      {
+        label: "Signals",
+        value: agent.observationCount,
+      },
+      {
+        label: "Balance",
+        value: agent.balanceJpy !== null ? formatCompactJpy(agent.balanceJpy) : "—",
+      },
+    ];
+  }
+
+  if (role === "risk_auditor") {
+    return [
+      {
+        label: "Reviews",
+        value: `${agent.appliedCandidateReviewCount}/${agent.candidateReviewCount}`,
+      },
+      {
+        label: "Open risk",
+        value: agent.openPositionCount ?? 0,
+      },
+      {
+        label: "PnL guard",
+        value: pnlValue,
+        tone: pnlTone ?? undefined,
+      },
+    ];
+  }
+
+  return [
+    {
+      label: "Signals",
+      value: agent.observationCount,
+    },
+    {
+      label: "Proposals",
+      value: `${agent.acceptedProposalCount}/${agent.proposalCount}`,
+    },
+    {
+      label: "Balance",
+      value: agent.balanceJpy !== null ? formatCompactJpy(agent.balanceJpy) : "—",
+    },
+  ];
+}
+
+function formatRoleLabel(role: AgentRole): string {
+  if (role === "skill_curator") return "Skill Curator";
+  if (role === "risk_auditor") return "Risk Auditor";
+  if (role === "news_analyst") return "News Analyst";
+  return "Trader";
 }
 
 function formatCompactJpy(value: number): string {
