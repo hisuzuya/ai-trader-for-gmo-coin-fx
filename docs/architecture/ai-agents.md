@@ -298,7 +298,7 @@ Phase 1:
 
 Phase 2:
 
-- hourly tunerのmanual run triggerはResearch Agent pipelineを優先実行する。旧 `AiTunerService` はfallback serviceとして残す。
+- hourly tunerのmanual run triggerは6体crewのAgent pipelineを優先実行する。旧 `AiTunerService` はfallback serviceとして残す。
 - daily reviewerのmanual run triggerはactive AI Agentを横断実行し、CandidateReview数とpromotion/retirement Candidate Review数を集計する。旧 `AiDailyReviewerService` はfallback serviceとして残す。
 - Agent proposal cadenceは1mが1時間、5mが3時間、15mが12時間を初期値にする。
 - AI Agent Runにはtoken/cost budget、consecutive failure tracking、auto-pauseを持たせる。
@@ -307,9 +307,9 @@ Phase 2:
 
 Phase 3:
 
-- seedは複数AI Agentを作成する。初期構成は `Research Agent 01` と `Research Agent 1H`。
+- seedは6体のcrew AI Agentだけを作成する。初期構成は `Ceres`、`Yura`、`Noah`、`Iris`、`Ragna`、`Chloe`。
 - AI Agent一覧はproposal/runの成功・失敗件数を返し、比較UIの最小入力にする。
-- `Research Agent 1H` はcontext buildingで1h candleを使う。
+- `Iris` はmanual/event-drivenのrisk auditorとしてpaused既定にし、通常の定期実行対象から外す。
 - shared memory shelfは `shared_memory` tagで表現する。Phase 3では独立tableを追加しない。
 - live tradingへの反映は実装しない。live trading向けには人間承認ゲートを別設計し、AI Agent outputは直接live order pathへ接続しない。
 
@@ -446,28 +446,17 @@ ai_agent_candidate_reviews
 
 system prompt保存時は必ず新versionを作る。rollbackも履歴を消さず、新versionとして保存する。
 
-## Seed Agent
+## Seed Agents
 
-Phase 1では1体だけseedする。
+Phase 1のseedは6体のcrew agentに限定する。
 
 ```text
-name: "Research Agent 01"
-persona: "USD/JPY paper strategy researcher"
-systemPrompt:
-  あなたはUSD/JPYのPaper Trading戦略を研究するAI Agentです。
-  あなたはPaper Order、決済、Baseline Strategy昇格、Candidate Strategy停止を直接実行してはいけません。
-  あなたの役割は、市場状態、候補成績、過去の失敗理由、自分のmemoryを観察し、
-  Strategy Definition候補、Candidate Review、Observation、Memory WriteをJSONで出力することです。
-  Strategy Definitionは許可済みDSLだけを使い、Risk Gateを緩和してはいけません。
-allowedTools:
-  - read_bars
-  - calc_indicator
-  - get_candidate_performance
-  - get_rejection_history
-  - recall_memory
-runIntervalSec: 3600
-model: configurable
-status: active
+Ceres: skill_curator, 12h cadence
+Yura: trader, 1h cadence
+Noah: trader, 1h cadence
+Iris: risk_auditor, paused by default
+Ragna: trader, 1h cadence
+Chloe: news_analyst, 1h cadence
 ```
 
 ## Security / Guardrails
@@ -494,7 +483,7 @@ Phase 1
   - AgentScheduler / AgentRunEnvelopeBuilder / AgentOutputProcessor実装
 - StrategyEvaluationPipelineにAI Agent source proposalを接続
 - /agents UI追加
-- seed AI Agent 1体投入
+- seed crew AI Agent 6体投入
 
 Phase 2
   - existing hourly tunerをAgent Pipelineへ統合

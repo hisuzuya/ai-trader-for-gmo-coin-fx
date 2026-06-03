@@ -106,6 +106,13 @@
       "when": 1780300000000,
       "tag": "0014_agent_skill_curations",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1780400000000,
+      "tag": "0015_crew_agent_cadence",
+      "breakpoints": true
     }
   ]
 }

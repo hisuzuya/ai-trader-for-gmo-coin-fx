@@ -479,7 +479,7 @@ describe("worker Hono app", () => {
     const runtime = {
       getAgentDetail: vi.fn().mockResolvedValue({
         id: "agent-1",
-        name: "Research Agent 01",
+        name: "Ceres",
         memories: [],
         proposals: [],
         reviews: [],
@@ -492,7 +492,7 @@ describe("worker Hono app", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body.agent.name).toBe("Research Agent 01");
+    expect(body.agent.name).toBe("Ceres");
     expect(runtime.getAgentDetail).toHaveBeenCalledWith("agent-1");
   });
 
