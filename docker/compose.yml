@@ -71,6 +71,8 @@ services:
       AI_RUNNER_INTERNAL_URL: http://ai-runner:8788
       AI_TUNING_ENABLED: "false"
       AI_DAILY_REVIEW_ENABLED: "false"
+      AI_PROMPT_OPTIMIZER_ENABLED: "false"
+      AI_SKILL_CURATOR_ENABLED: "false"
     depends_on:
       ai-runner:
         condition: service_healthy
