@@ -69,6 +69,8 @@ services:
       DATABASE_URL: postgresql://${AI_TRADE_POSTGRES_USER:-ai_trade}:${AI_TRADE_POSTGRES_PASSWORD:-ai_trade}@timescaledb:5432/${AI_TRADE_POSTGRES_DB:-ai_trade}
       WORKER_PORT: "8787"
       AI_RUNNER_INTERNAL_URL: http://ai-runner:8788
+      AI_TUNING_ENABLED: "false"
+      AI_DAILY_REVIEW_ENABLED: "false"
     depends_on:
       ai-runner:
         condition: service_healthy

@@ -65,6 +65,9 @@ export const CREW_AGENT_SEED_IDS: Record<CharacterId, string> = {
 
 /** Paper-money starting balance for each auto-seeded crew agent (JPY). */
 export const CREW_AGENT_INITIAL_BALANCE_JPY = "100000";
+const SINGLE_TRADER_CHARACTER_ID = "yura" satisfies CharacterId;
+const SINGLE_TRADER_PAUSED_REASON =
+  "Paused by single-trader mode; only the primary trading agent is active.";
 
 export type PromptOptimizationStatus = "optimized" | "rolled_back" | "rejected" | "skipped";
 
@@ -616,41 +619,51 @@ export class AiAgentRepository {
   }
 
   /**
-   * Idempotently create all 6 crew characters with their default status, each with its own
-   * paper account. Guarded by the fixed crew UUIDs: an agent is only created when
-   * its seed id is absent, so this is safe to call on every scheduler start.
+   * Idempotently create the primary trader and keep every other agent paused.
+   * This intentionally favors a low-cost operating mode: one autonomous trader
+   * can run, while the rest of the crew remains available but inactive.
    */
   async seedCrewAgents(): Promise<{ created: CharacterId[] }> {
     const created: CharacterId[] = [];
 
-    for (const character of AGENT_CHARACTERS) {
-      const seedId = CREW_AGENT_SEED_IDS[character.id];
-      const [existing] = await this.database
+    const character = AGENT_CHARACTERS.find(
+      (candidate) => candidate.id === SINGLE_TRADER_CHARACTER_ID,
+    );
+
+    if (!character) {
+      throw new Error("Primary trading agent character is not configured.");
+    }
+
+    const seedId = CREW_AGENT_SEED_IDS[character.id];
+
+    await this.database.transaction(async (tx) => {
+      const [existing] = await tx
         .select({ id: aiAgents.id })
         .from(aiAgents)
         .where(eq(aiAgents.id, seedId))
         .limit(1);
 
       if (existing) {
-        continue;
-      }
+        await tx
+          .update(aiAgents)
+          .set({ status: "active", pausedReason: null, updatedAt: new Date() })
+          .where(eq(aiAgents.id, seedId));
+      } else {
+        const allowedTools = filterAllowedTools(character.defaultAllowedTools);
+        // Append the role-specific directive after persona + guardrail so the
+        // seeded prompt already reflects the agent's specialisation.
+        const systemPrompt = composeSystemPrompt(
+          character.defaultSystemPrompt,
+          character.defaultRole,
+        );
 
-      const allowedTools = filterAllowedTools(character.defaultAllowedTools);
-      // Append the role-specific directive after persona + guardrail so the
-      // seeded prompt already reflects the agent's specialisation.
-      const systemPrompt = composeSystemPrompt(
-        character.defaultSystemPrompt,
-        character.defaultRole,
-      );
-
-      await this.database.transaction(async (tx) => {
         await tx.insert(aiAgents).values({
           id: seedId,
           name: character.name,
           persona: character.defaultPersona,
           systemPrompt,
           allowedTools,
-          status: character.defaultStatus,
+          status: "active",
           currentVersion: "1",
           runIntervalSec: String(character.defaultRunIntervalSec),
           model: character.defaultModel,
@@ -658,10 +671,7 @@ export class AiAgentRepository {
           consecutiveFailures: "0",
           tokenBudgetPerRun: "200000",
           costBudgetPerRunUsd: "5",
-          pausedReason:
-            character.defaultStatus === "paused"
-              ? "Default crew cadence: run manually or by risk event."
-              : null,
+          pausedReason: null,
           sharedMemoryEnabled: true,
           characterId: character.id,
           role: character.defaultRole,
@@ -673,7 +683,7 @@ export class AiAgentRepository {
           version: "1",
           systemPrompt,
           allowedTools,
-          note: `Seeded crew agent ${character.id}.`,
+          note: `Seeded primary trading agent ${character.id}.`,
         });
 
         await tx.insert(paperAccounts).values({
@@ -685,10 +695,19 @@ export class AiAgentRepository {
           leverage: "1.00",
           status: "active",
         });
-      });
 
-      created.push(character.id);
-    }
+        created.push(character.id);
+      }
+
+      await tx
+        .update(aiAgents)
+        .set({
+          status: "paused",
+          pausedReason: SINGLE_TRADER_PAUSED_REASON,
+          updatedAt: new Date(),
+        })
+        .where(sql`${aiAgents.id} <> ${seedId} and ${aiAgents.status} = 'active'`);
+    });
 
     return { created };
   }
