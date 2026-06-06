@@ -1,26 +1,24 @@
 import { z } from "zod";
 
-const envBoolean = z
-  .union([z.boolean(), z.string()])
-  .transform((value, ctx) => {
-    if (typeof value === "boolean") {
-      return value;
-    }
+const envBoolean = z.union([z.boolean(), z.string()]).transform((value, ctx) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
 
-    const normalized = value.trim().toLowerCase();
-    if (["1", "true", "yes", "on"].includes(normalized)) {
-      return true;
-    }
-    if (["0", "false", "no", "off", ""].includes(normalized)) {
-      return false;
-    }
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off", ""].includes(normalized)) {
+    return false;
+  }
 
-    ctx.addIssue({
-      code: "custom",
-      message: `Invalid boolean value: ${value}`,
-    });
-    return z.NEVER;
+  ctx.addIssue({
+    code: "custom",
+    message: `Invalid boolean value: ${value}`,
   });
+  return z.NEVER;
+});
 
 const serverEnvSchema = z.object({
   DATABASE_URL: z.string().url().default("postgresql://ai_trade:ai_trade@localhost:5432/ai_trade"),
