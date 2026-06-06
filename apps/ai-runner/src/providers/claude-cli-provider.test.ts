@@ -7,6 +7,37 @@ import { describe, expect, it } from "vitest";
 import { ClaudeCliProvider } from "./claude-cli-provider.js";
 
 describe("ClaudeCliProvider", () => {
+  it("keeps the provider disabled when AI_RUNNER_ENABLED is off", async () => {
+    const previousAiRunnerEnabled = process.env.AI_RUNNER_ENABLED;
+    const previousClaudeCliEnabled = process.env.CLAUDE_CLI_ENABLED;
+
+    try {
+      process.env.AI_RUNNER_ENABLED = "0";
+      process.env.CLAUDE_CLI_ENABLED = "1";
+
+      const provider = new ClaudeCliProvider();
+      const health = await provider.health();
+
+      expect(health).toMatchObject({
+        enabled: false,
+        ready: false,
+        mode: "disabled",
+      });
+    } finally {
+      if (previousAiRunnerEnabled === undefined) {
+        delete process.env.AI_RUNNER_ENABLED;
+      } else {
+        process.env.AI_RUNNER_ENABLED = previousAiRunnerEnabled;
+      }
+
+      if (previousClaudeCliEnabled === undefined) {
+        delete process.env.CLAUDE_CLI_ENABLED;
+      } else {
+        process.env.CLAUDE_CLI_ENABLED = previousClaudeCliEnabled;
+      }
+    }
+  });
+
   it("treats empty stdout as a failed invocation", async () => {
     const dir = await mkdtemp(join(tmpdir(), "claude-empty-"));
     const executable = join(dir, "claude-empty");

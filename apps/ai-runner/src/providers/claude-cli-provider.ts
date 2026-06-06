@@ -90,7 +90,10 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
   private readonly mcpAgentResearchArgs: string[];
 
   constructor(options: ClaudeCliProviderOptions = {}) {
-    this.enabled = options.enabled ?? process.env.CLAUDE_CLI_ENABLED === "1";
+    this.enabled =
+      options.enabled ??
+      (envFlagEnabled(process.env.AI_RUNNER_ENABLED, true) &&
+        envFlagEnabled(process.env.CLAUDE_CLI_ENABLED, false));
     this.executable = options.executable ?? process.env.CLAUDE_CLI_PATH ?? "claude";
     this.timeoutMs = options.timeoutMs ?? 120_000;
     this.mcpEnabled = options.mcpEnabled ?? process.env.CLAUDE_MCP_ENABLED === "1";
@@ -113,7 +116,7 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
       ready: this.enabled,
       reason: this.enabled
         ? "Claude CLI provider is enabled."
-        : "Set CLAUDE_CLI_ENABLED=1 to enable strategy proposal generation.",
+        : "Set AI_RUNNER_ENABLED=1 and CLAUDE_CLI_ENABLED=1 to enable strategy proposal generation.",
     };
   }
 
@@ -588,6 +591,11 @@ export class ClaudeCliProvider implements StrategyProposalProvider {
       prompt,
     ];
   }
+}
+
+function envFlagEnabled(value: string | undefined, defaultValue: boolean): boolean {
+  if (value === undefined) return defaultValue;
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
 function parseMcpArgs(value: string | undefined): string[] | undefined {

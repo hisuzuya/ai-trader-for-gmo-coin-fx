@@ -172,8 +172,8 @@ docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" down --remove-
 docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build timescaledb
 wait_service_healthy timescaledb
 docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up --build --abort-on-container-exit --exit-code-from db-migrate db-migrate
-docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build --no-deps ai-runner mcp-agent-research
-wait_service_healthy ai-runner mcp-agent-research
+docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build --no-deps mcp-agent-research
+wait_service_healthy mcp-agent-research
 docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build --no-deps worker
 wait_service_healthy worker
 docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" up -d --build --no-deps next-web
