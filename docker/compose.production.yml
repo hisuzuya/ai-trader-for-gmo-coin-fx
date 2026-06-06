@@ -45,8 +45,10 @@ services:
         required: false
     environment:
       NODE_ENV: production
-      AI_TUNING_ENABLED: "true"
-      AI_DAILY_REVIEW_ENABLED: "true"
+      AI_TUNING_ENABLED: "false"
+      AI_DAILY_REVIEW_ENABLED: "false"
+      AI_PROMPT_OPTIMIZER_ENABLED: "false"
+      AI_SKILL_CURATOR_ENABLED: "false"
       AI_RUNNER_INTERNAL_URL: http://ai-runner:8788
       WORKER_INTERNAL_TOKEN: ${WORKER_INTERNAL_TOKEN:?WORKER_INTERNAL_TOKEN is required}
     ports: !override
@@ -71,7 +73,8 @@ services:
         required: false
     environment:
       NODE_ENV: production
-      CLAUDE_CLI_ENABLED: "1"
+      AI_RUNNER_ENABLED: "0"
+      CLAUDE_CLI_ENABLED: "0"
       CLAUDE_CLI_PATH: /usr/local/bin/claude
       CLAUDE_CONFIG_DIR: /home/node/.claude
       CLAUDE_MCP_ENABLED: "1"

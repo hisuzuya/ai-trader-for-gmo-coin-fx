@@ -124,6 +124,8 @@ services:
         required: false
     environment:
       AI_RUNNER_PORT: "8788"
+      AI_RUNNER_ENABLED: "0"
+      CLAUDE_CLI_ENABLED: "0"
       CLAUDE_MCP_ENABLED: "1"
       CLAUDE_CLI_PATH: /usr/local/bin/claude
       CLAUDE_CONFIG_DIR: /home/node/.claude
