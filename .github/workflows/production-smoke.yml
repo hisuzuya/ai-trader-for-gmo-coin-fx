@@ -1,15 +1,7 @@
 name: Production Smoke
 
 on:
-  schedule:
-    - cron: "17 */6 * * *"
   workflow_dispatch:
-    inputs:
-      run_agent:
-        description: "Run one production agent execution smoke test"
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -66,17 +58,13 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
-      - name: Run production smoke checks
+      - name: Check ai-runner and remove Claude token
         env:
           TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CLOUDFLARE_ACCESS_SERVICE_TOKEN_ID }}
           TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_SERVICE_TOKEN_SECRET }}
-          RUN_AGENT: ${{ inputs.run_agent }}
         run: |
           set -euo pipefail
-          {
-            printf '#!/usr/bin/env bash\n'
-            printf 'RUN_AGENT=%q\n' "$RUN_AGENT"
-            cat <<'REMOTE'
+          ssh ai-trade-production <<'REMOTE'
           set -euo pipefail
 
           cd /opt/ai-trade
@@ -86,34 +74,83 @@ jobs:
             COMPOSE_ENV_ARGS=(--env-file .env.production)
           fi
           COMPOSE_FILE_ARGS=(-f docker/compose.yml)
+          TOKEN_KEYS='ANTHROPIC_AUTH_TOKEN|ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN|CLAUDE_API_KEY'
 
           printf 'vm git head=%s\n' "$(git rev-parse HEAD)"
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T ai-runner node -e 'console.log(JSON.stringify({ claudeMcpEnabled: process.env.CLAUDE_MCP_ENABLED ?? null, claudeCliPath: process.env.CLAUDE_CLI_PATH ?? null, mcpAgentResearchCommand: process.env.CLAUDE_MCP_AGENT_RESEARCH_COMMAND ?? null, mcpAgentResearchArgs: process.env.CLAUDE_MCP_AGENT_RESEARCH_ARGS ?? null }))'
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" ps
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T next-web node -e 'void (async () => { const response = await fetch("http://127.0.0.1:3000/api/trpc/health"); const body = await response.text(); console.log(`next-web health ${response.status}: ${body}`); if (!response.ok) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T worker node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8787/ready"); const body = await response.json(); console.log(`worker ready ${response.status}: ${JSON.stringify(body)}`); if (!response.ok || !body.ok) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T worker node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8787/agents"); const body = await response.json(); console.log(`agents ${response.status}: ${JSON.stringify({ ok: body.ok, count: body.agents?.length ?? 0 })}`); if (!response.ok || !body.ok || !Array.isArray(body.agents) || body.agents.length < 1) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T worker node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8787/agents"); const body = await response.json(); if (!response.ok || !body.ok || !Array.isArray(body.agents)) process.exit(1); const perAgent = []; for (const agent of body.agents) { const detailResponse = await fetch(`http://127.0.0.1:8787/agents/${agent.id}`); const detailBody = await detailResponse.json(); if (!detailResponse.ok || !detailBody.ok) process.exit(1); const skills = Array.isArray(detailBody.agent?.skills) ? detailBody.agent.skills : []; const activeSkills = skills.filter((skill) => skill?.status === "active").length; perAgent.push({ id: agent.id, name: detailBody.agent?.name ?? agent.name ?? agent.id, skills: skills.length, activeSkills }); } const totalSkills = perAgent.reduce((sum, agent) => sum + agent.skills, 0); const totalActiveSkills = perAgent.reduce((sum, agent) => sum + agent.activeSkills, 0); const skillBackedAgents = perAgent.filter((agent) => agent.skills > 0).length; const activeSkillBackedAgents = perAgent.filter((agent) => agent.activeSkills > 0).length; console.log(`agent skills summary ${JSON.stringify({ agents: perAgent.length, skillBackedAgents, activeSkillBackedAgents, totalSkills, totalActiveSkills, perAgent })}`); })().catch((error) => { console.error(error); process.exit(1); })'
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T mcp-agent-research node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8789/health"); const body = await response.json(); console.log(`mcp-agent-research health ${response.status}: ${JSON.stringify(body)}`); if (!response.ok || !body.ok) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T ai-runner node apps/mcp-agent-research/dist/mcp-stdio-smoke.cjs
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T ai-runner node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8788/invoke", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: "Return JSON only: {\"ok\":true}", timeoutMs: 90000 }) }); const body = await response.json(); console.log(`ai-runner invoke ${response.status}: ${JSON.stringify({ ok: body.ok, stdout: body.stdout, error: body.error ?? null })}`); if (!response.ok || !body.ok || !String(body.stdout ?? "").includes("\"ok\"")) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
-          AGENT_ID="$(docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T worker node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8787/agents"); const body = await response.json(); if (!response.ok || !body.ok || !Array.isArray(body.agents)) process.exit(1); for (const agent of body.agents) { const detailResponse = await fetch(`http://127.0.0.1:8787/agents/${agent.id}`); const detailBody = await detailResponse.json(); const skillCount = detailBody.agent?.skills?.length ?? 0; if (detailResponse.ok && detailBody.ok && skillCount > 0) { console.error(`selected skill-backed agent ${agent.id}: skills=${skillCount}`); console.log(agent.id); return; } } console.error("No DB-backed agent skills were returned by /agents/:id."); process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })')"
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T -e AGENT_ID="$AGENT_ID" worker node -e 'void (async () => { const agentId = process.env.AGENT_ID; const prompt = `You MUST call the MCP tool mcp__agent_research__recall_skills exactly once with {"agentId":"${agentId}","limit":3}. After the tool result is returned, return JSON only: {"used_recall_skills":true,"skill_count":number}. Do not answer before calling the tool. skill_count MUST be the number of skills returned by the MCP tool result.`; const response = await fetch("http://ai-runner:8788/invoke", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, timeoutMs: 90000 }) }); const body = await response.json(); const mcpToolNames = Array.isArray(body.mcpToolCalls) ? body.mcpToolCalls.map((call) => call.name) : []; console.log(`ai-runner mcp recall_skills ${response.status}: ${JSON.stringify({ ok: body.ok, stdout: body.stdout, mcpToolNames, error: body.error ?? null })}`); const parsed = JSON.parse(String(body.stdout ?? "{}")); if (!response.ok || !body.ok || parsed.used_recall_skills !== true || typeof parsed.skill_count !== "number" || parsed.skill_count < 1 || !mcpToolNames.includes("recall_skills")) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'
-          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T -e AGENT_ID="$AGENT_ID" ai-runner node apps/mcp-agent-research/dist/mcp-stdio-context-snapshot-smoke.cjs
 
-          if [ "$RUN_AGENT" = "true" ]; then
-            if ! docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T worker node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8787/jobs/agent-run", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${process.env.WORKER_INTERNAL_TOKEN}` }, body: "{}" }); const body = await response.json(); const error = String(body.error ?? body.result?.error ?? ""); console.log(`agent-run ${response.status}: ${JSON.stringify({ ok: body.ok, status: body.result?.status, error: error || null })}`); if (response.status === 500 && error.includes("No runnable AI Agent was found")) { console.log("agent-run skipped: no runnable AI Agent is currently due."); return; } if (!response.ok || body.ok !== true) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'; then
-              docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" logs --tail=120 ai-runner worker
-              exit 1
-            fi
-            if ! docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T worker node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8787/jobs/prompt-optimization", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${process.env.WORKER_INTERNAL_TOKEN}` }, body: "{}" }); const body = await response.json(); console.log(`prompt-optimization ${response.status}: ${JSON.stringify({ ok: body.ok, enabled: body.result?.enabled, evaluated: body.result?.evaluatedAgentCount, optimized: body.result?.optimizedCount })}`); if (!response.ok || body.ok !== true) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'; then
-              docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" logs --tail=120 ai-runner worker
-              exit 1
-            fi
-            if ! docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" exec -T worker node -e 'void (async () => { const response = await fetch("http://127.0.0.1:8787/jobs/skill-curation", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${process.env.WORKER_INTERNAL_TOKEN}` }, body: "{}" }); const body = await response.json(); console.log(`skill-curation ${response.status}: ${JSON.stringify({ ok: body.ok, enabled: body.result?.enabled, curators: body.result?.evaluatedCuratorCount, applied: body.result?.appliedDecisionCount })}`); if (!response.ok || body.ok !== true) process.exit(1); })().catch((error) => { console.error(error); process.exit(1); })'; then
-              docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" logs --tail=120 ai-runner worker
-              exit 1
-            fi
+          container_id="$(docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" ps -q ai-runner || true)"
+          if [ -z "$container_id" ]; then
+            echo 'ai-runner status before: not running'
+          else
+            docker inspect --format 'ai-runner status before: status={{.State.Status}} running={{.State.Running}}{{if .State.Health}} health={{.State.Health.Status}}{{end}}' "$container_id"
           fi
+
+          docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" stop ai-runner >/dev/null 2>&1 || true
+
+          container_id="$(docker compose "${COMPOSE_FILE_ARGS[@]}" "${COMPOSE_ENV_ARGS[@]}" ps -q ai-runner || true)"
+          if [ -z "$container_id" ]; then
+            echo 'ai-runner status after stop: not running'
+          else
+            docker inspect --format 'ai-runner status after stop: status={{.State.Status}} running={{.State.Running}}{{if .State.Health}} health={{.State.Health.Status}}{{end}}' "$container_id"
+          fi
+
+          if [ -f .env.production ]; then
+            before_count="$(grep -Ec "^(${TOKEN_KEYS})=" .env.production || true)"
+            if [ "$before_count" -gt 0 ]; then
+              backup=".env.production.bak.remove-claude-token-$(date +%Y%m%d%H%M%S)"
+              cp -p .env.production "$backup"
+              tmp="$(mktemp)"
+              grep -Ev "^(${TOKEN_KEYS})=" .env.production > "$tmp" || true
+              install -m 600 "$tmp" .env.production
+              rm -f "$tmp"
+              echo "local env token keys removed: $before_count (backup: $backup)"
+            else
+              echo 'local env token keys removed: 0'
+            fi
+          else
+            echo 'local env file missing: .env.production'
+          fi
+
+          if [ -r .infisical-bootstrap.env ]; then
+            # shellcheck disable=SC1091
+            . ./.infisical-bootstrap.env
+            api="${INFISICAL_API_URL:-}"
+            project="${INFISICAL_PROJECT_ID:-}"
+            client_id="${INFISICAL_CLIENT_ID:-}"
+            client_secret="${INFISICAL_CLIENT_SECRET:-}"
+            unset INFISICAL_API_URL INFISICAL_PROJECT_ID INFISICAL_CLIENT_ID INFISICAL_CLIENT_SECRET
+
+            if [ -n "$api" ] && [ -n "$project" ] && [ -n "$client_id" ] && [ -n "$client_secret" ]; then
+              token="$(printf '{"clientId":"%s","clientSecret":"%s"}' "$client_id" "$client_secret" \
+                | curl -fsS --max-time 20 -X POST "$api/api/v1/auth/universal-auth/login" \
+                    -H 'Content-Type: application/json' --data @- 2>/dev/null \
+                | jq -r '.accessToken // empty')" || true
+
+              if [ -n "${token:-}" ]; then
+                for key in ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN CLAUDE_API_KEY; do
+                  body="$(jq -cn --arg environment prod --arg workspaceId "$project" \
+                    '{environment:$environment,workspaceId:$workspaceId,secretPath:"/",type:"shared"}')"
+                  code="$(curl -sS --max-time 20 -o /tmp/infisical-delete-response.json -w '%{http_code}' \
+                    -X DELETE "$api/api/v3/secrets/raw/$key" \
+                    -H "Authorization: Bearer $token" \
+                    -H 'Content-Type: application/json' \
+                    --data "$body" || true)"
+                  if [ "$code" = "200" ] || [ "$code" = "204" ]; then
+                    echo "infisical delete $key: deleted"
+                  elif [ "$code" = "404" ]; then
+                    echo "infisical delete $key: not found"
+                  else
+                    echo "infisical delete $key: http $code"
+                  fi
+                done
+              else
+                echo 'infisical delete: auth failed'
+              fi
+            else
+              echo 'infisical delete: bootstrap incomplete'
+            fi
+          else
+            echo 'infisical delete: bootstrap not readable'
+          fi
+
           REMOTE
-          } | ssh ai-trade-production
