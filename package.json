@@ -18,7 +18,7 @@
     "test": "pnpm -r --if-present test"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.6",
+    "@hono/node-server": "^2.0.10",
     "@trpc/server": "^11.7.1",
     "drizzle-orm": "^0.45.0",
     "hono": "^4.10.6",
