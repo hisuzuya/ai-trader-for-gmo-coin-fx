@@ -16,7 +16,7 @@
     "@ai-trade/domain": "workspace:*",
     "@trpc/server": "^11.7.1",
     "lightweight-charts": "^5.0.7",
-    "next": "^16.0.5",
+    "next": "^16.2.11",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "superjson": "^2.2.2",
