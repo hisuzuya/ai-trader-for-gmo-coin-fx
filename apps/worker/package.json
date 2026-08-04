@@ -17,6 +17,6 @@
     "@ai-trade/db": "workspace:*",
     "@ai-trade/domain": "workspace:*",
     "@hono/node-server": "^1.19.6",
-    "hono": "^4.10.6"
+    "hono": "^4.12.34"
   }
 }
